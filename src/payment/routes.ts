@@ -1,12 +1,11 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { paymentService } from "../services/payment-service";
-import crypto from "crypto";
 import { getDB } from "../db";
 import { ObjectId } from "mongodb";
-import { razorpay } from "../services/razorpay";
 import { v4 as uuidv4 } from "uuid";
 import { authMiddleware } from "../auth/routes";
+import { orderService } from "../services/order-service";
 
 // Extend Request type to include rawBody if we capture it in app.ts
 declare global {
@@ -56,6 +55,9 @@ export const paymentRoutes = () => {
     userPhone: z.string().optional(),
     transactionId: z.string().optional(),
     meterId: z.string().min(1, "meterId is required"),
+    sourceMeterId: z.string().min(1, "sourceMeterId is required"),
+    messageId: z.string().min(1, "messageId is required"),
+    items: z.record(z.string(), z.any()).optional(), // Add items to schema
   });
 
   // --- Middleware ---
@@ -86,9 +88,18 @@ export const paymentRoutes = () => {
     validateBody(paymentOrderSchema),
     async (req: Request, res: Response) => {
       try {
-        const { amount, currency, notes, userPhone, meterId } = req.body;
+        const {
+          amount,
+          currency,
+          notes,
+          userPhone,
+          meterId,
+          sourceMeterId,
+          messageId,
+          items,
+        } = req.body;
         let { transactionId } = req.body;
-        
+
         console.log("req.body", req.body);
 
         transactionId = transactionId || uuidv4();
@@ -111,7 +122,6 @@ export const paymentRoutes = () => {
           currency,
           orderId: order.id,
           transaction_id: transactionId,
-          meterId: meterId,
           createdAt: new Date(),
           updatedAt: new Date(),
         };
@@ -129,6 +139,24 @@ export const paymentRoutes = () => {
           name: notes?.name || "Customer",
         });
         console.log("Created Razorpay payment link:", paymentLink);
+
+        // --- Save Buyer Order ---
+        await orderService.saveBuyerOrder(transactionId, {
+          userId: user._id,
+          userPhone: phone,
+          razorpayOrderId: order.id,
+          txnPayId: trnsResp.insertedId,
+          meterId,
+          sourceMeterId,
+          messageId,
+          items: items || {}, // Store items
+          status: "INITIATED",
+          transaction_id: transactionId,
+          type: "buyer",
+        });
+        console.log(
+          `[Payment] Saved buyer order ${transactionId} with RZP order ${order.id}`,
+        );
 
         res.json({
           success: true,
@@ -186,6 +214,29 @@ export const paymentRoutes = () => {
     );
 
     if (isValid) {
+      // --- Update Buyer Order Status ---
+      const razorpayOrderId = razorpay_payment_link_reference_id as string;
+
+      // Find the transactionId associated with this Razorpay Order ID
+      const db = getDB();
+      const buyerOrder = await db
+        .collection("buyer_orders")
+        .findOne({ razorpayOrderId });
+
+      if (buyerOrder) {
+        const transactionId = buyerOrder.transactionId;
+
+        await orderService.updateBuyerOrderStatus(transactionId, "PAID", {
+          paymentId: razorpay_payment_id,
+          razorpaySignature: razorpay_signature,
+        });
+        console.log(`[Callback] Buyer Order ${transactionId} marked as PAID`);
+      } else {
+        console.warn(
+          `[Callback] Buyer Order not found for RZP Order ${razorpayOrderId}`,
+        );
+      }
+
       res.status(200).json({
         success: true,
         data: {

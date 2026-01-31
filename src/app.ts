@@ -14,6 +14,7 @@ import { voiceRoutes } from "./voice/routes";
 import { connectDB } from "./db";
 import { startPolling, stopPolling } from "./services/settlement-poller";
 import { ZodError } from "zod";
+import { ordersRoutes } from "./orders/routes";
 
 export async function createApp() {
   // Connect to MongoDB on startup
@@ -41,6 +42,7 @@ export async function createApp() {
   apiRouter.use("/", paymentRoutes()); // Mounts /api/payment/order, /api/payment/verify, /api/payment/:orderId, /webhook/razorpay
   apiRouter.use("/", notificationRoutes()); // Mounts /api/notification/sms
   apiRouter.use("/voice", authMiddleware, voiceRoutes());  // Mounts /api/voice/intent
+  apiRouter.use("/", ordersRoutes()); // Mounts /api/orders
 
   // Mount the main API router with /api prefix
   apiRouter.use("/health", (req: Request, res: Response) => {
