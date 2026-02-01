@@ -6,6 +6,9 @@ import { catalogStore } from '../services/catalog-store';
 import { settlementStore, SettlementStatus } from '../services/settlement-store';
 import { settlementPoller, pollOnce, refreshSettlement, getPollingStatus } from '../services/settlement-poller';
 import { ledgerClient } from '../services/ledger-client';
+import dotenv from "dotenv";
+import { parseError } from '../utils';
+dotenv.config();
 
 const ONIX_BPP_URL = process.env.ONIX_BPP_URL || 'http://onix-bpp:8082';
 const EXCESS_DATA_PATH = process.env.EXCESS_DATA_PATH || 'data/excess_predicted_hourly.json';
@@ -49,7 +52,7 @@ export const tradeRoutes = () => {
         onixResponse = onixRes.data;
         console.log(`[API] ONIX forwarding successful`);
       } catch (error: any) {
-        onixError = error.message;
+        onixError = parseError(error);
         console.warn(`[API] ONIX forwarding failed (catalog saved locally): ${error.message}`);
       }
 

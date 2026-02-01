@@ -1,0 +1,123 @@
+{
+  "success": true,
+  "transaction_id": "txn-3ab92e40-6f75-40",
+  "context": {
+    "version": "2.0.0",
+    "action": "on_init",
+    "timestamp": "2026-02-01T04:34:49.104Z",
+    "message_id": "init-50d7b18a",
+    "transaction_id": "txn-3ab92e40-6f75-40",
+    "bap_id": "p2p.terrarexenergy.com",
+    "bap_uri": "https://p2p.terrarexenergy.com/bap/receiver",
+    "bpp_id": "deg.voltbrew.energy",
+    "bpp_uri": "https://deg.voltbrew.energy/bpp/receiver",
+    "ttl": "PT30S",
+    "domain": "beckn.one:deg:p2p-trading:2.0.0"
+  },
+  "message": {
+    "order": {
+      "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+      "@type": "beckn:Order",
+      "beckn:orderStatus": "CREATED",
+      "beckn:seller": "tpddl-deg.voltbrew.energy",
+      "beckn:buyer": {
+        "beckn:id": "terrarex-buyer-001",
+        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+        "@type": "beckn:Buyer"
+      },
+      "beckn:orderAttributes": {
+        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyTradeOrder/v0.2/context.jsonld",
+        "@type": "EnergyTradeOrderInterUtility",
+        "bap_id": "p2p.terrarexenergy.com",
+        "bpp_id": "deg.voltbrew.energy",
+        "total_quantity": 7,
+        "utilityIdBuyer": "BESCOM-KA",
+        "utilityIdSeller": "TPDDL-DL"
+      },
+      "beckn:orderItems": [
+        {
+          "beckn:orderedItem": "vb_inters|11|43.87|101010101|1769823000000|1769866200000|697de9c55a019f0013505b37|696e0b607eede50013cbe930",
+          "beckn:orderItemAttributes": {
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyOrderItem/v0.1/context.jsonld",
+            "@type": "EnergyOrderItem",
+            "providerAttributes": {
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyCustomer/v0.1/context.jsonld",
+              "@type": "EnergyCustomer",
+              "meterId": "98765456",
+              "utilityCustomerId": "UTIL-CUST-tpddl-deg.voltbrew.energy",
+              "utilityId": "TPDDL-DL"
+            }
+          },
+          "beckn:quantity": {
+            "unitQuantity": 7,
+            "unitText": "kWh"
+          },
+          "beckn:acceptedOffer": {
+            "beckn:id": "vb_inters|11|43.87|101010101|1769823000000|1769866200000|697de9c55a019f0013505b37|696e0b607eede50013cbe930",
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+            "@type": "beckn:Offer",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "Morning Solar Energy Offer"
+            },
+            "beckn:provider": "provider-solar-farm-001",
+            "beckn:items": ["energy-resource-solar-001"],
+            "beckn:offerAttributes": {
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyTradeOffer/v0.2/context.jsonld",
+              "@type": "EnergyTradeOffer",
+              "pricingModel": "PER_KWH",
+              "settlementType": "DAILY",
+              "sourceMeterId": "101010101",
+              "beckn:price": {
+                "value": 43.87,
+                "currency": "INR",
+                "unitText": "kWh"
+              },
+              "beckn:maxQuantity": {
+                "unitQuantity": 11,
+                "unitText": "kWh",
+                "unitCode": "KWH"
+              },
+              "beckn:timeWindow": {
+                "@type": "beckn:TimePeriod",
+                "schema:startTime": "2026-01-31T01:30:00.000Z",
+                "schema:endTime": "2026-01-31T13:30:00.000Z"
+              }
+            }
+          }
+        }
+      ],
+      "beckn:fulfillment": {
+        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+        "@type": "beckn:Fulfillment",
+        "beckn:id": "fulfillment-3f52b58b",
+        "beckn:mode": "DELIVERY"
+      },
+      "beckn:payment": {
+        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+        "@type": "beckn:Payment",
+        "beckn:id": "payment-d13d0b72",
+        "beckn:amount": {
+          "currency": "INR",
+          "value": 307.09
+        },
+        "beckn:beneficiary": "BPP",
+        "beckn:paymentStatus": "INITIATED",
+        "beckn:paymentAttributes": {
+          "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/PaymentSettlement/v1/context.jsonld",
+          "@type": "PaymentSettlement",
+          "settlementAccounts": [
+            {
+              "beneficiaryId": "p2p.terrarexenergy.com",
+              "accountHolderName": "Energy Consumer Pvt Ltd",
+              "accountNumber": "1234567890",
+              "ifscCode": "HDFC0001234",
+              "bankName": "HDFC Bank",
+              "vpa": "energy-buyer@upi"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,5 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
 import { HourlyBid, VALIDITY_BUFFER_HOURS } from '../types';
+import {
+  BECKN_CONTEXT_ROOT,
+  ENERGY_RESOURCE_SCHEMA_CTX,
+  ENERGY_TRADE_OFFER_SCHEMA_CTX
+} from '../../constants/schemas';
 
 /**
  * Generate unique IDs for catalog elements (includes timestamp + hour for uniqueness)
@@ -72,7 +77,7 @@ export function buildHourlyItem(params: {
   const itemId = generateItemId(params.provider_id, params.date, params.hour);
 
   return {
-    "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+    "@context": BECKN_CONTEXT_ROOT,
     "@type": "beckn:Item",
     "beckn:id": itemId,
     "beckn:descriptor": {
@@ -89,7 +94,7 @@ export function buildHourlyItem(params: {
       }
     },
     "beckn:itemAttributes": {
-      "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyResource/v0.2/context.jsonld",
+      "@context": ENERGY_RESOURCE_SCHEMA_CTX,
       "@type": "EnergyResource",
       "sourceType": params.source_type,
       "deliveryMode": "GRID_INJECTION",
@@ -137,7 +142,7 @@ export function buildHourlyOffer(params: {
   const offerId = generateOfferId(params.provider_id, params.date, params.hour);
 
   return {
-    "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+    "@context": BECKN_CONTEXT_ROOT,
     "@type": "beckn:Offer",
     "beckn:id": offerId,
     "beckn:descriptor": {
@@ -153,7 +158,7 @@ export function buildHourlyOffer(params: {
       "schema:unitText": "kWh"
     },
     "beckn:offerAttributes": {
-      "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyTradeOffer/v0.2/context.jsonld",
+      "@context": ENERGY_TRADE_OFFER_SCHEMA_CTX,
       "@type": "EnergyTradeOffer",
       "pricingModel": "PER_KWH",
       "settlementType": "HOURLY",
@@ -223,7 +228,7 @@ export function buildHourlyCatalog(params: {
   });
 
   return {
-    "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+    "@context": BECKN_CONTEXT_ROOT,
     "@type": "beckn:Catalog",
     "beckn:id": catalogId,
     "beckn:descriptor": {

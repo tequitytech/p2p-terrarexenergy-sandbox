@@ -3,6 +3,8 @@ import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { createPendingTransaction, getPendingCount, cancelPendingTransaction } from '../services/transaction-store';
+import dotenv from "dotenv";
+dotenv.config();
 
 const ONIX_BAP_URL = process.env.ONIX_BAP_URL || 'http://onix-bap:8081';
 

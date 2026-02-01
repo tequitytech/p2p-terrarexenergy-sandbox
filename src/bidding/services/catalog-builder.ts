@@ -1,5 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
 import { CalculatedBid, ValidityWindow } from '../types';
+import {
+  BECKN_CONTEXT_ROOT,
+  ENERGY_RESOURCE_SCHEMA_CTX,
+  ENERGY_TRADE_OFFER_SCHEMA_CTX
+} from '../../constants/schemas';
 
 /**
  * Generate unique IDs for catalog elements (includes timestamp for uniqueness)
@@ -30,7 +35,7 @@ export function buildItem(params: {
   const itemId = generateItemId(params.provider_id, params.date);
 
   return {
-    "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+    "@context": BECKN_CONTEXT_ROOT,
     "@type": "beckn:Item",
     "beckn:id": itemId,
     "beckn:descriptor": {
@@ -47,7 +52,7 @@ export function buildItem(params: {
       }
     },
     "beckn:itemAttributes": {
-      "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyResource/v0.2/context.jsonld",
+      "@context": ENERGY_RESOURCE_SCHEMA_CTX,
       "@type": "EnergyResource",
       "sourceType": params.source_type,
       "deliveryMode": "GRID_INJECTION",
@@ -84,7 +89,7 @@ export function buildOffer(params: {
   const offerId = generateOfferId(params.provider_id, params.date);
 
   return {
-    "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+    "@context": BECKN_CONTEXT_ROOT,
     "@type": "beckn:Offer",
     "beckn:id": offerId,
     "beckn:descriptor": {
@@ -100,7 +105,7 @@ export function buildOffer(params: {
       "schema:unitText": "kWh"
     },
     "beckn:offerAttributes": {
-      "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyTradeOffer/v0.2/context.jsonld",
+      "@context": ENERGY_TRADE_OFFER_SCHEMA_CTX,
       "@type": "EnergyTradeOffer",
       "pricingModel": "PER_KWH",
       "settlementType": "DAILY",
@@ -166,7 +171,7 @@ export function buildCatalog(params: {
   });
 
   return {
-    "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+    "@context": BECKN_CONTEXT_ROOT,
     "@type": "beckn:Catalog",
     "beckn:id": catalogId,
     "beckn:descriptor": {

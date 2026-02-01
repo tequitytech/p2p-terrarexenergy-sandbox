@@ -1,0 +1,223 @@
+{
+  "context": {
+    "message_id": "46c40bbf-145f-4af2-bb82-11b8d4798a1b",
+    "bap_id": "p2p.terrarexenergy.com",
+    "transaction_id": "cbc0e2f0-9157-4d0d-b78c-b071642a2177",
+    "timestamp": "2026-01-23T15:51:38.375Z",
+    "domain": "beckn.one:deg:p2p-trading:2.0.0",
+    "action": "on_discover",
+    "version": "2.0.0",
+    "bpp_id": "p2p.terrarexenergy.com",
+    "bpp_uri": "https://p2p.terrarexenergy.com/bpp/receiver",
+    "ttl": "PT30S",
+    "bap_uri": "https://p2p.terrarexenergy.com/bap/receiver"
+  },
+  "message": {
+    "catalogs": [
+      {
+        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+        "@type": "beckn:Catalog",
+        "beckn:id": "voltbrew-vb_inters|101010101|697de9c55a019f0013505b37",
+        "beckn:descriptor": {
+          "@type": "beckn:Descriptor",
+          "schema:name": "Solar Energy Trading Catalog By VoltBrew Energy. vb_inters"
+        },
+        "beckn:providerId": "tpddl-deg.voltbrew.energy",
+        "beckn:bppId": "deg.voltbrew.energy",
+        "beckn:bppUri": "https://deg.voltbrew.energy/bpp/receiver",
+        "beckn:items": [
+          {
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+            "@type": "beckn:Item",
+            "beckn:id": "vb_inters|11|43.87|101010101|1769823000000|1769866200000|697de9c55a019f0013505b37|696e0b607eede50013cbe930",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "TPDDL Solar Energy - 11 kWh",
+              "beckn:shortDesc": "Carbon Offset Certified Solar Energy",
+              "beckn:longDesc": "High-quality solar energy from verified source with carbon offset certification"
+            },
+            "beckn:isActive": true,
+            "beckn:networkId": ["p2p-interdiscom-trading-pilot-network"],
+            "beckn:provider": {
+              "beckn:id": "tpddl-deg.voltbrew.energy",
+              "beckn:descriptor": {
+                "@type": "beckn:Descriptor",
+                "schema:name": "Energy via VB"
+              }
+            },
+            "beckn:itemAttributes": {
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyResource/v0.2/context.jsonld",
+              "@type": "EnergyResource",
+              "availableQuantity": 11,
+              "sourceVerification": {
+                "verified": true,
+                "certificates": [
+                  "https://example.com/certs/solar-panel-cert.pdf"
+                ],
+                "verificationDate": "2024-09-01T00:00:00Z"
+              },
+              "productionWindow": [
+                {
+                  "@type": "beckn:TimePeriod",
+                  "schema:endTime": "2026-01-31T13:30:00.000Z",
+                  "schema:startTime": "2026-01-31T01:30:00.000Z"
+                }
+              ],
+              "sourceType": "SOLAR",
+              "deliveryMode": "GRID_INJECTION",
+              "meterId": "101010101",
+              "certificationStatus": "Carbon Offset Certified",
+              "productionAsynchronous": true
+            }
+          }
+        ],
+        "beckn:offers": [
+          {
+            "@type": "beckn:Offer",
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+            "beckn:id": "offer-energy-001",
+            "beckn:items": [
+              "vb_inters|11|43.87|101010101|1769823000000|1769866200000|697de9c55a019f0013505b37|696e0b607eede50013cbe930"
+            ],
+            "beckn:price": {
+              "@type": "schema:PriceSpecification",
+              "schema:price": 43.87,
+              "schema:unitText": "kWh",
+              "schema:priceCurrency": "INR"
+            },
+            "beckn:provider": "tpddl-deg.voltbrew.energy",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "Daily Settlement Solar Energy Offer"
+            },
+            "beckn:offerAttributes": {
+              "@type": "EnergyTradeOffer",
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyTradeOffer/v0.2/context.jsonld",
+              "pricingModel": "PER_KWH",
+              "settlementType": "DAILY",
+              "validityWindow": {
+                "@type": "beckn:TimePeriod",
+                "schema:endTime": "2026-01-31T13:30:00.000Z",
+                "schema:startTime": "2026-01-31T01:30:00.000Z"
+              },
+              "maximumQuantity": 11,
+              "minimumQuantity": 1,
+              "wheelingCharges": {
+                "amount": 0,
+                "currency": "INR",
+                "description": "Grid Services wheeling charge"
+              },
+              "beckn:maxQuantity": {
+                "unitCode": "KWH",
+                "unitText": "kWh",
+                "unitQuantity": 11
+              }
+            }
+          }
+        ]
+      },
+      {
+        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+        "@type": "beckn:Catalog",
+        "beckn:id": "voltbrew-vb_inters|101010101|697cb2515a019f00135054d9",
+        "beckn:descriptor": {
+          "@type": "beckn:Descriptor",
+          "schema:name": "Solar Energy Trading Catalog By VoltBrew Energy. vb_inters"
+        },
+        "beckn:providerId": "tpddl-deg.voltbrew.energy",
+        "beckn:bppId": "deg.voltbrew.energy",
+        "beckn:bppUri": "https://deg.voltbrew.energy/bpp/receiver",
+        "beckn:items": [
+          {
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+            "@type": "beckn:Item",
+            "beckn:id": "vb_inters|11|42.47|101010101|1769823000000|1769866200000|697cb2515a019f00135054d9|696e0b607eede50013cbe930",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "TPDDL Solar Energy - 11 kWh",
+              "beckn:shortDesc": "Carbon Offset Certified Solar Energy",
+              "beckn:longDesc": "High-quality solar energy from verified source with carbon offset certification"
+            },
+            "beckn:isActive": true,
+            "beckn:networkId": ["p2p-interdiscom-trading-pilot-network"],
+            "beckn:provider": {
+              "beckn:id": "tpddl-deg.voltbrew.energy",
+              "beckn:descriptor": {
+                "@type": "beckn:Descriptor",
+                "schema:name": "Energy via VB"
+              }
+            },
+            "beckn:itemAttributes": {
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyResource/v0.2/context.jsonld",
+              "@type": "EnergyResource",
+              "availableQuantity": 11,
+              "sourceVerification": {
+                "verified": true,
+                "certificates": [
+                  "https://example.com/certs/solar-panel-cert.pdf"
+                ],
+                "verificationDate": "2024-09-01T00:00:00Z"
+              },
+              "productionWindow": [
+                {
+                  "@type": "beckn:TimePeriod",
+                  "schema:endTime": "2026-01-31T13:30:00.000Z",
+                  "schema:startTime": "2026-01-31T01:30:00.000Z"
+                }
+              ],
+              "sourceType": "SOLAR",
+              "deliveryMode": "GRID_INJECTION",
+              "meterId": "101010101",
+              "certificationStatus": "Carbon Offset Certified",
+              "productionAsynchronous": true
+            }
+          }
+        ],
+        "beckn:offers": [
+          {
+            "@type": "beckn:Offer",
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+            "beckn:id": "offer-energy-001",
+            "beckn:items": [
+              "vb_inters|11|42.47|101010101|1769823000000|1769866200000|697cb2515a019f00135054d9|696e0b607eede50013cbe930"
+            ],
+            "beckn:price": {
+              "@type": "schema:PriceSpecification",
+              "schema:price": 42.47,
+              "schema:unitText": "kWh",
+              "schema:priceCurrency": "INR"
+            },
+            "beckn:provider": "tpddl-deg.voltbrew.energy",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "Daily Settlement Solar Energy Offer"
+            },
+            "beckn:offerAttributes": {
+              "@type": "EnergyTradeOffer",
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyTradeOffer/v0.2/context.jsonld",
+              "pricingModel": "PER_KWH",
+              "settlementType": "DAILY",
+              "validityWindow": {
+                "@type": "beckn:TimePeriod",
+                "schema:endTime": "2026-01-31T13:30:00.000Z",
+                "schema:startTime": "2026-01-31T01:30:00.000Z"
+              },
+              "maximumQuantity": 11,
+              "minimumQuantity": 1,
+              "wheelingCharges": {
+                "amount": 0,
+                "currency": "INR",
+                "description": "Grid Services wheeling charge"
+              },
+              "beckn:maxQuantity": {
+                "unitCode": "KWH",
+                "unitText": "kWh",
+                "unitQuantity": 11
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

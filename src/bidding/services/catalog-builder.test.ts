@@ -72,11 +72,18 @@ describe('catalog-builder', () => {
     });
 
     it('should generate unique item IDs', () => {
+      const now = Date.now();
+      const spy = jest.spyOn(Date, 'now')
+        .mockReturnValueOnce(now)
+        .mockReturnValueOnce(now + 1);
+
       const item1 = buildItem(mockParams);
       const item2 = buildItem(mockParams);
 
       // IDs include timestamp so should be different
       expect(item1['beckn:id']).not.toBe(item2['beckn:id']);
+      
+      spy.mockRestore();
     });
 
     it('should handle different source types', () => {

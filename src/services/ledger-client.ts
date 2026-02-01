@@ -169,9 +169,50 @@ export async function getLedgerHealth(): Promise<{ ok: boolean; latencyMs: numbe
   }
 }
 
+/**
+ * Add trade to ledger
+ */
+export async function addTrade(trade: LedgerRecord) {
+  try {
+    const response = await withRetry(async () => {
+      return axios.post(
+        `${LEDGER_URL}/ledger/put`,
+        trade,
+        { timeout: LEDGER_TIMEOUT }
+      );
+    });
+    return response.data;
+  } catch (error: any) {
+    console.error(`[LedgerClient] Add trade failed: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Update trade record
+ */
+export async function updateTrade(trade: LedgerRecord) {
+  try {
+    const response = await withRetry(async () => {
+      return axios.post(
+        `${LEDGER_URL}/ledger/record`,
+        trade,
+        { timeout: LEDGER_TIMEOUT }
+      );
+    });
+    return response.data;
+  } catch (error: any) {
+    console.error(`[LedgerClient] Update trade failed: ${error.message}`);
+    return null;
+  }
+}
+
+
 export const ledgerClient = {
   queryTradeByTransaction,
   queryTrades,
+  addTrade,
+  updateTrade,
   getLedgerHealth,
   LEDGER_URL
 };

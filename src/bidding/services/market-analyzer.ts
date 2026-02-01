@@ -1,19 +1,90 @@
-import axios from 'axios';
-import { v4 as uuidv4 } from 'uuid';
-import { getDB } from '../../db';
-import { CompetitorOffer, MarketAnalysis, MarketSnapshot, FLOOR_PRICE, DEFAULT_UNDERCUT_PERCENT } from '../types';
+import axios from "axios";
+import { v4 as uuidv4 } from "uuid";
+import { getDB } from "../../db";
+import { DeliveryMode } from "../../types";
+import {
+  CompetitorOffer,
+  DEFAULT_UNDERCUT_PERCENT,
+  FLOOR_PRICE,
+  MarketAnalysis,
+  MarketSnapshot,
+} from "../types";
 
 // Use ONIX BAP for discover (handles signing and routing to CDS)
-const ONIX_BAP_URL = process.env.ONIX_BAP_URL || 'http://onix-bap:8081';
-const UNDERCUT_PERCENT = parseFloat(process.env.UNDERCUT_PERCENT || String(DEFAULT_UNDERCUT_PERCENT));
+const ONIX_BAP_URL = process.env.ONIX_BAP_URL || "http://onix-bap:8081";
+const UNDERCUT_PERCENT = parseFloat(
+  process.env.UNDERCUT_PERCENT || String(DEFAULT_UNDERCUT_PERCENT),
+);
 
 /**
  * Build discover request for ONIX BAP
  */
-function buildDiscoverRequest(sourceType: string, startDate: string, endDate: string) {
-  // Filter: sourceType, deliveryMode, and availableQuantity > 0
-  // Date filtering done in JavaScript after fetch (JSONPath date comparison is unreliable)
-  const expression = `$[?(@.beckn:itemAttributes.sourceType == '${sourceType}' && @.beckn:itemAttributes.deliveryMode == 'GRID_INJECTION' && @.beckn:itemAttributes.availableQuantity > 0)]`;
+export function buildDiscoverRequest({
+  sourceType,
+  minQty,
+  maxQty,
+  deliveryMode,
+  startDate,
+  endDate,
+  itemId,
+  isActive
+}: {
+  sourceType?: string;
+  minQty?: number;
+  maxQty?: number;
+  deliveryMode?: DeliveryMode,
+  startDate?: Date;
+  endDate?: Date;
+  sortBy?: string,
+  order?: string,
+  itemId?: string,
+  isActive?: boolean
+}) {
+  const conditions = [];
+
+  // 1. Delivery Mode
+  if(deliveryMode) {
+    conditions.push(`@.beckn:itemAttributes.deliveryMode == '${deliveryMode}'`);
+  }
+
+  // 2. Source Type
+  if(sourceType) {
+    conditions.push(`@.beckn:itemAttributes.sourceType == '${sourceType}'`);
+  }
+
+  // 3. Min Quantity
+  if(minQty) {
+    conditions.push(`@.beckn:itemAttributes.availableQuantity >= ${minQty}`);
+  }
+
+  // 4. Max Quantity
+  if(maxQty) {
+    conditions.push(`@.beckn:itemAttributes.availableQuantity <= ${maxQty}`);
+  }
+
+  // 5. Start Date (productionWindow start >= requested start)
+  if(startDate) {
+    conditions.push(`@.beckn:itemAttributes.productionWindow[0].schema:startTime >= '${startDate.toISOString()}'`);
+  }
+
+  // 6. End Date (productionWindow start <= requested end - as per user example)
+  if(endDate) {
+    conditions.push(`@.beckn:itemAttributes.productionWindow[0].schema:startTime <= '${endDate.toISOString()}'`);
+  }
+
+  // 7. Active Status
+  if(isActive !== undefined) {
+    conditions.push(`@.beckn:isActive == ${isActive}`);
+  }
+
+  // 8. Item Id
+  if(itemId) {
+    conditions.push(`@.beckn:id == "${itemId}"`)
+  }
+
+  const expression = `$[?(${conditions.join(" && ")})]`;
+
+  console.log(`[MARKET-ANALYZER] Fetching market data with expression: ${expression}`);
 
   return {
     context: {
@@ -30,16 +101,16 @@ function buildDiscoverRequest(sourceType: string, startDate: string, endDate: st
       domain: "beckn.one:deg:p2p-trading:2.0.0",
       location: {
         city: { code: "BLR", name: "Bangalore" },
-        country: { code: "IND", name: "India" }
-      }
+        country: { code: "IND", name: "India" },
+      },
     },
     message: {
       filters: {
         type: "jsonpath",
         expression,
-        expressionType: "jsonpath"
-      }
-    }
+        expressionType: "jsonpath",
+      },
+    },
   };
 }
 
@@ -53,38 +124,44 @@ function parseCDSResponse(response: any): CompetitorOffer[] {
     const catalogs = response?.message?.catalogs || [];
 
     for (const catalog of catalogs) {
-      const catalogOffers = catalog['beckn:offers'] || [];
-      const catalogItems = catalog['beckn:items'] || [];
+      const catalogOffers = catalog["beckn:offers"] || [];
+      const catalogItems = catalog["beckn:items"] || [];
 
       // Get quantity from first item's itemAttributes
       const firstItem = catalogItems[0];
-      const quantity = firstItem?.['beckn:itemAttributes']?.availableQuantity || 0;
+      const quantity =
+        firstItem?.["beckn:itemAttributes"]?.availableQuantity || 0;
 
       for (const offer of catalogOffers) {
         // Extract price from offer
-        const price = offer['beckn:price']?.['schema:price'] ||
-          offer['beckn:offerAttributes']?.['beckn:price']?.value;
+        const price =
+          offer["beckn:price"]?.["schema:price"] ||
+          offer["beckn:offerAttributes"]?.["beckn:price"]?.value;
 
         if (price) {
           // Extract validity window to determine date
-          const validityWindow = offer['beckn:offerAttributes']?.validityWindow ||
-            offer['beckn:offerAttributes']?.['beckn:timeWindow'];
+          const validityWindow =
+            offer["beckn:offerAttributes"]?.validityWindow ||
+            offer["beckn:offerAttributes"]?.["beckn:timeWindow"];
 
-          const startTime = validityWindow?.['schema:startTime'] || validityWindow?.start;
-          const endTime = validityWindow?.['schema:endTime'] || validityWindow?.end;
-          const date = startTime ? startTime.split('T')[0] : 'unknown';
+          const startTime =
+            validityWindow?.["schema:startTime"] || validityWindow?.start;
+          const endTime =
+            validityWindow?.["schema:endTime"] || validityWindow?.end;
+          const date = startTime ? startTime.split("T")[0] : "unknown";
 
           offers.push({
-            offer_id: offer['beckn:id'] || 'unknown',
-            provider_id: offer['beckn:provider'] || catalog['beckn:bppId'] || 'unknown',
+            offer_id: offer["beckn:id"] || "unknown",
+            provider_id:
+              offer["beckn:provider"] || catalog["beckn:bppId"] || "unknown",
             price_per_kwh: parseFloat(price),
             quantity_kwh: quantity,
-            source_type: 'SOLAR',
+            source_type: "SOLAR",
             date,
             validity_window: {
-              start: startTime || '',
-              end: endTime || ''
-            }
+              start: startTime || "",
+              end: endTime || "",
+            },
           });
         }
       }
@@ -99,16 +176,24 @@ function parseCDSResponse(response: any): CompetitorOffer[] {
 /**
  * Fetch market data via ONIX BAP discover
  */
-export async function fetchMarketData(startDate: string, endDate: string, sourceType: string): Promise<CompetitorOffer[]> {
+export async function fetchMarketData(
+  startDate: string,
+  endDate: string,
+  sourceType: string,
+): Promise<CompetitorOffer[]> {
   const discoverUrl = `${ONIX_BAP_URL}/bap/caller/discover`;
   console.log(`[BidService] Fetching market data via ONIX: ${discoverUrl}`);
 
   try {
-    const request = buildDiscoverRequest(sourceType, startDate, endDate);
+    const request = buildDiscoverRequest({
+      sourceType,
+      startDate: new Date(startDate),
+      endDate: new Date(endDate)
+    });
 
     const response = await axios.post(discoverUrl, request, {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 15000  // 15 second timeout
+      headers: { "Content-Type": "application/json" },
+      timeout: 15000, // 15 second timeout
     });
 
     const offers = parseCDSResponse(response.data);
@@ -128,7 +213,9 @@ export async function fetchMarketData(startDate: string, endDate: string, source
       return parseCDSResponse({ message: { catalogs: cached } });
     }
 
-    console.log(`[BidService] No cached data available, proceeding with empty competitor list`);
+    console.log(
+      `[BidService] No cached data available, proceeding with empty competitor list`,
+    );
     return [];
   }
 }
@@ -136,20 +223,28 @@ export async function fetchMarketData(startDate: string, endDate: string, source
 /**
  * Save market snapshot to MongoDB for fallback
  */
-async function saveSnapshot(dateRange: { start: string; end: string }, response: any): Promise<void> {
+async function saveSnapshot(
+  dateRange: { start: string; end: string },
+  response: any,
+): Promise<void> {
   try {
     const db = getDB();
     const snapshot: MarketSnapshot = {
       fetched_at: new Date(),
       date_range: dateRange,
-      offers: response?.message?.catalogs || []
+      offers: response?.message?.catalogs || [],
     };
 
-    await db.collection('market_snapshots').updateOne(
-      { 'date_range.start': dateRange.start, 'date_range.end': dateRange.end },
-      { $set: snapshot },
-      { upsert: true }
-    );
+    await db
+      .collection("market_snapshots")
+      .updateOne(
+        {
+          "date_range.start": dateRange.start,
+          "date_range.end": dateRange.end,
+        },
+        { $set: snapshot },
+        { upsert: true },
+      );
   } catch (error) {
     console.log(`[BidService] Failed to save market snapshot:`, error);
   }
@@ -158,12 +253,15 @@ async function saveSnapshot(dateRange: { start: string; end: string }, response:
 /**
  * Get cached market snapshot from MongoDB
  */
-async function getCachedSnapshot(startDate: string, endDate: string): Promise<any[] | null> {
+async function getCachedSnapshot(
+  startDate: string,
+  endDate: string,
+): Promise<any[] | null> {
   try {
     const db = getDB();
-    const snapshot = await db.collection('market_snapshots').findOne({
-      'date_range.start': startDate,
-      'date_range.end': endDate
+    const snapshot = await db.collection("market_snapshots").findOne({
+      "date_range.start": startDate,
+      "date_range.end": endDate,
     });
 
     return snapshot?.offers || null;
@@ -176,9 +274,15 @@ async function getCachedSnapshot(startDate: string, endDate: string): Promise<an
 /**
  * Analyze competitors for a specific date
  */
-export function analyzeCompetitors(date: string, allOffers: CompetitorOffer[], cached: boolean = false): MarketAnalysis {
+export function analyzeCompetitors(
+  date: string,
+  allOffers: CompetitorOffer[],
+  cached: boolean = false,
+): MarketAnalysis {
   // Filter offers for this specific date
-  const dayOffers = allOffers.filter(o => o.date === date || o.date === 'unknown');
+  const dayOffers = allOffers.filter(
+    (o) => o.date === date || o.date === "unknown",
+  );
 
   if (dayOffers.length === 0) {
     return {
@@ -187,12 +291,14 @@ export function analyzeCompetitors(date: string, allOffers: CompetitorOffer[], c
       lowest_competitor_quantity_kwh: null,
       lowest_competitor_validity_window: null,
       lowest_competitor_id: null,
-      cached
+      cached,
     };
   }
 
   // Find lowest price
-  const sorted = [...dayOffers].sort((a, b) => a.price_per_kwh - b.price_per_kwh);
+  const sorted = [...dayOffers].sort(
+    (a, b) => a.price_per_kwh - b.price_per_kwh,
+  );
   const lowest = sorted[0];
 
   return {
@@ -201,19 +307,22 @@ export function analyzeCompetitors(date: string, allOffers: CompetitorOffer[], c
     lowest_competitor_quantity_kwh: lowest.quantity_kwh,
     lowest_competitor_validity_window: lowest.validity_window ?? null,
     lowest_competitor_id: lowest.offer_id,
-    cached
+    cached,
   };
 }
 
 /**
  * Calculate optimal bid price based on competitor analysis
  */
-export function calculatePrice(lowestCompetitorPrice: number | null): { price: number; reasoning: string } {
+export function calculatePrice(lowestCompetitorPrice: number | null): {
+  price: number;
+  reasoning: string;
+} {
   // No competitors - bid at floor
   if (lowestCompetitorPrice === null) {
     return {
       price: FLOOR_PRICE,
-      reasoning: `No competitors found. Bidding at floor: ${FLOOR_PRICE.toFixed(2)}`
+      reasoning: `No competitors found. Bidding at floor: ${FLOOR_PRICE.toFixed(2)}`,
     };
   }
 
@@ -221,19 +330,20 @@ export function calculatePrice(lowestCompetitorPrice: number | null): { price: n
   if (lowestCompetitorPrice <= FLOOR_PRICE) {
     return {
       price: FLOOR_PRICE,
-      reasoning: `Competitor price (${lowestCompetitorPrice.toFixed(2)}) below floor. Bidding at floor: ${FLOOR_PRICE.toFixed(2)}`
+      reasoning: `Competitor price (${lowestCompetitorPrice.toFixed(2)}) below floor. Bidding at floor: ${FLOOR_PRICE.toFixed(2)}`,
     };
   }
 
   // Undercut competitor by configured percentage
-  const undercutMultiplier = 1 - (UNDERCUT_PERCENT / 100);
-  const calculatedPrice = Math.round(lowestCompetitorPrice * undercutMultiplier * 100) / 100;
+  const undercutMultiplier = 1 - UNDERCUT_PERCENT / 100;
+  const calculatedPrice =
+    Math.round(lowestCompetitorPrice * undercutMultiplier * 100) / 100;
 
   // Ensure we don't go below floor
   const finalPrice = Math.max(calculatedPrice, FLOOR_PRICE);
 
   return {
     price: finalPrice,
-    reasoning: `Undercut lowest competitor (${lowestCompetitorPrice.toFixed(2)}) by ${UNDERCUT_PERCENT}% = ${finalPrice.toFixed(2)}`
+    reasoning: `Undercut lowest competitor (${lowestCompetitorPrice.toFixed(2)}) by ${UNDERCUT_PERCENT}% = ${finalPrice.toFixed(2)}`,
   };
 }

@@ -15,6 +15,7 @@ import { connectDB } from "./db";
 import { startPolling, stopPolling } from "./services/settlement-poller";
 import { ZodError } from "zod";
 import { ordersRoutes } from "./orders/routes";
+import { discoverRoutes } from "./discover/routes";
 
 export async function createApp() {
   // Connect to MongoDB on startup
@@ -35,6 +36,7 @@ export async function createApp() {
   apiRouter.use("/webhook", webhookRoutes());
   apiRouter.use("/bap-webhook", bapWebhookRoutes());
   apiRouter.use("/", tradeRoutes());  // Mount at root: /api/publish, /api/inventory, etc.
+  apiRouter.use("/", discoverRoutes());  // Mounts /api/discover
   apiRouter.use("/", syncApiRoutes());  // Mounts /api/select, /api/init, etc.
   apiRouter.use("/", biddingRoutes());  // Mounts /api/bid/preview, /api/bid/confirm
   apiRouter.use("/", sellerBiddingRoutes());  // Mounts /api/seller/preview, /api/seller/confirm

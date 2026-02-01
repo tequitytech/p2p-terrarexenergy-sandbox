@@ -1,3 +1,4 @@
+import { isAxiosError } from "axios";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -60,3 +61,26 @@ export const readDomainResponse = async (
   }
 };
 
+export const parseError = (error:any) => {
+  if(!(error instanceof Error)){
+    return null
+  }
+
+  if(isAxiosError(error)) {
+    /*
+    Parse onix error response
+    {
+      message: {
+        ack: { status: 'NACK' },
+        error: {
+          code: 'Internal Server Error',
+          message: 'Internal server error, MessageID: %!s(<nil>)'
+        }
+      }
+    }
+    */
+    return String(error.response?.data?.message?.error?.message ?? error.message)
+  }
+
+  return error.message
+}

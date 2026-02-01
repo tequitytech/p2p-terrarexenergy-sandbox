@@ -102,9 +102,23 @@ export const paymentRoutes = () => {
 
         console.log("req.body", req.body);
 
+        const phone = (req as any).user?.phone || userPhone;
+
+        const db = getDB();
+        const user = await db.collection("users").findOne({ phone });
+
+        if (!user) {
+          return res.status(404).json({
+            success: false,
+            error: {
+              code: "INVALID_USER",
+              message: "User Not Found",
+            },
+          });
+        }
+
         transactionId = transactionId || uuidv4();
         // If user is authenticated via middleware (available in req.user), use that phone
-        const phone = (req as any).user?.phone || userPhone;
 
         const order = await paymentService.createOrder(
           amount,
@@ -113,10 +127,10 @@ export const paymentRoutes = () => {
           notes,
         );
         console.log("Created Razorpay order:", order);
-        const db = getDB();
 
         const txnBody = {
           userPhone: phone,
+          userId: user._id,
           status: "pending",
           amount,
           currency,
@@ -241,7 +255,11 @@ export const paymentRoutes = () => {
         success: true,
         data: {
           message: "Payment Successful",
-          details: {},
+          details: {
+            rzpPaymentId: razorpay_payment_id,
+            rzpPaymentLinkId: razorpay_payment_link_id,
+            rzpOrderId: razorpay_payment_link_reference_id,
+          },
         },
       });
     } else {
