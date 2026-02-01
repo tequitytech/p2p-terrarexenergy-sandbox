@@ -116,15 +116,14 @@ export async function pollOnce(): Promise<PollResult> {
             // --- Sync Buyer Order Status ---
             if (settlement.role === "BUYER") {
               if (
-                updated.settlementStatus === "SETTLED" ||
-                updated.settlementStatus === "BUYER_COMPLETED"
+                updated.settlementStatus === "SETTLED"
               ) {
                 console.log(
                   `[SettlementPoller] Buyer Order completed via Ledger: ${settlement.transactionId}`,
                 );
                 await orderService.updateBuyerOrderStatus(
                   settlement.transactionId,
-                  "COMPLETED",
+                  "DELIVERED",
                   {
                     settlementId: settlement._id?.toString() || "",
                   },

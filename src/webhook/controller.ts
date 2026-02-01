@@ -532,14 +532,16 @@ export const onConfirm = (req: Request, res: Response) => {
         if (itemId && quantity > 0) {
           console.log(`[Confirm] Reducing inventory: ${itemId} by ${quantity}`);
 
-          // Get item to find its catalog
+          // Get item to find its catalog and seller userId
           const item = await catalogStore.getItem(itemId);
           if (item) {
+            // Store the userId (seller) to be used when saving the order
+            (order as any).sellerUserId = item.userId;
             await Promise.all([
               catalogStore.reduceInventory(itemId, quantity)
             ]);
             affectedCatalogs.add(item.catalogId);
-            console.log(`[Confirm] Inventory reduced for ${itemId}`);
+            console.log(`[Confirm] Inventory reduced for ${itemId}, seller: ${item.userId}`);
           }
         }
       }
@@ -601,12 +603,14 @@ export const onConfirm = (req: Request, res: Response) => {
 
       // Save order to MongoDB for status tracking
       await catalogStore.saveOrder(context.transaction_id, {
+        userId: (order as any).sellerUserId, // seller id from item
         order: confirmedOrder,
         context: {
           bap_id: context.bap_id,
           bpp_id: context.bpp_id,
           domain: context.domain,
         },
+        type: "seller"
       });
 
       // Create settlement record for ledger tracking

@@ -47,5 +47,34 @@ export const orderService = {
       .find(filter)
       .sort({ createdAt: -1 })
       .toArray();
-  }
+  },
+
+  async getSellerOrders(filter: any = {}) {
+    const db = getDB();
+    return db.collection("orders")
+      .find({ ...filter, type: "seller" })
+      .sort({ createdAt: -1 })
+      .toArray();
+  },
+
+  async getCombinedOrders(userId: any, userPhone: string) {
+    const db = getDB();
+    const [buyerOrders, sellerOrders] = await Promise.all([
+      db.collection("buyer_orders")
+        .find({ userId, type: "buyer" })
+        .toArray(),
+      db.collection("orders")
+        .find({ userId, type: "seller" })
+        .toArray(),
+    ]);
+
+    // Combine and sort by createdAt descending
+    const combined = [...buyerOrders, ...sellerOrders].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    return combined;
+  },
 };

@@ -1,13 +1,13 @@
 import { getDB } from '../db';
 
 export const catalogStore = {
-  async saveCatalog(catalog: any) {
+  async saveCatalog(catalog: any, userId?: string) {
     const db = getDB();
     const catalogId = catalog['beckn:id'];
-
+    let usrId = userId || null;
     await db.collection('catalogs').updateOne(
       { 'beckn:id': catalogId },
-      { $set: { ...catalog, updatedAt: new Date() } },
+      { $set: { ...catalog, updatedAt: new Date(), userId: usrId } },
       { upsert: true }
     );
 
@@ -15,13 +15,13 @@ export const catalogStore = {
     return catalogId;
   },
 
-  async saveItem(catalogId: string, item: any) {
+  async saveItem(catalogId: string, item: any, userId?: string) {
     const db = getDB();
     const itemId = item['beckn:id'];
-
+    let usrId = userId || null;
     await db.collection('items').updateOne(
       { 'beckn:id': itemId },
-      { $set: { ...item, catalogId, updatedAt: new Date() } },
+      { $set: { ...item, catalogId, updatedAt: new Date(), userId: usrId } },
       { upsert: true }
     );
 

@@ -103,7 +103,6 @@ export const paymentRoutes = () => {
         console.log("req.body", req.body);
 
         const phone = (req as any).user?.phone || userPhone;
-
         const db = getDB();
         const user = await db.collection("users").findOne({ phone });
 
@@ -116,6 +115,7 @@ export const paymentRoutes = () => {
             },
           });
         }
+        const userId = (req as any)?.user?.userId || user._id.toString();
 
         transactionId = transactionId || uuidv4();
         // If user is authenticated via middleware (available in req.user), use that phone
@@ -130,7 +130,7 @@ export const paymentRoutes = () => {
 
         const txnBody = {
           userPhone: phone,
-          userId: user._id,
+          userId: userId,
           status: "pending",
           amount,
           currency,
@@ -156,7 +156,7 @@ export const paymentRoutes = () => {
 
         // --- Save Buyer Order ---
         await orderService.saveBuyerOrder(transactionId, {
-          userId: user._id,
+          userId: userId,
           userPhone: phone,
           razorpayOrderId: order.id,
           txnPayId: trnsResp.insertedId,
@@ -240,11 +240,11 @@ export const paymentRoutes = () => {
       if (buyerOrder) {
         const transactionId = buyerOrder.transactionId;
 
-        await orderService.updateBuyerOrderStatus(transactionId, "PAID", {
+        await orderService.updateBuyerOrderStatus(transactionId, "SCHEDULED", {
           paymentId: razorpay_payment_id,
           razorpaySignature: razorpay_signature,
         });
-        console.log(`[Callback] Buyer Order ${transactionId} marked as PAID`);
+        console.log(`[Callback] Buyer Order ${transactionId} marked as SCHEDULED`);
       } else {
         console.warn(
           `[Callback] Buyer Order not found for RZP Order ${razorpayOrderId}`,
