@@ -318,7 +318,7 @@ export const tradeRoutes = () => {
           "@type": "EnergyResource",
           "sourceType": "SOLAR",
           "meterId": "MTR-AUTO-" + sellerId.split("-").pop(),
-          "availableQuantity": 1000,
+          "availableQuantity": quantity,
           "productionAsynchronous": true
         }
       };
@@ -335,7 +335,7 @@ export const tradeRoutes = () => {
         "beckn:items": [itemId],
         "beckn:price": {
           "@type": "schema:PriceSpecification",
-          "schema:price": 2.50,
+          "schema:price": 0,
           "schema:priceCurrency": "INR",
           "schema:unitText": "kWh"
         },
@@ -344,7 +344,7 @@ export const tradeRoutes = () => {
           "@type": "EnergyTradeOffer",
           "pricingModel": "PER_KWH",
           "beckn:maxQuantity": {
-             "unitQuantity": 1000,
+             "unitQuantity": quantity,
              "unitText": "kWh"
           }
         }

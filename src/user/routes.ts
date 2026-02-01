@@ -19,7 +19,8 @@ export function userRoutes(): Router {
         id: user.profiles?.consumptionProfile?.id || user.profiles?.utilityCustomer?.did || user.phone, // Prioritize DIDs, fallback to phone
         name: user.name,
         verified: true,
-        type: "Social Impact Entity" // Or derive from metadata if available
+        type: "Social Impact Entity",
+        requiredEnergy: user.requiredEnergy
       }));
 
       res.json({
