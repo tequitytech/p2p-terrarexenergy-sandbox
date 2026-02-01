@@ -42,7 +42,7 @@ export async function triggerOnSettle(settlement: SettlementDocument): Promise<v
         timestamp: new Date().toISOString(),
         message_id: uuidv4(),
         transaction_id: settlement.transactionId,
-        domain: savedOrder?.context?.domain || 'beckn.one:deg:p2p-trading:2.0.0'
+        domain: savedOrder?.context?.domain || 'beckn.one:deg:p2p-trading-interdiscom:2.0.0'
       },
       message: {
         settlement: {

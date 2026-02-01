@@ -146,5 +146,50 @@ export const catalogStore = {
   async getOrderByTransactionId(transactionId: string): Promise<any | null> {
     const db = getDB();
     return db.collection('orders').findOne({ transactionId });
+  },
+
+  async getSellerEarnings(sellerId: string): Promise<number> {
+    const db = getDB();
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const pipeline = [
+      {
+        $match: {
+          'order.beckn:seller': sellerId,
+          'order.beckn:orderStatus': 'CONFIRMED',
+          confirmedAt: { $gte: startOfDay }
+        }
+      },
+      {
+        $unwind: '$order.beckn:orderItems'
+      },
+      {
+        $project: {
+          quantity: { 
+            $ifNull: [
+              '$order.beckn:orderItems.beckn:quantity.unitQuantity', 
+              0
+            ] 
+          },
+          price: {
+            $ifNull: [
+              '$order.beckn:orderItems.beckn:acceptedOffer.beckn:offerAttributes.beckn:price.value',
+              '$order.beckn:orderItems.beckn:acceptedOffer.beckn:price.value',
+              0
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalEarnings: { $sum: { $multiply: ['$quantity', '$price'] } }
+        }
+      }
+    ];
+
+    const result = await db.collection('orders').aggregate(pipeline).toArray();
+    return Number((result[0]?.totalEarnings || 0).toFixed(2));
   }
 };

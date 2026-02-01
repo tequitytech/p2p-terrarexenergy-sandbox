@@ -1,14 +1,17 @@
 import axios, { isAxiosError } from "axios";
 import { MongoClient } from "mongodb";
-import dotenv from "dotenv"
+import dotenv from "dotenv";
 dotenv.config();
 
-const MONGO_URI =
-  process.env.MONGO_URI_UAT;
+const MONGO_URI = process.env.MONGO_URI_UAT;
 if (!MONGO_URI) {
   throw new Error("Provide Mongodb URI");
 }
 const MONGO_DB = process.env.MONDO_DB ?? "p2p_trading";
+import { calculateTotalAmount } from "../utils";
+
+const DISCOMM_BUYER = "DISCOM-1";
+const DISCOMM_SELLER = "DISCOM-2";
 
 const createContext = (
   action: string,
@@ -17,6 +20,7 @@ const createContext = (
     bppId,
     bppUri,
     location,
+    schema_context,
   }: {
     bppId?: string;
     bppUri?: string;
@@ -30,6 +34,7 @@ const createContext = (
         name: string;
       };
     };
+    schema_context?: string[];
   } = {},
 ) => {
   return {
@@ -41,17 +46,20 @@ const createContext = (
     bpp_id: bppId || "p2p.terrarexenergy.com",
     bpp_uri: bppUri || "https://p2p.terrarexenergy.com/bpp/receiver",
     ttl: "PT30S",
-    domain: "beckn.one:deg:p2p-trading:2.0.0",
+    domain: "beckn.one:deg:p2p-trading-interdiscom:2.0.0",
     timestamp: new Date().toISOString(),
     transaction_id: transactionId,
     location,
+    schema_context,
   };
 };
 
 const publishEnergy = async ({
+  catalogId,
   itemId,
   offerId,
 }: {
+  catalogId: string;
   itemId: string;
   offerId: string;
 }) => {
@@ -63,7 +71,7 @@ const publishEnergy = async ({
           "@context":
             "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
           "@type": "beckn:Catalog",
-          "beckn:id": "terrarex-solar-catalog-002",
+          "beckn:id": catalogId,
           "beckn:descriptor": {
             "@type": "beckn:Descriptor",
             "schema:name": "My Solar Energy Trading Catalog",
@@ -75,6 +83,8 @@ const publishEnergy = async ({
               "@context":
                 "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
               "@type": "beckn:Item",
+              "beckn:networkId": ["p2p-interdiscom-trading-pilot-network"],
+              "beckn:isActive": true,
               "beckn:id": itemId,
               "beckn:descriptor": {
                 "@type": "beckn:Descriptor",
@@ -150,6 +160,11 @@ const publishEnergy = async ({
                 },
                 minimumQuantity: 1,
                 maximumQuantity: 500,
+                "beckn:maxQuantity": {
+                  unitQuantity: 500,
+                  unitText: "kWh",
+                  unitCode: "KWH",
+                },
                 validityWindow: {
                   "@type": "beckn:TimePeriod",
                   "schema:startTime": new Date().toISOString(),
@@ -189,6 +204,9 @@ const findItemInCDS = async (itemId: string) => {
             name: "India",
           },
         },
+        schema_context: [
+          "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyResource/v0.2/context.jsonld",
+        ],
       }),
       message: {
         filters: {
@@ -206,10 +224,11 @@ const selectItem = async (
   item: any,
   quantity: number,
 ) => {
+  const context = createContext("select", transactionId);
   const response = await axios.post(
     "https://p2p.terrarexenergy.com/api/select",
     {
-      context: createContext("select", transactionId),
+      context,
       message: {
         order: {
           "@context":
@@ -223,17 +242,33 @@ const selectItem = async (
               "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
             "@type": "beckn:Buyer",
           },
+          "beckn:orderAttributes": {
+            "@context":
+              "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyTradeOrder/v0.2/context.jsonld",
+            "@type": "EnergyTradeOrderInterUtility",
+            bap_id: context.bap_id,
+            bpp_id: context.bpp_id,
+            total_quantity: quantity,
+            utilityIdBuyer: DISCOMM_BUYER,
+            utilityIdSeller: DISCOMM_SELLER,
+          },
           "beckn:orderItems": [
             {
               "beckn:orderedItem": item["beckn:items"][0]["beckn:id"],
               "beckn:acceptedOffer": item["beckn:offers"][0],
               "beckn:orderItemAttributes": {
                 "@context":
-                  "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyCustomer/v0.1/context.jsonld",
-                "@type": "EnergyCustomer",
-                meterId:
-                  item["beckn:items"][0]["beckn:itemAttributes"]["meterId"],
-                utilityCustomerId: "UTIL-CUST-77777",
+                  "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyOrderItem/v0.1/context.jsonld",
+                "@type": "EnergyOrderItem",
+                providerAttributes: {
+                  "@context":
+                    "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyCustomer/v0.1/context.jsonld",
+                  "@type": "EnergyCustomer",
+                  meterId:
+                    item["beckn:items"][0]["beckn:itemAttributes"]["meterId"],
+                  utilityCustomerId: "UTIL-CUST-77777",
+                  utilityId: DISCOMM_SELLER,
+                },
               },
               "beckn:quantity": {
                 unitQuantity: quantity,
@@ -248,47 +283,99 @@ const selectItem = async (
   return response.data;
 };
 
-const initItem = async (transactionId: string, selectResponse: any) => {
+const initItem = async (
+  transactionId: string,
+  selectResponse: any,
+  amount: number,
+) => {
+  const context = createContext("init", transactionId);
   const response = await axios.post("https://p2p.terrarexenergy.com/api/init", {
-    context: createContext("init", transactionId),
-    message: selectResponse.message,
+    context,
+    message: {
+      ...selectResponse.message,
+      "beckn:payment": {
+        "@context":
+          "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+        "@type": "beckn:Payment",
+        "beckn:id": crypto.randomUUID(),
+        "beckn:amount": {
+          currency: "INR",
+          value: amount,
+        },
+        "beckn:beneficiary": "Tequity",
+        "beckn:paymentStatus": "INITIATED",
+        "beckn:paymentAttributes": {
+          "@context":
+            "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/PaymentSettlement/v1/context.jsonld",
+          "@type": "PaymentSettlement",
+          settlementAccounts: [
+            {
+              beneficiaryId: context.bap_id,
+              accountHolderName: "Energy Consumer BAP Pvt Ltd",
+              accountNumber: "1234567890",
+              ifscCode: "HDFC0001234",
+              bankName: "HDFC Bank",
+              vpa: "energy-consumer@upi",
+            },
+          ],
+        },
+      },
+    },
   });
   return response.data;
 };
 
 const confirmItem = async (transactionId: string, initResponse: any) => {
-  const response = await axios.post("https://p2p.terrarexenergy.com/api/confirm", {
-    context: createContext("confirm", transactionId),
-    message: initResponse.message,
-  });
+  const response = await axios.post(
+    "https://p2p.terrarexenergy.com/api/confirm",
+    {
+      context: createContext("confirm", transactionId),
+      message: initResponse.message,
+    },
+  );
   return response.data;
 };
 
 const findTransactionInLedger = async (transactionId: string) => {
-    const response = await axios.post("https://34.93.166.38.sslip.io/ledger/get", {
-      transactionId,
-      limit: 100,
-      offset: 0,
-      sort: "tradeTime",
-      sortOrder: "desc",
-    });
-    return response.data
+  let retryCount = 3;
+  while (retryCount--) {
+    const response = await axios.post(
+      "https://34.93.166.38.sslip.io/ledger/get",
+      {
+        transactionId,
+        limit: 100,
+        offset: 0,
+        sort: "tradeTime",
+        sortOrder: "desc",
+      },
+    );
+    if (response.data.count === 0) {
+      if (retryCount) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        console.log("Failed to find transaction in ledger. Retrying...");
+        continue;
+      }
+    }
+    return response.data;
+  }
 };
 
 const main = async () => {
   const db = (await MongoClient.connect(MONGO_URI)).db(MONGO_DB);
   console.log("Database is connected...");
 
+  const catalogId = crypto.randomUUID();
   const transactionId = crypto.randomUUID();
   const itemId = crypto.randomUUID();
   const offerId = crypto.randomUUID();
+  console.log("Catalog ID:", catalogId);
   console.log("Transaction ID:", transactionId);
   console.log("Item ID:", itemId);
   console.log("Offer ID:", offerId);
 
   // Publish Catalog & Validate Catalog in database & Validate Catalog in CDS
   const catalog = await (async () => {
-    const response = await publishEnergy({ itemId, offerId });
+    const response = await publishEnergy({ itemId, offerId, catalogId });
 
     if (response.success) {
       if (response.onix_forwarded) {
@@ -338,7 +425,7 @@ const main = async () => {
   })();
 
   // Select item
-  const selectResponse = await (async () => {
+  const { selectResponse, amount } = await (async () => {
     try {
       await selectItem(transactionId, catalog, 30);
       throw new Error("Insufficient quantity is selected");
@@ -353,14 +440,22 @@ const main = async () => {
       }
     }
 
-    const selectResponse = await selectItem(transactionId, catalog, 5);
-    console.log("Item is selected successfully");
-    return selectResponse;
+    const quantity = 5;
+    const selectResponse = await selectItem(transactionId, catalog, quantity);
+
+    console.log(
+      `Item is selected successfully. Quantity: ${selectResponse.message["order"]["beckn:orderAttributes"]["total_quantity"]}`,
+    );
+    const offer = catalog["beckn:offers"][0];
+
+    const amount = calculateTotalAmount(offer, quantity);
+
+    return { selectResponse, amount };
   })();
 
   // Init item
   const initResponse = await (async () => {
-    const initResponse = await initItem(transactionId, selectResponse);
+    const initResponse = await initItem(transactionId, selectResponse, amount);
     console.log("Order initiated successfully");
     return initResponse;
   })();
@@ -368,26 +463,25 @@ const main = async () => {
   // Check ledger - No entry should be present before confirmation
   {
     const entry = await findTransactionInLedger(transactionId);
-    if(entry.count > 0) {
-      throw new Error("No ledger entry found");
+    if (entry.count > 0) {
+      console.log("Ledger Entry", JSON.stringify(entry, null, 2));
+      throw new Error("Ledger entry found before confirmation");
     }
   }
 
   const confirmResponse = await (async () => {
     const confirmResponse = await confirmItem(transactionId, initResponse);
-    console.log("Order is confirmed successfully");
+    console.log("Order is confirmed successfully", confirmResponse);
     return confirmResponse;
   })();
-  
+
   // Check ledger - Entry should be present after confirmation
   const entry = await findTransactionInLedger(transactionId);
-  if(entry.count === 0) {
+  if (entry.count === 0) {
     throw new Error("No ledger entry found");
   }
 
-  console.log("Confirm Response", JSON.stringify(confirmResponse, null, 2));
-  console.log("Ledger Entry", JSON.stringify(entry, null, 2));
-
+  console.log("Order is confirmed successfully", confirmResponse);
 };
 
 main()

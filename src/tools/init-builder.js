@@ -85,7 +85,7 @@ async function main() {
       bpp_id: bppId,
       bpp_uri: bppUri,
       ttl: "PT30S",
-      domain: selectCtx.domain || "beckn.one:deg:p2p-trading:2.0.0"
+      domain: selectCtx.domain || "beckn.one:deg:p2p-trading-interdiscom:2.0.0"
     },
     message: {
       order: {

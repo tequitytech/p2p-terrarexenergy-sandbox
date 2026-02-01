@@ -262,7 +262,7 @@ describe('catalog-builder', () => {
 
       expect(ctx.action).toBe('catalog_publish');
       expect(ctx.version).toBe('2.0.0');
-      expect(ctx.domain).toBe('beckn.one:deg:p2p-trading:2.0.0');
+      expect(ctx.domain).toBe('beckn.one:deg:p2p-trading-interdiscom:2.0.0');
       expect(ctx.message_id).toBeDefined();
       expect(ctx.transaction_id).toBeDefined();
       expect(ctx.timestamp).toBeDefined();

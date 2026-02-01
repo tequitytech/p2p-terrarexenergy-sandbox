@@ -84,3 +84,66 @@ export const parseError = (error:any) => {
 
   return error.message
 }
+
+
+export type PricingModel = "PER_KWH" | "FIXED" | "SUBSCRIPTION" | "TIME_OF_DAY";
+
+export interface TimeOfDayRate {
+  startTime: string; // HH:mm
+  endTime: string;   // HH:mm
+  price: number;
+}
+
+export interface PriceCalculationParams {
+  pricingModel: PricingModel;
+  basePrice: number;
+  quantity: number;
+  wheelingCharges?: number;
+  timeOfDayRates?: TimeOfDayRate[];
+}
+
+export const calculatePrice = (params: PriceCalculationParams): number => {
+  const { pricingModel, basePrice, quantity, wheelingCharges = 0, timeOfDayRates } = params;
+  let energyCost = 0;
+
+  switch (pricingModel) {
+    case "PER_KWH":
+      energyCost = basePrice * quantity;
+      break;
+    case "FIXED":
+    case "SUBSCRIPTION":
+      energyCost = basePrice;
+      break;
+    case "TIME_OF_DAY":
+      if (timeOfDayRates && Array.isArray(timeOfDayRates)) {
+          const currentHour = new Date().getUTCHours();
+          const applicableRate = timeOfDayRates.find(r => {
+             const start = parseInt(r.startTime.split(":")[0]);
+             const end = parseInt(r.endTime.split(":")[0]);
+             return currentHour >= start && currentHour < end;
+          });
+          energyCost = (applicableRate?.price ?? basePrice) * quantity;
+      } else {
+          energyCost = basePrice * quantity;
+      }
+      break;
+    default:
+      energyCost = basePrice * quantity;
+  }
+
+  return energyCost + wheelingCharges;
+}
+
+
+export const calculateTotalAmount = (offer: any, quantity: number) => {
+  const price = offer["beckn:price"]["schema:price"];
+  const attributes = offer["beckn:offerAttributes"];
+  
+  return calculatePrice({
+      basePrice: price,
+      quantity,
+      pricingModel: attributes?.["pricingModel"] || "PER_KWH",
+      wheelingCharges: attributes?.["wheelingCharges"]?.["amount"],
+      timeOfDayRates: attributes?.["timeOfDayRates"]
+  });
+};

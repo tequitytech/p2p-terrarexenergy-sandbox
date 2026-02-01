@@ -98,7 +98,7 @@ export function buildDiscoverRequest({
       bpp_id: "p2p.terrarexenergy.com",
       bpp_uri: "https://p2p.terrarexenergy.com/bpp/receiver",
       ttl: "PT30S",
-      domain: "beckn.one:deg:p2p-trading:2.0.0",
+      domain: "beckn.one:deg:p2p-trading-interdiscom:2.0.0",
       location: {
         city: { code: "BLR", name: "Bangalore" },
         country: { code: "IND", name: "India" },

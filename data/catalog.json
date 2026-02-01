@@ -4,7 +4,7 @@
     "bap_id": "p2p.terrarexenergy.com",
     "transaction_id": "cbc0e2f0-9157-4d0d-b78c-b071642a2177",
     "timestamp": "2026-01-23T15:51:38.375Z",
-    "domain": "beckn.one:deg:p2p-trading:2.0.0",
+    "domain": "beckn.one:deg:p2p-trading-interdiscom:2.0.0",
     "action": "on_discover",
     "version": "2.0.0",
     "bpp_id": "p2p.terrarexenergy.com",

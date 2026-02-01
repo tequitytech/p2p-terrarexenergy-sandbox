@@ -216,5 +216,28 @@ export const tradeRoutes = () => {
     }
   });
 
+  // GET /api/earnings - Get total earnings for a seller today
+  router.get('/earnings', async (req: Request, res: Response) => {
+    try {
+      const sellerId = req.query.sellerId as string;
+      if (!sellerId) {
+        return res.status(400).json({ error: 'Missing sellerId query parameter' });
+      }
+
+      console.log(`[API] GET /earnings for seller: ${sellerId}`);
+      const earnings = await catalogStore.getSellerEarnings(sellerId);
+
+      res.json({
+        sellerId,
+        earnings,
+        currency: 'INR',
+        period: 'today'
+      });
+    } catch (error: any) {
+      console.error(`[API] Error getting earnings:`, error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return router;
 };
