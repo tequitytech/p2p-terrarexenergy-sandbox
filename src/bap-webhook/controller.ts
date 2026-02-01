@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import axios from "axios";
 import { resolvePendingTransaction, hasPendingTransaction } from "../services/transaction-store";
 import { settlementStore } from "../services/settlement-store";
+import { getDB } from "../db";
 
 export const onSelect = (req: Request, res: Response) => {
   const { context, message, error }: { context: any; message: any; error?: any } = req.body;
@@ -80,6 +81,23 @@ export const onConfirm = (req: Request, res: Response) => {
         // Extract counterparty (seller) info
         const sellerPlatformId = context?.bpp_id || null;
         const sellerDiscomId = order?.['beckn:orderAttributes']?.utilityIdSeller || null;
+
+        /**
+         * Store the full Beckn order details in the buyer_orders collection for reference
+         */
+        if (order) {
+          const db = getDB();
+          await db.collection('buyer_orders').updateOne(
+            { transactionId },
+            {
+              $set: {
+                order: order,
+                updatedAt: new Date()
+              }
+            }
+          );
+          console.log(`[BAP Webhook] Buyer Order ${transactionId} updated with full Beckn order details`);
+        }
 
         await settlementStore.createSettlement(
           transactionId,

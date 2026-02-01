@@ -165,7 +165,6 @@ export const paymentRoutes = () => {
           messageId,
           items: items || {}, // Store items
           status: "INITIATED",
-          transaction_id: transactionId,
           type: "buyer",
         });
         console.log(
