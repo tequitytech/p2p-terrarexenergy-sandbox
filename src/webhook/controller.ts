@@ -8,8 +8,9 @@ import {
   ENERGY_TRADE_ORDER_SCHEMA_CTX,
 } from "../constants/schemas";
 import { catalogStore } from "../services/catalog-store";
-import { settlementStore } from "../services/settlement-store";
+import { SettlementDocument, settlementStore } from "../services/settlement-store";
 import { readDomainResponse } from "../utils";
+import { getDB } from "../db";
 dotenv.config();
 
 const WHEELING_RATE = parseFloat(process.env.WHEELING_RATE || "1.50"); // INR/kWh
@@ -601,18 +602,6 @@ export const onConfirm = (req: Request, res: Response) => {
         },
       };
 
-      // Save order to MongoDB for status tracking
-      await catalogStore.saveOrder(context.transaction_id, {
-        userId: (order as any).sellerUserId, // seller id from item
-        order: confirmedOrder,
-        context: {
-          bap_id: context.bap_id,
-          bpp_id: context.bpp_id,
-          domain: context.domain,
-        },
-        type: "seller"
-      });
-
       // Create settlement record for ledger tracking
       const totalQuantity = orderItems.reduce((sum: number, item: any) => {
         const qty =
@@ -636,6 +625,23 @@ export const onConfirm = (req: Request, res: Response) => {
       console.log(
         `[Confirm] Settlement record created: txn=${context.transaction_id}, qty=${totalQuantity}`,
       );
+        const db = getDB();
+        const savedSettlement = await db.collection<SettlementDocument>('settlements')
+        .findOne({ transactionId: context.transaction_id, role: "SELLER" });
+
+      // Save order to MongoDB for status tracking
+      await catalogStore.saveOrder(context.transaction_id, {
+        userId: (order as any).sellerUserId, // seller id from item
+        order: confirmedOrder,
+        context: {
+          bap_id: context.bap_id,
+          bpp_id: context.bpp_id,
+          domain: context.domain,
+        },
+        type: "seller",
+        orderStatus: "SCHEDULED",
+        settlementId: savedSettlement?._id?.toString()
+      });
 
       const callbackUrl = getCallbackUrl(context, "confirm");
       console.log("Triggering On Confirm response to:", callbackUrl);

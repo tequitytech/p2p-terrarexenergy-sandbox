@@ -57,6 +57,21 @@ export const orderService = {
       .toArray();
   },
 
+  async updateSellerOrderStatus(transactionId: string, orderStatus: string, updates: any = {}) {
+    const db = getDB();
+    await db.collection('orders').updateOne(
+      { transactionId },
+      {
+        $set: {
+          ...updates,
+          orderStatus,
+          updatedAt: new Date()
+        }
+      }
+    );
+    console.log(`[DB] Seller Order status updated to ${orderStatus}: ${transactionId}`);
+  },
+
   async getCombinedOrders(userId: any, userPhone: string) {
     const db = getDB();
     const [buyerOrders, sellerOrders] = await Promise.all([

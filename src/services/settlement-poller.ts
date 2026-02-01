@@ -131,6 +131,17 @@ export async function pollOnce(): Promise<PollResult> {
               }
             }
 
+            // --- Sync Seller Order Status ---
+            if (updated.settlementStatus === "SETTLED") {
+              console.log(
+                `[SettlementPoller] Seller Order completed via Ledger: ${settlement.transactionId}`,
+              );
+              await orderService.updateSellerOrderStatus(
+                settlement.transactionId,
+                "DELIVERED"
+              );
+            }
+
             // Check if newly settled
             if (updated.settlementStatus === 'SETTLED' && previousStatus !== 'SETTLED') {
               result.newlySettled.push(settlement.transactionId);
