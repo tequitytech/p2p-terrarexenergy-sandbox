@@ -79,6 +79,7 @@ export const parseError = (error:any) => {
       }
     }
     */
+   console.log(error.response?.data);
     return String(error.response?.data?.message?.error?.message ?? error.message)
   }
 
