@@ -65,6 +65,7 @@ export async function previewSellerBid(req: Request, res: Response) {
 export async function confirmSellerBid(req: Request, res: Response) {
   try {
     console.log(`[SellerBidding] Confirm request received`);
+    const authorizationToken = req.headers.authorization!
 
     // Validate request
     const validation = validateRequest(req.body);
@@ -76,7 +77,7 @@ export async function confirmSellerBid(req: Request, res: Response) {
     }
 
     // Confirm and publish bids
-    const result = await confirm(validation.request!);
+    const result = await confirm(validation.request!, authorizationToken);
 
     return res.status(200).json(result);
 
