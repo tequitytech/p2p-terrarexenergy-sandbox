@@ -18,6 +18,7 @@ import { parseError } from "../utils";
 import { startOfToday } from "date-fns";
 import z from "zod";
 import { getDB } from "../db";
+import { authMiddleware } from "../auth/routes";
 dotenv.config();
 
 const ONIX_BPP_URL = process.env.ONIX_BPP_URL || "http://onix-bpp:8082";
@@ -32,20 +33,22 @@ export const tradeRoutes = () => {
   const router = Router();
 
   // POST /api/publish - Store catalog and forward to ONIX
-  router.post("/publish", async (req: Request, res: Response) => {
+  router.post("/publish", authMiddleware, async (req: Request, res: Response) => {
     try {
       const catalog = req.body.message?.catalogs?.[0];
       if (!catalog) {
         return res.status(400).json({ error: "No catalog in request" });
       }
+        const userDetails = (req as any).user; // From authMiddleware
+
 
       console.log(`[API] POST /publish - Catalog: ${catalog["beckn:id"]}`);
 
-      // Store in MongoDB (primary action)
-      const catalogId = await catalogStore.saveCatalog(catalog);
+        // Store in MongoDB (primary action)
+        const catalogId = await catalogStore.saveCatalog(catalog, userDetails.userId);
 
       for (const item of catalog["beckn:items"] || []) {
-        await catalogStore.saveItem(catalogId, item);
+        await catalogStore.saveItem(catalogId, item, userDetails.userId);
       }
 
       for (const offer of catalog["beckn:offers"] || []) {

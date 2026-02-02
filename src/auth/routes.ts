@@ -84,11 +84,12 @@ const verifyVcSchema = z.object({
 
 interface JWTPayload {
   phone: string;
+  userId?: string;
   iat: number;
 }
 
-function signToken(phone: string): string {
-  return jwt.sign({ phone }, JWT_SECRET, { algorithm: 'HS256' });
+function signToken(phone: string, userId?: string): string {
+  return jwt.sign({ phone, userId }, JWT_SECRET, { algorithm: 'HS256' });
 }
 
 function verifyToken(token: string): JWTPayload {
@@ -175,7 +176,7 @@ async function login(req: Request, res: Response) {
     });
   }
 
-  const token = signToken(phone);
+  const token = signToken(phone, user._id.toString());
 
   return res.json({
     success: true,

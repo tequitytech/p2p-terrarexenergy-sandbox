@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { ledgerClient } from './ledger-client';
 import { settlementStore, SettlementDocument } from './settlement-store';
 import { catalogStore } from './catalog-store';
+import { orderService } from './order-service';
 
 const ENABLE_POLLING = process.env.ENABLE_SETTLEMENT_POLLING !== 'false';
 const POLL_INTERVAL_MS = parseInt(process.env.SETTLEMENT_POLL_INTERVAL_MS || '300000', 10); // 5 minutes
@@ -111,6 +112,34 @@ export async function pollOnce(): Promise<PollResult> {
 
           if (updated) {
             result.settlementsUpdated++;
+
+            // --- Sync Buyer/Seller Order Status ---
+            try {
+              if (updated.settlementStatus === "SETTLED") {
+                if (settlement.role === "BUYER") {
+                  console.log(
+                    `[SettlementPoller] Buyer Order completed via Ledger: ${settlement.transactionId}`,
+                  );
+                  await orderService.updateBuyerOrderStatus(
+                    settlement.transactionId,
+                    "DELIVERED",
+                    {
+                      settlementId: settlement._id?.toString() || "",
+                    },
+                  );
+                } else if (settlement.role === "SELLER") {
+                  console.log(
+                    `[SettlementPoller] Seller Order completed via Ledger: ${settlement.transactionId}`,
+                  );
+                  await orderService.updateSellerOrderStatus(
+                    settlement.transactionId,
+                    "DELIVERED"
+                  );
+                }
+              }
+            } catch (updateError: any) {
+              console.error(`[SettlementPoller] Error updating order status for ${settlement.transactionId}: ${updateError.message}`);
+            }
 
             // Check if newly settled
             if (updated.settlementStatus === 'SETTLED' && previousStatus !== 'SETTLED') {

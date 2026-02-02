@@ -14,6 +14,7 @@ import { voiceRoutes } from "./voice/routes";
 import { connectDB } from "./db";
 import { startPolling, stopPolling } from "./services/settlement-poller";
 import { ZodError } from "zod";
+import { ordersRoutes } from "./orders/routes";
 import { discoverRoutes } from "./discover/routes";
 import { dashboardRoutes } from "./dashboard/routes";
 import { userRoutes } from "./user/routes";
@@ -47,6 +48,7 @@ export async function createApp() {
   apiRouter.use("/", notificationRoutes()); // Mounts /api/notification/sms
   apiRouter.use("/", dashboardRoutes()); // Mounts /api/dashboard/stats
   apiRouter.use("/voice", authMiddleware, voiceRoutes());  // Mounts /api/voice/intent
+  apiRouter.use("/", ordersRoutes()); // Mounts /api/orders
 
   // Mount the main API router with /api prefix
   apiRouter.use("/health", (req: Request, res: Response) => {

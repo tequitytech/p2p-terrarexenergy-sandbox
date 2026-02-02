@@ -1,12 +1,11 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { paymentService } from "../services/payment-service";
-import crypto from "crypto";
 import { getDB } from "../db";
 import { ObjectId } from "mongodb";
-import { razorpay } from "../services/razorpay";
 import { v4 as uuidv4 } from "uuid";
 import { authMiddleware } from "../auth/routes";
+import { orderService } from "../services/order-service";
 
 // Extend Request type to include rawBody if we capture it in app.ts
 declare global {
@@ -58,6 +57,14 @@ export const paymentRoutes = () => {
     meterId: z.string().min(1, "meterId is required"),
     sourceMeterId: z.string().min(1, "sourceMeterId is required"),
     messageId: z.string().min(1, "messageId is required"),
+    items: z.object({
+        "beckn:orderedItem": z.string().optional(),
+        "beckn:quantity": z.object({
+          unitQuantity: z.number().optional(),
+        }).optional(),
+      })
+      .passthrough()
+      .optional(),
   });
 
   // --- Middleware ---
@@ -96,24 +103,36 @@ export const paymentRoutes = () => {
           meterId,
           sourceMeterId,
           messageId,
+          items,
         } = req.body;
         let { transactionId } = req.body;
+
         console.log("req.body", req.body);
 
         const phone = (req as any).user?.phone || userPhone;
+        const userId = (req as any)?.user?.userId;
+
+        if (!userId && !phone) {
+          return res.status(401).json({ success: false, error: "Unauthorized" });
+        }
 
         const db = getDB();
-        const user = await db.collection("users").findOne({ phone });
+        let user: any = null;
 
-        if (!user) {
-          return res.status(404).json({
-            success: false,
-            error: {
-              code: "INVALID_USER",
-              message: "User Not Found",
-            },
-          });
+        if (!userId) {
+          user = await db.collection("users").findOne({ phone });
+          if (!user) {
+            return res.status(404).json({
+              success: false,
+              error: {
+                code: "INVALID_USER",
+                message: "User Not Found",
+              },
+            });
+          }
         }
+
+        const finalUserId = userId || user._id.toString();
 
         transactionId = transactionId || uuidv4();
         // If user is authenticated via middleware (available in req.user), use that phone
@@ -128,15 +147,12 @@ export const paymentRoutes = () => {
 
         const txnBody = {
           userPhone: phone,
-          userId: user._id,
+          userId: userId,
           status: "pending",
           amount,
           currency,
           orderId: order.id,
           transaction_id: transactionId,
-          meterId: meterId,
-          sourceMeterId: sourceMeterId,
-          messageId: messageId,
           createdAt: new Date(),
           updatedAt: new Date(),
         };
@@ -154,6 +170,23 @@ export const paymentRoutes = () => {
           name: notes?.name || "Customer",
         });
         console.log("Created Razorpay payment link:", paymentLink);
+
+        // --- Save Buyer Order ---
+        await orderService.saveBuyerOrder(transactionId, {
+          userId: finalUserId,
+          userPhone: phone,
+          razorpayOrderId: order.id,
+          txnPayId: trnsResp.insertedId,
+          meterId,
+          sourceMeterId,
+          messageId,
+          items: items || [], // Store items
+          status: "INITIATED" as any,
+          type: "buyer" as any,
+        });
+        console.log(
+          `[Payment] Saved buyer order ${transactionId} with RZP order ${order.id}`,
+        );
 
         res.json({
           success: true,
@@ -211,6 +244,29 @@ export const paymentRoutes = () => {
     );
 
     if (isValid) {
+      // --- Update Buyer Order Status ---
+      const razorpayOrderId = razorpay_payment_link_reference_id as string;
+
+      // Find the transactionId associated with this Razorpay Order ID
+      const db = getDB();
+      const buyerOrder = await db
+        .collection("buyer_orders")
+        .findOne({ razorpayOrderId });
+
+      if (buyerOrder) {
+        const transactionId = buyerOrder.transactionId;
+
+        await orderService.updateBuyerOrderStatus(transactionId, "SCHEDULED", {
+          paymentId: razorpay_payment_id,
+          razorpaySignature: razorpay_signature,
+        });
+        console.log(`[Callback] Buyer Order ${transactionId} marked as SCHEDULED`);
+      } else {
+        console.warn(
+          `[Callback] Buyer Order not found for RZP Order ${razorpayOrderId}`,
+        );
+      }
+
       res.status(200).json({
         success: true,
         data: {
