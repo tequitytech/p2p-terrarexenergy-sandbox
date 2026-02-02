@@ -518,7 +518,7 @@ export const onConfirm = (req: Request, res: Response) => {
 
       // Reduce inventory for each item and track affected catalogs
       const affectedCatalogs = new Set<string>();
-
+      let sellerUserId: string | null = null;
       for (const orderItem of orderItems) {
         const itemId =
           orderItem["beckn:orderedItem"] ||
@@ -534,11 +534,7 @@ export const onConfirm = (req: Request, res: Response) => {
           console.log(`[Confirm] Reducing inventory: ${itemId} by ${quantity}`);
 
           // Get seller userId for attribution (uses catalog fallback if needed)
-          const sellerUserId = await catalogStore.getSellerUserIdForItem(itemId);
-
-          if (sellerUserId) {
-            (order as any).sellerUserId = sellerUserId;
-          }
+          sellerUserId = await catalogStore.getSellerUserIdForItem(itemId);
 
           const item = await catalogStore.getItem(itemId);
           if (item) {
@@ -637,7 +633,7 @@ export const onConfirm = (req: Request, res: Response) => {
 
       // Save order to MongoDB for status tracking
       await catalogStore.saveOrder(context.transaction_id, {
-        userId: (order as any).sellerUserId, // seller id from item
+        userId: sellerUserId, // seller id from item
         order: confirmedOrder,
         context: {
           bap_id: context.bap_id,
