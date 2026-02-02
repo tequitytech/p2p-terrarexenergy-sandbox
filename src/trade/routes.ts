@@ -282,7 +282,7 @@ export const tradeRoutes = () => {
       })
       
       try {
-        if(!user?.socialImpactVerified) {
+        if(!user?.isVerifiedBeneficiary) {
           return res.status(400).json({
             success: false,
             message: "Invalid donation account"

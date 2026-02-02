@@ -18,6 +18,7 @@ import { ordersRoutes } from "./orders/routes";
 import { discoverRoutes } from "./discover/routes";
 import { dashboardRoutes } from "./dashboard/routes";
 import { userRoutes } from "./user/routes";
+import { energyRequestRoutes } from "./energy-request/routes";
 
 export async function createApp() {
   // Connect to MongoDB on startup
@@ -49,6 +50,7 @@ export async function createApp() {
   apiRouter.use("/", dashboardRoutes()); // Mounts /api/dashboard/stats
   apiRouter.use("/voice", authMiddleware, voiceRoutes());  // Mounts /api/voice/intent
   apiRouter.use("/", ordersRoutes()); // Mounts /api/orders
+  apiRouter.use("/", energyRequestRoutes()); // Mounts energy request routes
 
   // Mount the main API router with /api prefix
   apiRouter.use("/health", (req: Request, res: Response) => {

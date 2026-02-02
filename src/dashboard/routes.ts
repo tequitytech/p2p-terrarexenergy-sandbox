@@ -11,7 +11,7 @@ export const dashboardRoutes = () => {
    *    totalEnergySold: number,
    *    availableEnergy: number,
    *    totalEarnings: number,
-   *    yourSocialImpact: number,
+   *    donatedEnergy: number,
    * }
    */
   router.get("/dashboard/stats", async (req: Request, res: Response) => {
@@ -29,7 +29,7 @@ export const dashboardRoutes = () => {
         catalogStore.getSellerEarnings(sellerId),
         catalogStore.getSellerTotalSold(sellerId),
         catalogStore.getSellerAvailableInventory(sellerId),
-        catalogStore.getSocialImpactDonations(sellerId)
+        catalogStore.getBeneficiaryDonations(sellerId)
       ]);
 
       // Use actual calculated donations
@@ -39,7 +39,7 @@ export const dashboardRoutes = () => {
         totalEnergySold: Number(totalSold.toFixed(2)),
         availableEnergy: Number(availableInventory.toFixed(2)),
         totalEarnings: Number(earningsToday.toFixed(2)),
-        yourSocialImpact: Number(socialImpact.toFixed(2)),
+        donatedEnergy: Number(socialImpact.toFixed(2)),
       });
     } catch (error: any) {
       console.error(`[Dashboard] Error getting stats:`, error.message);

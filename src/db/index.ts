@@ -78,6 +78,11 @@ export async function connectDB(): Promise<Db> {
   await db.collection("payments").createIndex({ "metadata.consumerNumber": 1 });
   await db.collection("payments").createIndex({ createdAt: 1 });
 
+  // Energy Requests collection
+  await db.collection("energy_requests").createIndex({ userId: 1 });
+  await db.collection("energy_requests").createIndex({ status: 1 });
+  await db.collection("energy_requests").createIndex({ createdAt: -1 });
+
   return db;
 }
 
