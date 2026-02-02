@@ -11,6 +11,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import axios from 'axios';
 import { getDB } from '../db';
+import { ObjectId } from 'mongodb';
 
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'p2p-trading-pilot-secret';
@@ -336,11 +337,22 @@ async function verifyVc(req: Request, res: Response) {
 }
 
 async function getMe(req: Request, res: Response) {
-  const phone = req.user!.phone;
 
+  const userDetails = req.user;
+
+  if (!userDetails) {
+    return res.status(401).json({
+      success: false,
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Unauthorized access',
+      },
+    });
+  }
+  
   const db = getDB();
-  const user = await db.collection('users').findOne({ phone });
-
+  const user = await db.collection('users').findOne({ _id: new ObjectId(userDetails.userId) });
+  
   if (!user) {
     return res.status(404).json({
       success: false,
@@ -369,6 +381,7 @@ async function getMe(req: Request, res: Response) {
         programEnrollment: user.profiles?.programEnrollment || null,
       },
       meters: user.meters || [],
+      memberSince: user.createdAt,
     },
   });
 }
