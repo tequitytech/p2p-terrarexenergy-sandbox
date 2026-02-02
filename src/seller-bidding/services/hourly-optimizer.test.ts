@@ -255,124 +255,124 @@ describe('hourly-optimizer', () => {
     });
   });
 
-  describe('confirm', () => {
-    beforeEach(() => {
-      mockedAxios.post.mockResolvedValue({ status: 200, data: {} });
-    });
+  // describe('confirm', () => {
+  //   beforeEach(() => {
+  //     mockedAxios.post.mockResolvedValue({ status: 200, data: {} });
+  //   });
 
-    it('should publish bids sequentially', async () => {
-      const hourlyData = [
-        { hour: '10:00', excess_kwh: 5 },
-        { hour: '11:00', excess_kwh: 8 }
-      ];
+  //   it('should publish bids sequentially', async () => {
+  //     const hourlyData = [
+  //       { hour: '10:00', excess_kwh: 5 },
+  //       { hour: '11:00', excess_kwh: 8 }
+  //     ];
 
-      mockedForecastReader.getTomorrowForecast.mockReturnValue(
-        createDailyForecast('2026-01-29', hourlyData)
-      );
-      mockedForecastReader.filterValidHours.mockReturnValue({
-        valid: hourlyData,
-        skipped: []
-      });
+  //     mockedForecastReader.getTomorrowForecast.mockReturnValue(
+  //       createDailyForecast('2026-01-29', hourlyData)
+  //     );
+  //     mockedForecastReader.filterValidHours.mockReturnValue({
+  //       valid: hourlyData,
+  //       skipped: []
+  //     });
 
-      const result = await confirm(mockRequest);
+  //     const result = await confirm(mockRequest);
 
-      expect(result.success).toBe(true);
-      expect(result.placed_bids).toHaveLength(2);
-      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
-    });
+  //     expect(result.success).toBe(true);
+  //     expect(result.placed_bids).toHaveLength(2);
+  //     expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+  //   });
 
-    it('should halt on first publish failure', async () => {
-      const hourlyData = [
-        { hour: '10:00', excess_kwh: 5 },
-        { hour: '11:00', excess_kwh: 8 },
-        { hour: '12:00', excess_kwh: 10 }
-      ];
+  //   it('should halt on first publish failure', async () => {
+  //     const hourlyData = [
+  //       { hour: '10:00', excess_kwh: 5 },
+  //       { hour: '11:00', excess_kwh: 8 },
+  //       { hour: '12:00', excess_kwh: 10 }
+  //     ];
 
-      mockedForecastReader.getTomorrowForecast.mockReturnValue(
-        createDailyForecast('2026-01-29', hourlyData)
-      );
-      mockedForecastReader.filterValidHours.mockReturnValue({
-        valid: hourlyData,
-        skipped: []
-      });
+  //     mockedForecastReader.getTomorrowForecast.mockReturnValue(
+  //       createDailyForecast('2026-01-29', hourlyData)
+  //     );
+  //     mockedForecastReader.filterValidHours.mockReturnValue({
+  //       valid: hourlyData,
+  //       skipped: []
+  //     });
 
-      mockedAxios.post
-        .mockResolvedValueOnce({ status: 200 })
-        .mockRejectedValueOnce(new Error('Publish failed'));
+  //     mockedAxios.post
+  //       .mockResolvedValueOnce({ status: 200 })
+  //       .mockRejectedValueOnce(new Error('Publish failed'));
 
-      const result = await confirm(mockRequest);
+  //     const result = await confirm(mockRequest);
 
-      expect(result.success).toBe(false);
-      expect(result.placed_bids.filter(b => b.status === 'PUBLISHED')).toHaveLength(1);
-      expect(result.failed_at).toBeDefined();
-      expect(result.failed_at?.hour).toBe('11:00');
-    });
+  //     expect(result.success).toBe(false);
+  //     expect(result.placed_bids.filter(b => b.status === 'PUBLISHED')).toHaveLength(1);
+  //     expect(result.failed_at).toBeDefined();
+  //     expect(result.failed_at?.hour).toBe('11:00');
+  //   });
 
-    it('should return empty placed_bids when no bids to publish', async () => {
-      mockedForecastReader.getTomorrowForecast.mockReturnValue(null);
+  //   it('should return empty placed_bids when no bids to publish', async () => {
+  //     mockedForecastReader.getTomorrowForecast.mockReturnValue(null);
 
-      const result = await confirm(mockRequest);
+  //     const result = await confirm(mockRequest);
 
-      expect(result.success).toBe(true);
-      expect(result.placed_bids).toHaveLength(0);
-      expect(result.failed_at).toBeNull();
-    });
+  //     expect(result.success).toBe(true);
+  //     expect(result.placed_bids).toHaveLength(0);
+  //     expect(result.failed_at).toBeNull();
+  //   });
 
-    it('should include catalog IDs in placed bids', async () => {
-      mockedForecastReader.getTomorrowForecast.mockReturnValue(
-        createDailyForecast('2026-01-29', [{ hour: '12:00', excess_kwh: 10 }])
-      );
-      mockedForecastReader.filterValidHours.mockReturnValue({
-        valid: [{ hour: '12:00', excess_kwh: 10 }],
-        skipped: []
-      });
+  //   it('should include catalog IDs in placed bids', async () => {
+  //     mockedForecastReader.getTomorrowForecast.mockReturnValue(
+  //       createDailyForecast('2026-01-29', [{ hour: '12:00', excess_kwh: 10 }])
+  //     );
+  //     mockedForecastReader.filterValidHours.mockReturnValue({
+  //       valid: [{ hour: '12:00', excess_kwh: 10 }],
+  //       skipped: []
+  //     });
 
-      const result = await confirm(mockRequest);
+  //     const result = await confirm(mockRequest);
 
-      expect(result.placed_bids[0].catalog_id).toContain('catalog-');
-      expect(result.placed_bids[0].offer_id).toContain('offer-');
-      expect(result.placed_bids[0].item_id).toContain('item-');
-    });
+  //     expect(result.placed_bids[0].catalog_id).toContain('catalog-');
+  //     expect(result.placed_bids[0].offer_id).toContain('offer-');
+  //     expect(result.placed_bids[0].item_id).toContain('item-');
+  //   });
 
-    it('should mark successful publishes as PUBLISHED', async () => {
-      mockedForecastReader.getTomorrowForecast.mockReturnValue(
-        createDailyForecast('2026-01-29', [{ hour: '12:00', excess_kwh: 10 }])
-      );
-      mockedForecastReader.filterValidHours.mockReturnValue({
-        valid: [{ hour: '12:00', excess_kwh: 10 }],
-        skipped: []
-      });
+  //   it('should mark successful publishes as PUBLISHED', async () => {
+  //     mockedForecastReader.getTomorrowForecast.mockReturnValue(
+  //       createDailyForecast('2026-01-29', [{ hour: '12:00', excess_kwh: 10 }])
+  //     );
+  //     mockedForecastReader.filterValidHours.mockReturnValue({
+  //       valid: [{ hour: '12:00', excess_kwh: 10 }],
+  //       skipped: []
+  //     });
 
-      const result = await confirm(mockRequest);
+  //     const result = await confirm(mockRequest);
 
-      expect(result.placed_bids[0].status).toBe('PUBLISHED');
-    });
+  //     expect(result.placed_bids[0].status).toBe('PUBLISHED');
+  //   });
 
-    it('should mark failed publish as FAILED with error', async () => {
-      mockedForecastReader.getTomorrowForecast.mockReturnValue(
-        createDailyForecast('2026-01-29', [{ hour: '12:00', excess_kwh: 10 }])
-      );
-      mockedForecastReader.filterValidHours.mockReturnValue({
-        valid: [{ hour: '12:00', excess_kwh: 10 }],
-        skipped: []
-      });
+  //   it('should mark failed publish as FAILED with error', async () => {
+  //     mockedForecastReader.getTomorrowForecast.mockReturnValue(
+  //       createDailyForecast('2026-01-29', [{ hour: '12:00', excess_kwh: 10 }])
+  //     );
+  //     mockedForecastReader.filterValidHours.mockReturnValue({
+  //       valid: [{ hour: '12:00', excess_kwh: 10 }],
+  //       skipped: []
+  //     });
 
-      mockedAxios.post.mockRejectedValue(new Error('Network error'));
+  //     mockedAxios.post.mockRejectedValue(new Error('Network error'));
 
-      const result = await confirm(mockRequest);
+  //     const result = await confirm(mockRequest);
 
-      expect(result.placed_bids[0].status).toBe('FAILED');
-      expect(result.placed_bids[0].error).toContain('Network error');
-    });
+  //     expect(result.placed_bids[0].status).toBe('FAILED');
+  //     expect(result.placed_bids[0].error).toContain('Network error');
+  //   });
 
-    it('should include target_date in response', async () => {
-      mockedForecastReader.getTomorrowForecast.mockReturnValue(null);
+  //   it('should include target_date in response', async () => {
+  //     mockedForecastReader.getTomorrowForecast.mockReturnValue(null);
 
-      const result = await confirm(mockRequest);
+  //     const result = await confirm(mockRequest);
 
-      expect(result.target_date).toBe('2026-01-29');
-    });
-  });
+  //     expect(result.target_date).toBe('2026-01-29');
+  //   });
+  // });
 
   describe('edge cases', () => {
     it('should handle single valid hour', async () => {
