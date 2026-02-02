@@ -542,7 +542,9 @@ export const onConfirm = (req: Request, res: Response) => {
 
           const item = await catalogStore.getItem(itemId);
           if (item) {
-            await catalogStore.reduceInventory(itemId, quantity);
+            await Promise.all([
+              catalogStore.reduceInventory(itemId, quantity)
+            ]);
             affectedCatalogs.add(item.catalogId);
             console.log(`[Confirm] Inventory reduced for ${itemId}, seller: ${sellerUserId || 'UNKNOWN'}`);
           } else {
