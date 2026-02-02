@@ -107,16 +107,16 @@ export const catalogStore = {
 
     // Remove MongoDB fields and rebuild catalog structure
     const cleanItem = (item: any) => {
-      const { _id, catalogId, updatedAt, ...rest } = item;
+      const { _id, catalogId, updatedAt, userId, ...rest } = item;
       return rest;
     };
 
     const cleanOffer = (offer: any) => {
-      const { _id, catalogId, updatedAt, ...rest } = offer;
+      const { _id, catalogId, updatedAt, userId, ...rest } = offer;
       return rest;
     };
 
-    const { _id, updatedAt, ...catalogBase } = catalog;
+    const { _id, updatedAt, userId, ...catalogBase } = catalog;
 
     return {
       ...catalogBase,
