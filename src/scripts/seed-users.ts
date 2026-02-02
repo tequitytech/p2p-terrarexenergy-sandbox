@@ -19,7 +19,8 @@ interface SeedUser {
   phone: string;
   pin: string;
   name: string;
-  socialImpactVerified?: boolean;
+  isVerifiedBeneficiary?: boolean;
+  beneficiaryType?: 'social' | 'known';
   did?: string;
 }
 
@@ -64,7 +65,8 @@ export async function seedUsers(users: SeedUser[], db?: Db): Promise<SeedResult>
         pin: user.pin,
         name: user.name,
         vcVerified: false,
-        socialImpactVerified: user.socialImpactVerified || false,
+        isVerifiedBeneficiary: user.isVerifiedBeneficiary || false,
+        beneficiaryType: user.beneficiaryType || (user.isVerifiedBeneficiary ? 'social' : undefined),
         profiles: {
           utilityCustomer: user.did ? { did: user.did, verifiedAt: new Date() } : null,
           consumptionProfile: null,

@@ -4,13 +4,13 @@ import { getDB } from "../db";
 export function userRoutes(): Router {
   const router = Router();
 
-  // GET /api/social-impact-accounts
-  router.get("/social-impact-accounts", async (req: Request, res: Response) => {
+  // GET /api/beneficiary-accounts
+  router.get("/beneficiary-accounts", async (req: Request, res: Response) => {
     try {
       const db = getDB();
       // Find all users who are social impact verified
       const accounts = await db.collection("users").find({
-        socialImpactVerified: true,
+        isVerifiedBeneficiary: true,
         vcVerified: true
       }).toArray();
 
@@ -19,7 +19,7 @@ export function userRoutes(): Router {
         id: user.profiles?.consumptionProfile?.id || user.profiles?.utilityCustomer?.did || user.phone, // Prioritize DIDs, fallback to phone
         name: user.name,
         verified: true,
-        type: "Social Impact Entity",
+        type: "Verified Beneficiary",
         requiredEnergy: user.requiredEnergy
       }));
 
@@ -28,7 +28,7 @@ export function userRoutes(): Router {
         accounts: result
       });
     } catch (error: any) {
-      console.error("[API] Error fetching social impact accounts:", error);
+      console.error("[API] Error fetching beneficiary accounts:", error);
       res.status(500).json({ error: "Failed to fetch accounts" });
     }
   });

@@ -253,11 +253,11 @@ export const catalogStore = {
     return result[0]?.totalAvailable || 0;
   },
 
-  async getSocialImpactDonations(sellerId: string): Promise<number> {
+  async getBeneficiaryDonations(sellerId: string): Promise<number> {
       const db = getDB();
       const verifiedAccounts = await db.collection("users").find({
         vcVerified: true,
-        socialImpactVerified: true
+        isVerifiedBeneficiary: true
       }).toArray();
 
       const verifiedAccountIds = new Set(verifiedAccounts.map(p => p.profiles.consumptionProfile.id));
