@@ -9,7 +9,7 @@ import {
 } from "../constants/schemas";
 import { catalogStore } from "../services/catalog-store";
 import { SettlementDocument, settlementStore } from "../services/settlement-store";
-import { readDomainResponse } from "../utils";
+import { parseError, readDomainResponse } from "../utils";
 import { getDB } from "../db";
 dotenv.config();
 
@@ -658,7 +658,8 @@ export const onConfirm = (req: Request, res: Response) => {
       const confirm_data = await axios.post(callbackUrl, responsePayload);
       console.log("On Confirm api call response: ", confirm_data.data);
     } catch (error: any) {
-      console.log("[Confirm] Error:", error.message);
+      const err = parseError(error);
+      console.log("[Confirm] Error:", err);;
     }
   })();
 
