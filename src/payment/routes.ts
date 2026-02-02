@@ -57,7 +57,14 @@ export const paymentRoutes = () => {
     meterId: z.string().min(1, "meterId is required"),
     sourceMeterId: z.string().min(1, "sourceMeterId is required"),
     messageId: z.string().min(1, "messageId is required"),
-    items: z.record(z.string(), z.any()).optional(), // Add items to schema
+    items: z.object({
+        "beckn:orderedItem": z.string().optional(),
+        "beckn:quantity": z.object({
+          unitQuantity: z.number().optional(),
+        }).optional(),
+      })
+      .passthrough()
+      .optional(),
   });
 
   // --- Middleware ---
@@ -103,19 +110,29 @@ export const paymentRoutes = () => {
         console.log("req.body", req.body);
 
         const phone = (req as any).user?.phone || userPhone;
-        const db = getDB();
-        const user = await db.collection("users").findOne({ phone });
+        const userId = (req as any)?.user?.userId;
 
-        if (!user) {
-          return res.status(404).json({
-            success: false,
-            error: {
-              code: "INVALID_USER",
-              message: "User Not Found",
-            },
-          });
+        if (!userId && !phone) {
+          return res.status(401).json({ success: false, error: "Unauthorized" });
         }
-        const userId = (req as any)?.user?.userId || user._id.toString();
+
+        const db = getDB();
+        let user: any = null;
+
+        if (!userId) {
+          user = await db.collection("users").findOne({ phone });
+          if (!user) {
+            return res.status(404).json({
+              success: false,
+              error: {
+                code: "INVALID_USER",
+                message: "User Not Found",
+              },
+            });
+          }
+        }
+
+        const finalUserId = userId || user._id.toString();
 
         transactionId = transactionId || uuidv4();
         // If user is authenticated via middleware (available in req.user), use that phone
@@ -156,16 +173,16 @@ export const paymentRoutes = () => {
 
         // --- Save Buyer Order ---
         await orderService.saveBuyerOrder(transactionId, {
-          userId: userId,
+          userId: finalUserId,
           userPhone: phone,
           razorpayOrderId: order.id,
           txnPayId: trnsResp.insertedId,
           meterId,
           sourceMeterId,
           messageId,
-          items: items || {}, // Store items
-          status: "INITIATED",
-          type: "buyer",
+          items: items || [], // Store items
+          status: "INITIATED" as any,
+          type: "buyer" as any,
         });
         console.log(
           `[Payment] Saved buyer order ${transactionId} with RZP order ${order.id}`,

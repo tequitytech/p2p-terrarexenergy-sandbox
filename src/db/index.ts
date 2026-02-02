@@ -56,6 +56,16 @@ export async function connectDB(): Promise<Db> {
   await db
     .collection("orders")
     .createIndex({ transactionId: 1 }, { unique: true });
+  await db.collection("orders").createIndex({ userId: 1 });
+  await db.collection("orders").createIndex({ type: 1 });
+  await db.collection("orders").createIndex({ createdAt: -1 });
+
+  // Buyer Orders collection indexes
+  await db.collection("buyer_orders").createIndex({ transactionId: 1 });
+  await db.collection("buyer_orders").createIndex({ userId: 1 });
+  await db.collection("buyer_orders").createIndex({ type: 1 });
+  await db.collection("buyer_orders").createIndex({ createdAt: -1 });
+  await db.collection("buyer_orders").createIndex({ status: 1 });
 
   // Users collection for authentication
   await db.collection("users").createIndex({ phone: 1 }, { unique: true });

@@ -191,5 +191,35 @@ export const catalogStore = {
 
     const result = await db.collection('orders').aggregate(pipeline).toArray();
     return Number((result[0]?.totalEarnings || 0).toFixed(2));
+  },
+
+  /**
+   * Helper to retrieve context-aware seller userId for an item
+   * Fallback to the catalog's userId if not present on the item (legacy data)
+   */
+  async getSellerUserIdForItem(itemId: string): Promise<string | null> {
+    const db = getDB();
+    const item = await this.getItem(itemId);
+    if (!item) return null;
+    if (item.userId) return item.userId;
+
+    if (item.catalogId) {
+      const catalog = await this.getCatalog(item.catalogId);
+      if (catalog) {
+        if (catalog.userId) return catalog.userId;
+
+        // Fallback: Get meterId from catalog and search users
+        const meterId = catalog['beckn:items']?.[0]?.['beckn:itemAttributes']?.meterId
+
+        if (meterId) {
+          const user = await db.collection('users').findOne({ meters: meterId });
+          if (user) {
+            console.log(`[CatalogStore] Seller userId found via meterId fallback: ${user._id}`);
+            return user._id.toString();
+          }
+        }
+      }
+    }
+    return null;
   }
 };

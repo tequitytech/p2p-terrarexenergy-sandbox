@@ -113,33 +113,32 @@ export async function pollOnce(): Promise<PollResult> {
           if (updated) {
             result.settlementsUpdated++;
 
-            // --- Sync Buyer Order Status ---
-            if (settlement.role === "BUYER") {
-              if (
-                updated.settlementStatus === "SETTLED"
-              ) {
-                console.log(
-                  `[SettlementPoller] Buyer Order completed via Ledger: ${settlement.transactionId}`,
-                );
-                await orderService.updateBuyerOrderStatus(
-                  settlement.transactionId,
-                  "DELIVERED",
-                  {
-                    settlementId: settlement._id?.toString() || "",
-                  },
-                );
+            // --- Sync Buyer/Seller Order Status ---
+            try {
+              if (updated.settlementStatus === "SETTLED") {
+                if (settlement.role === "BUYER") {
+                  console.log(
+                    `[SettlementPoller] Buyer Order completed via Ledger: ${settlement.transactionId}`,
+                  );
+                  await orderService.updateBuyerOrderStatus(
+                    settlement.transactionId,
+                    "DELIVERED",
+                    {
+                      settlementId: settlement._id?.toString() || "",
+                    },
+                  );
+                } else if (settlement.role === "SELLER") {
+                  console.log(
+                    `[SettlementPoller] Seller Order completed via Ledger: ${settlement.transactionId}`,
+                  );
+                  await orderService.updateSellerOrderStatus(
+                    settlement.transactionId,
+                    "DELIVERED"
+                  );
+                }
               }
-            }
-
-            // --- Sync Seller Order Status ---
-            if (updated.settlementStatus === "SETTLED") {
-              console.log(
-                `[SettlementPoller] Seller Order completed via Ledger: ${settlement.transactionId}`,
-              );
-              await orderService.updateSellerOrderStatus(
-                settlement.transactionId,
-                "DELIVERED"
-              );
+            } catch (updateError: any) {
+              console.error(`[SettlementPoller] Error updating order status for ${settlement.transactionId}: ${updateError.message}`);
             }
 
             // Check if newly settled

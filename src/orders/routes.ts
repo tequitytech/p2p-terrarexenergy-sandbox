@@ -1,20 +1,9 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { authMiddleware } from "../auth/routes";
-import { getDB } from "../db";
 import { orderService } from "../services/order-service";
-
-// Extend Request type to include rawBody if we capture it in app.ts
-declare global {
-  namespace Express {
-    interface Request {
-      rawBody?: Buffer;
-    }
-  }
-}
 
 export const ordersRoutes = () => {
   const router = Router();
-
 
   // GET /api/orders/buyer/ - List user's buy orders
   router.get(
@@ -29,26 +18,11 @@ export const ordersRoutes = () => {
             .json({ success: false, error: "Unauthorized" });
         }
 
-        const db = getDB();
-        let user = await db
-          .collection("users")
-          .findOne({ phone: userDetails.phone });
-
-        if (!user) {
-          return res.status(401).json({
-            success: false,
-            error: {
-              code: "INVALID_USER",
-              message: "User Not Found",
-            },
-          });
-        }
-
-        // Fetch orders for this user
+        // Fetch orders for this user using the authenticated user's ID
         const orders = await orderService.getBuyerOrders({
-          userId: userDetails.userId,
-          userPhone: userDetails.phone,
+          userId: userDetails.userId
         });
+
         res.json({
           success: true,
           data: orders,
@@ -76,7 +50,7 @@ export const ordersRoutes = () => {
         const userDetails = (req as any).user;
 
         if (!userDetails) {
-          return res.status(404).json({
+          return res.status(401).json({
             success: false,
             error: {
               code: "UNAUTHORIZED",
@@ -116,7 +90,7 @@ export const ordersRoutes = () => {
         const userDetails = (req as any).user;
 
         if (!userDetails) {
-          return res.status(404).json({
+          return res.status(401).json({
             success: false,
             error: {
               code: "UNAUTHORIZED",
@@ -125,10 +99,7 @@ export const ordersRoutes = () => {
           });
         }
 
-        const orders = await orderService.getCombinedOrders(
-          userDetails.userId,
-          userDetails.phone,
-        );
+        const orders = await orderService.getCombinedOrders(userDetails.userId);
 
         res.json({
           success: true,

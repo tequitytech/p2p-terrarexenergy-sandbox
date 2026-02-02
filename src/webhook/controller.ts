@@ -533,16 +533,20 @@ export const onConfirm = (req: Request, res: Response) => {
         if (itemId && quantity > 0) {
           console.log(`[Confirm] Reducing inventory: ${itemId} by ${quantity}`);
 
-          // Get item to find its catalog and seller userId
+          // Get seller userId for attribution (uses catalog fallback if needed)
+          const sellerUserId = await catalogStore.getSellerUserIdForItem(itemId);
+
+          if (sellerUserId) {
+            (order as any).sellerUserId = sellerUserId;
+          }
+
           const item = await catalogStore.getItem(itemId);
           if (item) {
-            // Store the userId (seller) to be used when saving the order
-            (order as any).sellerUserId = item.userId;
-            await Promise.all([
-              catalogStore.reduceInventory(itemId, quantity)
-            ]);
+            await catalogStore.reduceInventory(itemId, quantity);
             affectedCatalogs.add(item.catalogId);
-            console.log(`[Confirm] Inventory reduced for ${itemId}, seller: ${item.userId}`);
+            console.log(`[Confirm] Inventory reduced for ${itemId}, seller: ${sellerUserId || 'UNKNOWN'}`);
+          } else {
+            console.warn(`[Confirm] Item not found for inventory reduction: ${itemId}`);
           }
         }
       }
