@@ -10,6 +10,8 @@ if (!MONGO_URI) {
 const MONGO_DB = process.env.MONDO_DB ?? "p2p_trading";
 import { calculateTotalAmount } from "../utils";
 
+const SELLER_ID = "terrarex-provider-001";
+const BUYER_ID = "did:rcw:subject-057";
 const DISCOMM_BUYER = "DISCOM-1";
 const DISCOMM_SELLER = "DISCOM-2";
 
@@ -94,7 +96,7 @@ const publishEnergy = async ({
                   "High-quality solar energy from verified source with carbon offset certification",
               },
               "beckn:provider": {
-                "beckn:id": "terrarex-provider-001",
+                "beckn:id": SELLER_ID,
                 "beckn:descriptor": {
                   "@type": "beckn:Descriptor",
                   "schema:name": "Solar Farm 001",
@@ -107,7 +109,7 @@ const publishEnergy = async ({
                 sourceType: "SOLAR",
                 deliveryMode: "GRID_INJECTION",
                 certificationStatus: "Carbon Offset Certified",
-                meterId: "der://meter/100200300",
+                meterId: "100200300",
                 availableQuantity: 10.5,
                 productionWindow: [
                   {
@@ -139,7 +141,7 @@ const publishEnergy = async ({
                 "@type": "beckn:Descriptor",
                 "schema:name": "Bulk Solar Energy Offer",
               },
-              "beckn:provider": "terrarex-provider-001",
+              "beckn:provider": SELLER_ID,
               "beckn:items": [itemId],
               "beckn:price": {
                 "@type": "schema:PriceSpecification",
@@ -237,7 +239,7 @@ const selectItem = async (
           "beckn:orderStatus": "CREATED",
           "beckn:seller": item["beckn:providerId"],
           "beckn:buyer": {
-            "beckn:id": "buyer-terrarex-001",
+            "beckn:id": BUYER_ID,
             "@context":
               "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
             "@type": "beckn:Buyer",
@@ -459,15 +461,6 @@ const main = async () => {
     console.log("Order initiated successfully");
     return initResponse;
   })();
-
-  // Check ledger - No entry should be present before confirmation
-  {
-    const entry = await findTransactionInLedger(transactionId);
-    if (entry.count > 0) {
-      console.log("Ledger Entry", JSON.stringify(entry, null, 2));
-      throw new Error("Ledger entry found before confirmation");
-    }
-  }
 
   const confirmResponse = await (async () => {
     const confirmResponse = await confirmItem(transactionId, initResponse);

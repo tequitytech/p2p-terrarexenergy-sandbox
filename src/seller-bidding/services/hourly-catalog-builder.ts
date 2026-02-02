@@ -80,6 +80,8 @@ export function buildHourlyItem(params: {
     "@context": BECKN_CONTEXT_ROOT,
     "@type": "beckn:Item",
     "beckn:id": itemId,
+    "beckn:networkId": ["p2p-interdiscom-trading-pilot-network"],
+    "beckn:isActive": true,
     "beckn:descriptor": {
       "@type": "beckn:Descriptor",
       "schema:name": `Solar Energy - ${params.date} ${params.hour}`,
@@ -182,7 +184,8 @@ export function buildHourlyOffer(params: {
       },
       "beckn:maxQuantity": {
         "unitQuantity": params.quantity,
-        "unitText": "kWh"
+        "unitText": "kWh",
+        "unitCode": "KWH"
       },
       "beckn:timeWindow": {
         "@type": "beckn:TimePeriod",

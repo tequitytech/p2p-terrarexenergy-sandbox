@@ -16,6 +16,8 @@ import { startPolling, stopPolling } from "./services/settlement-poller";
 import { ZodError } from "zod";
 import { ordersRoutes } from "./orders/routes";
 import { discoverRoutes } from "./discover/routes";
+import { dashboardRoutes } from "./dashboard/routes";
+import { userRoutes } from "./user/routes";
 
 export async function createApp() {
   // Connect to MongoDB on startup
@@ -41,8 +43,10 @@ export async function createApp() {
   apiRouter.use("/", biddingRoutes());  // Mounts /api/bid/preview, /api/bid/confirm
   apiRouter.use("/", sellerBiddingRoutes());  // Mounts /api/seller/preview, /api/seller/confirm
   apiRouter.use("/", authRoutes());  // Mounts /api/auth/login, /api/auth/verify-vc, /api/auth/me
+  apiRouter.use("/", userRoutes());  // Mounts /api/social-impact-accounts
   apiRouter.use("/", paymentRoutes()); // Mounts /api/payment/order, /api/payment/verify, /api/payment/:orderId, /webhook/razorpay
   apiRouter.use("/", notificationRoutes()); // Mounts /api/notification/sms
+  apiRouter.use("/", dashboardRoutes()); // Mounts /api/dashboard/stats
   apiRouter.use("/voice", authMiddleware, voiceRoutes());  // Mounts /api/voice/intent
   apiRouter.use("/", ordersRoutes()); // Mounts /api/orders
 

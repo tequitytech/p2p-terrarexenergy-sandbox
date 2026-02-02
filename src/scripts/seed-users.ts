@@ -19,6 +19,8 @@ interface SeedUser {
   phone: string;
   pin: string;
   name: string;
+  socialImpactVerified?: boolean;
+  did?: string;
 }
 
 interface SeedResult {
@@ -62,8 +64,9 @@ export async function seedUsers(users: SeedUser[], db?: Db): Promise<SeedResult>
         pin: user.pin,
         name: user.name,
         vcVerified: false,
+        socialImpactVerified: user.socialImpactVerified || false,
         profiles: {
-          utilityCustomer: null,
+          utilityCustomer: user.did ? { did: user.did, verifiedAt: new Date() } : null,
           consumptionProfile: null,
           generationProfile: null,
           storageProfile: null,

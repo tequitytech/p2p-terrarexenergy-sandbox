@@ -13,5 +13,27 @@
     "phone": "9876543210",
     "pin": "123456",
     "name": "Test Prosumer"
+  },
+  {
+    "phone": "8433100018",
+    "pin": "123456",
+    "name": "City Care Hospital",
+    "socialImpactVerified": true,
+    "did": "did:rcw:subject-057",
+    "requiredEnergy": 400
+  },
+  {
+    "phone": "9800000002",
+    "pin": "123456",
+    "name": "Sunrise Public School",
+    "socialImpactVerified": true,
+    "requiredEnergy": 300
+  },
+  {
+    "phone": "9800000003",
+    "pin": "123456",
+    "name": "Green Earth Foundation",
+    "socialImpactVerified": true,
+    "requiredEnergy": 600
   }
 ]
