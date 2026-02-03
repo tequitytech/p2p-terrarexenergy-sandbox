@@ -112,8 +112,8 @@ export async function findBestSeller(req: Request, res: Response) {
     // 2. Discover Best Seller via BAP
     // Use buildDiscoverRequest to ensure consistent logic with Discover API (active items etc)
     const discoverPayload = buildDiscoverRequest({
-        minQty: Number(request.requiredEnergy),
         isActive: true, // Only active items
+        sourceType: SourceType.SOLAR
         // startDate: request.startTime ? new Date(request.startTime) : undefined,
         // endDate: request.endTime ? new Date(request.endTime) : undefined
     });
@@ -196,6 +196,7 @@ export async function findBestSeller(req: Request, res: Response) {
 
 import { processDonationTransaction } from './service';
 import z from 'zod';
+import { SourceType } from '../types';
 
 /**
  * giftEnergy
