@@ -148,9 +148,28 @@ export const onSelect = (req: Request, res: Response) => {
           continue;
         }
 
-        // Check availability - REJECT if insufficient
+        // Get the accepted offer - either from DB (if offerId provided) or from request
+        // IMPORTANT: Fetch offer FIRST before checking availability since quantity is stored on offer
+        let acceptedOffer = acceptedOfferFromRequest;
+
+        if (offerId) {
+          // Fetch offer from DB to get full details
+          const offerFromDb = await catalogStore.getOffer(offerId);
+          if (offerFromDb) {
+            // Clean offer (remove MongoDB fields)
+            const { _id, catalogId, updatedAt, ...cleanOffer } = offerFromDb as any;
+            acceptedOffer = cleanOffer;
+            console.log(`[Select] Found offer in DB: ${offerId}`);
+          } else {
+            console.log(
+              `[Select] Offer not found in DB, using from request: ${offerId}`,
+            );
+          }
+        }
+
+        // Check availability from offer's applicableQuantity - REJECT if insufficient
         const availableQty =
-          item["beckn:itemAttributes"]?.availableQuantity || 0;
+          acceptedOffer?.["beckn:price"]?.applicableQuantity?.unitQuantity || 0;
         if (requestedQty > availableQty) {
           console.log(
             `[Select] ERROR: Insufficient qty for ${itemId}: requested ${requestedQty}, available ${availableQty}`,
@@ -197,24 +216,6 @@ export const onSelect = (req: Request, res: Response) => {
             },
           });
           return; // Stop processing
-        }
-
-        // Get the accepted offer - either from DB (if offerId provided) or from request
-        let acceptedOffer = acceptedOfferFromRequest;
-
-        if (offerId) {
-          // Fetch offer from DB to get full details
-          const offerFromDb = await catalogStore.getOffer(offerId);
-          if (offerFromDb) {
-            // Clean offer (remove MongoDB fields)
-            const { _id, catalogId, updatedAt, ...cleanOffer } = offerFromDb;
-            acceptedOffer = cleanOffer;
-            console.log(`[Select] Found offer in DB: ${offerId}`);
-          } else {
-            console.log(
-              `[Select] Offer not found in DB, using from request: ${offerId}`,
-            );
-          }
         }
 
         // Get provider from offer or item
@@ -466,7 +467,7 @@ export const onConfirm = (req: Request, res: Response) => {
 
       console.log(`[Confirm] Processing ${orderItems.length} order items`);
 
-      // PRE-CHECK: Validate inventory BEFORE reducing
+      // PRE-CHECK: Validate inventory BEFORE reducing (read from offer's applicableQuantity)
       for (const orderItem of orderItems) {
         const itemId =
           orderItem["beckn:orderedItem"] ||
@@ -478,45 +479,49 @@ export const onConfirm = (req: Request, res: Response) => {
           orderItem.quantity ||
           1;
 
-        if (itemId && quantity > 0) {
-          const item = await catalogStore.getItem(itemId);
-          if (item) {
-            const availableQty =
-              item["beckn:itemAttributes"]?.availableQuantity || 0;
-            if (quantity > availableQty) {
-              console.log(
-                `[Confirm] ERROR: Insufficient inventory for ${itemId}: requested ${quantity}, available ${availableQty}`,
-              );
+        // Get offer from order item to check availability
+        const acceptedOffer = orderItem["beckn:acceptedOffer"];
+        const offerId = acceptedOffer?.["beckn:id"];
 
-              // Send error callback (include message: {} for ONIX schema compliance)
-              const callbackUrl = getCallbackUrl(context, "confirm");
-              await axios.post(callbackUrl, {
-                context: {
-                  ...context,
-                  action: "on_confirm",
-                  message_id: uuidv4(),
-                  timestamp: new Date().toISOString(),
+        if (offerId && quantity > 0) {
+          // Fetch offer from DB for current quantity
+          const offer = await catalogStore.getOffer(offerId);
+          const availableQty =
+            offer?.["beckn:price"]?.applicableQuantity?.unitQuantity || 0;
+
+          if (quantity > availableQty) {
+            console.log(
+              `[Confirm] ERROR: Insufficient inventory for offer ${offerId} (item ${itemId}): requested ${quantity}, available ${availableQty}`,
+            );
+
+            // Send error callback (include message: {} for ONIX schema compliance)
+            const callbackUrl = getCallbackUrl(context, "confirm");
+            await axios.post(callbackUrl, {
+              context: {
+                ...context,
+                action: "on_confirm",
+                message_id: uuidv4(),
+                timestamp: new Date().toISOString(),
+              },
+              message: {
+                order: {
+                  ...order,
+                  "beckn:orderStatus": "REJECTED",
+                  "beckn:id":
+                    order?.["beckn:id"] || `order-rejected-${uuidv4()}`,
                 },
-                message: {
-                  order: {
-                    ...order,
-                    "beckn:orderStatus": "REJECTED",
-                    "beckn:id":
-                      order?.["beckn:id"] || `order-rejected-${uuidv4()}`,
-                  },
-                },
-                error: {
-                  code: "INSUFFICIENT_INVENTORY",
-                  message: `Cannot confirm order: insufficient inventory for ${itemId}. Requested ${quantity} kWh, available ${availableQty} kWh`,
-                },
-              });
-              return; // Stop processing - don't confirm the order
-            }
+              },
+              error: {
+                code: "INSUFFICIENT_INVENTORY",
+                message: `Cannot confirm order: insufficient inventory for offer ${offerId}. Requested ${quantity} kWh, available ${availableQty} kWh`,
+              },
+            });
+            return; // Stop processing - don't confirm the order
           }
         }
       }
 
-      // Reduce inventory for each item and track affected catalogs
+      // Reduce inventory for each offer and track affected catalogs
       const affectedCatalogs = new Set<string>();
       let sellerUserId: string | null = null;
       for (const orderItem of orderItems) {
@@ -530,21 +535,37 @@ export const onConfirm = (req: Request, res: Response) => {
           orderItem.quantity ||
           1;
 
-        if (itemId && quantity > 0) {
-          console.log(`[Confirm] Reducing inventory: ${itemId} by ${quantity}`);
+        // Get offer from order item
+        const acceptedOffer = orderItem["beckn:acceptedOffer"];
+        const offerId = acceptedOffer?.["beckn:id"];
+
+        if (offerId && quantity > 0) {
+          console.log(`[Confirm] Reducing inventory for offer ${offerId} by ${quantity}`);
 
           // Get seller userId for attribution (uses catalog fallback if needed)
           sellerUserId = await catalogStore.getSellerUserIdForItem(itemId);
 
-          const item = await catalogStore.getItem(itemId);
-          if (item) {
-            await Promise.all([
-              catalogStore.reduceInventory(itemId, quantity)
-            ]);
-            affectedCatalogs.add(item.catalogId);
-            console.log(`[Confirm] Inventory reduced for ${itemId}, seller: ${sellerUserId || 'UNKNOWN'}`);
+          // Fetch offer to get catalogId for republish
+          const offer = await catalogStore.getOffer(offerId);
+          if (offer) {
+            await catalogStore.reduceOfferInventory(offerId, quantity);
+            affectedCatalogs.add((offer as any).catalogId);
+            console.log(`[Confirm] Inventory reduced for offer ${offerId}, seller: ${sellerUserId || 'UNKNOWN'}`);
           } else {
-            console.warn(`[Confirm] Item not found for inventory reduction: ${itemId}`);
+            console.warn(`[Confirm] Offer not found for inventory reduction: ${offerId}`);
+          }
+        } else if (itemId && quantity > 0) {
+          // Fallback: try to find offer by item ID if acceptedOffer not present
+          console.log(`[Confirm] No offerId, looking up offer for item: ${itemId}`);
+          const offers = await catalogStore.getOffersByItemId(itemId);
+          if (offers && offers.length > 0) {
+            const offer = offers[0];
+            const fallbackOfferId = offer["beckn:id"];
+            await catalogStore.reduceOfferInventory(fallbackOfferId, quantity);
+            affectedCatalogs.add((offer as any).catalogId);
+            console.log(`[Confirm] Inventory reduced for fallback offer ${fallbackOfferId}`);
+          } else {
+            console.warn(`[Confirm] No offer found for item: ${itemId}`);
           }
         }
       }
