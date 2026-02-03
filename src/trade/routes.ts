@@ -375,7 +375,10 @@ export const tradeRoutes = () => {
         });
       } catch (error: any) {
         console.error(`[API] Error:`, error.message);
-        return res.status(500).json({ error: error.message });
+        return res.status(500).json({
+        success: false,
+        error: isAxiosError(error) ? error.response?.data : error.message,
+      });
       }
     },
   );
