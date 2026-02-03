@@ -89,8 +89,7 @@ export function buildDiscoverRequest({
     message: {
       filters: {
         type: "jsonpath",
-        expression,
-        expressionType: "jsonpath",
+        expression
       },
     },
   };
