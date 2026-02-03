@@ -859,6 +859,11 @@ export async function syncConfirm(req: Request, res: Response) {
     const utilityIdBuyer = buyerAttributes?.utilityId;
     const utilityIdSeller = providerAttributes?.utilityId;
 
+    // Debug logging
+    console.log(`[SyncAPI] syncConfirm - order exists: ${!!order}`);
+    console.log(`[SyncAPI] syncConfirm - buyerAttributes:`, JSON.stringify(buyerAttributes, null, 2));
+    console.log(`[SyncAPI] syncConfirm - utilityIdBuyer: ${utilityIdBuyer}, utilityIdSeller: ${utilityIdSeller}`);
+
     if (!utilityIdBuyer || utilityIdBuyer.trim() === '') {
       return res.status(400).json({
         success: false,
