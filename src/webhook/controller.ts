@@ -6,6 +6,7 @@ import {
   BECKN_CONTEXT_ROOT,
   ENERGY_TRADE_DELIVERY_SCHEMA_CTX,
   ENERGY_TRADE_ORDER_SCHEMA_CTX,
+  PAYMENT_SETTLEMENT_SCHEMA_CTX,
 } from "../constants/schemas";
 import { catalogStore } from "../services/catalog-store";
 import { SettlementDocument, settlementStore } from "../services/settlement-store";
@@ -14,6 +15,16 @@ import { getDB } from "../db";
 dotenv.config();
 
 const WHEELING_RATE = parseFloat(process.env.WHEELING_RATE || "1.50"); // INR/kWh
+
+// BPP platform settlement account (for on_init/on_confirm responses)
+const BPP_SETTLEMENT_ACCOUNT = {
+  beneficiaryId: "p2p.terrarexenergy.com",
+  accountHolderName: "Terrarex Energy Trading Pvt Ltd",
+  accountNumber: "50200087654321",
+  ifscCode: "HDFC0001729",
+  bankName: "HDFC Bank",
+  vpa: "terrarex.energy@hdfcbank",
+};
 
 // Calculate delivery progress for on_status based on time elapsed since confirmation
 // Exported for testing
@@ -148,9 +159,28 @@ export const onSelect = (req: Request, res: Response) => {
           continue;
         }
 
-        // Check availability - REJECT if insufficient
+        // Get the accepted offer - either from DB (if offerId provided) or from request
+        // IMPORTANT: Fetch offer FIRST before checking availability since quantity is stored on offer
+        let acceptedOffer = acceptedOfferFromRequest;
+
+        if (offerId) {
+          // Fetch offer from DB to get full details
+          const offerFromDb = await catalogStore.getOffer(offerId);
+          if (offerFromDb) {
+            // Clean offer (remove MongoDB fields)
+            const { _id, catalogId, updatedAt, ...cleanOffer } = offerFromDb as any;
+            acceptedOffer = cleanOffer;
+            console.log(`[Select] Found offer in DB: ${offerId}`);
+          } else {
+            console.log(
+              `[Select] Offer not found in DB, using from request: ${offerId}`,
+            );
+          }
+        }
+
+        // Check availability from offer's applicableQuantity - REJECT if insufficient
         const availableQty =
-          item["beckn:itemAttributes"]?.availableQuantity || 0;
+          acceptedOffer?.["beckn:price"]?.applicableQuantity?.unitQuantity || 0;
         if (requestedQty > availableQty) {
           console.log(
             `[Select] ERROR: Insufficient qty for ${itemId}: requested ${requestedQty}, available ${availableQty}`,
@@ -197,24 +227,6 @@ export const onSelect = (req: Request, res: Response) => {
             },
           });
           return; // Stop processing
-        }
-
-        // Get the accepted offer - either from DB (if offerId provided) or from request
-        let acceptedOffer = acceptedOfferFromRequest;
-
-        if (offerId) {
-          // Fetch offer from DB to get full details
-          const offerFromDb = await catalogStore.getOffer(offerId);
-          if (offerFromDb) {
-            // Clean offer (remove MongoDB fields)
-            const { _id, catalogId, updatedAt, ...cleanOffer } = offerFromDb;
-            acceptedOffer = cleanOffer;
-            console.log(`[Select] Found offer in DB: ${offerId}`);
-          } else {
-            console.log(
-              `[Select] Offer not found in DB, using from request: ${offerId}`,
-            );
-          }
         }
 
         // Get provider from offer or item
@@ -289,6 +301,8 @@ export const onInit = (req: Request, res: Response) => {
       const buyer = order?.["beckn:buyer"];
       const seller = order?.["beckn:seller"];
       const orderAttributes = order?.["beckn:orderAttributes"];
+      const payment = order?.["beckn:payment"];
+      const fulfillment = order?.["beckn:fulfillment"];
 
       console.log(`[Init] Processing ${orderItems.length} order items`);
 
@@ -371,10 +385,19 @@ export const onInit = (req: Request, res: Response) => {
       // Calculate wheeling charges
       const wheelingCharges = totalQuantity * WHEELING_RATE;
       const totalOrderValue = totalEnergyCost + wheelingCharges;
+      // Round total amount to 2 decimal places (includes energy + wheeling)
+      const roundedTotalOrderValue = Math.round(totalOrderValue * 100) / 100;
 
       console.log(
         `[Init] Total: ${totalQuantity} kWh, Energy: ${currency} ${totalEnergyCost.toFixed(2)}, Wheeling: ${currency} ${wheelingCharges.toFixed(2)}, Total: ${currency} ${totalOrderValue.toFixed(2)}`,
       );
+
+      // Build settlement accounts: BAP account from request + BPP platform account
+      const requestSettlementAccounts = payment?.["beckn:paymentAttributes"]?.settlementAccounts || [];
+      const settlementAccounts = [
+        ...requestSettlementAccounts,
+        BPP_SETTLEMENT_ACCOUNT,
+      ];
 
       // Build response per P2P Trading implementation guide
       const responsePayload = {
@@ -404,7 +427,10 @@ export const onInit = (req: Request, res: Response) => {
                   : "EnergyTradeOrder",
               bap_id: context.bap_id,
               bpp_id: context.bpp_id,
-              total_quantity: totalQuantity,
+              total_quantity: {
+                unitQuantity: totalQuantity,
+                unitText: "kWh"
+              },
               // Include inter-utility fields if present
               ...(orderAttributes?.utilityIdBuyer && {
                 utilityIdBuyer: orderAttributes.utilityIdBuyer,
@@ -414,29 +440,27 @@ export const onInit = (req: Request, res: Response) => {
               }),
             },
             "beckn:orderItems": enrichedOrderItems, // Enriched with acceptedOffer from DB lookup
-            "beckn:orderValue": {
-              value: totalOrderValue,
-              currency: currency,
-              components: [
-                {
-                  type: "UNIT",
-                  description: "Energy Cost",
-                  value: totalEnergyCost,
-                  currency: currency,
-                },
-                {
-                  type: "FEE",
-                  description: "Wheeling Charges",
-                  value: wheelingCharges,
-                  currency: currency,
-                },
-              ],
-            },
             "beckn:fulfillment": {
               "@context": BECKN_CONTEXT_ROOT,
               "@type": "beckn:Fulfillment",
-              "beckn:id": `fulfillment-${context.transaction_id || "energy-001"}`,
-              "beckn:mode": "DELIVERY",
+              "beckn:id": fulfillment?.["beckn:id"] || `fulfillment-${context.transaction_id || "energy-001"}`,
+              "beckn:mode": fulfillment?.["beckn:mode"] || "DELIVERY",
+            },
+            "beckn:payment": {
+              "@context": BECKN_CONTEXT_ROOT,
+              "@type": "beckn:Payment",
+              "beckn:id": payment?.["beckn:id"] || `payment-${context.transaction_id}`,
+              "beckn:amount": {
+                currency: currency,
+                value: roundedTotalOrderValue,
+              },
+              "beckn:beneficiary": "BPP",
+              "beckn:paymentStatus": "AUTHORIZED",
+              "beckn:paymentAttributes": {
+                "@context": PAYMENT_SETTLEMENT_SCHEMA_CTX,
+                "@type": "PaymentSettlement",
+                settlementAccounts: settlementAccounts,
+              },
             },
           },
         },
@@ -466,7 +490,7 @@ export const onConfirm = (req: Request, res: Response) => {
 
       console.log(`[Confirm] Processing ${orderItems.length} order items`);
 
-      // PRE-CHECK: Validate inventory BEFORE reducing
+      // PRE-CHECK: Validate inventory BEFORE reducing (read from offer's applicableQuantity)
       for (const orderItem of orderItems) {
         const itemId =
           orderItem["beckn:orderedItem"] ||
@@ -478,45 +502,49 @@ export const onConfirm = (req: Request, res: Response) => {
           orderItem.quantity ||
           1;
 
-        if (itemId && quantity > 0) {
-          const item = await catalogStore.getItem(itemId);
-          if (item) {
-            const availableQty =
-              item["beckn:itemAttributes"]?.availableQuantity || 0;
-            if (quantity > availableQty) {
-              console.log(
-                `[Confirm] ERROR: Insufficient inventory for ${itemId}: requested ${quantity}, available ${availableQty}`,
-              );
+        // Get offer from order item to check availability
+        const acceptedOffer = orderItem["beckn:acceptedOffer"];
+        const offerId = acceptedOffer?.["beckn:id"];
 
-              // Send error callback (include message: {} for ONIX schema compliance)
-              const callbackUrl = getCallbackUrl(context, "confirm");
-              await axios.post(callbackUrl, {
-                context: {
-                  ...context,
-                  action: "on_confirm",
-                  message_id: uuidv4(),
-                  timestamp: new Date().toISOString(),
+        if (offerId && quantity > 0) {
+          // Fetch offer from DB for current quantity
+          const offer = await catalogStore.getOffer(offerId);
+          const availableQty =
+            offer?.["beckn:price"]?.applicableQuantity?.unitQuantity || 0;
+
+          if (quantity > availableQty) {
+            console.log(
+              `[Confirm] ERROR: Insufficient inventory for offer ${offerId} (item ${itemId}): requested ${quantity}, available ${availableQty}`,
+            );
+
+            // Send error callback (include message: {} for ONIX schema compliance)
+            const callbackUrl = getCallbackUrl(context, "confirm");
+            await axios.post(callbackUrl, {
+              context: {
+                ...context,
+                action: "on_confirm",
+                message_id: uuidv4(),
+                timestamp: new Date().toISOString(),
+              },
+              message: {
+                order: {
+                  ...order,
+                  "beckn:orderStatus": "REJECTED",
+                  "beckn:id":
+                    order?.["beckn:id"] || `order-rejected-${uuidv4()}`,
                 },
-                message: {
-                  order: {
-                    ...order,
-                    "beckn:orderStatus": "REJECTED",
-                    "beckn:id":
-                      order?.["beckn:id"] || `order-rejected-${uuidv4()}`,
-                  },
-                },
-                error: {
-                  code: "INSUFFICIENT_INVENTORY",
-                  message: `Cannot confirm order: insufficient inventory for ${itemId}. Requested ${quantity} kWh, available ${availableQty} kWh`,
-                },
-              });
-              return; // Stop processing - don't confirm the order
-            }
+              },
+              error: {
+                code: "INSUFFICIENT_INVENTORY",
+                message: `Cannot confirm order: insufficient inventory for offer ${offerId}. Requested ${quantity} kWh, available ${availableQty} kWh`,
+              },
+            });
+            return; // Stop processing - don't confirm the order
           }
         }
       }
 
-      // Reduce inventory for each item and track affected catalogs
+      // Reduce inventory for each offer and track affected catalogs
       const affectedCatalogs = new Set<string>();
       let sellerUserId: string | null = null;
       for (const orderItem of orderItems) {
@@ -530,21 +558,37 @@ export const onConfirm = (req: Request, res: Response) => {
           orderItem.quantity ||
           1;
 
-        if (itemId && quantity > 0) {
-          console.log(`[Confirm] Reducing inventory: ${itemId} by ${quantity}`);
+        // Get offer from order item
+        const acceptedOffer = orderItem["beckn:acceptedOffer"];
+        const offerId = acceptedOffer?.["beckn:id"];
+
+        if (offerId && quantity > 0) {
+          console.log(`[Confirm] Reducing inventory for offer ${offerId} by ${quantity}`);
 
           // Get seller userId for attribution (uses catalog fallback if needed)
           sellerUserId = await catalogStore.getSellerUserIdForItem(itemId);
 
-          const item = await catalogStore.getItem(itemId);
-          if (item) {
-            await Promise.all([
-              catalogStore.reduceInventory(itemId, quantity)
-            ]);
-            affectedCatalogs.add(item.catalogId);
-            console.log(`[Confirm] Inventory reduced for ${itemId}, seller: ${sellerUserId || 'UNKNOWN'}`);
+          // Fetch offer to get catalogId for republish
+          const offer = await catalogStore.getOffer(offerId);
+          if (offer) {
+            await catalogStore.reduceOfferInventory(offerId, quantity);
+            affectedCatalogs.add((offer as any).catalogId);
+            console.log(`[Confirm] Inventory reduced for offer ${offerId}, seller: ${sellerUserId || 'UNKNOWN'}`);
           } else {
-            console.warn(`[Confirm] Item not found for inventory reduction: ${itemId}`);
+            console.warn(`[Confirm] Offer not found for inventory reduction: ${offerId}`);
+          }
+        } else if (itemId && quantity > 0) {
+          // Fallback: try to find offer by item ID if acceptedOffer not present
+          console.log(`[Confirm] No offerId, looking up offer for item: ${itemId}`);
+          const offers = await catalogStore.getOffersByItemId(itemId);
+          if (offers && offers.length > 0) {
+            const offer = offers[0];
+            const fallbackOfferId = offer["beckn:id"];
+            await catalogStore.reduceOfferInventory(fallbackOfferId, quantity);
+            affectedCatalogs.add((offer as any).catalogId);
+            console.log(`[Confirm] Inventory reduced for fallback offer ${fallbackOfferId}`);
+          } else {
+            console.warn(`[Confirm] No offer found for item: ${itemId}`);
           }
         }
       }
@@ -651,6 +695,11 @@ export const onConfirm = (req: Request, res: Response) => {
         "[Confirm] Sending actual order data:",
         JSON.stringify(confirmedOrder, null, 2),
       );
+      // Debug: Log orderItems to verify beckn:orderedItem vs beckn:acceptedOffer.beckn:id
+      const debugOrderItems = confirmedOrder?.["beckn:orderItems"] || [];
+      debugOrderItems.forEach((item: any, idx: number) => {
+        console.log(`[Confirm] DEBUG orderItem[${idx}]: orderedItem=${item["beckn:orderedItem"]}, acceptedOffer.id=${item["beckn:acceptedOffer"]?.["beckn:id"]}`);
+      });
       const confirm_data = await axios.post(callbackUrl, responsePayload);
       console.log("On Confirm api call response: ", confirm_data.data);
     } catch (error: any) {

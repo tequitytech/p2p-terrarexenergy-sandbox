@@ -50,15 +50,20 @@ export const catalogStore = {
   },
 
   async getInventory() {
-    return getDB().collection('items').find({}, {
+    // Read inventory from offers collection (quantity stored in beckn:price.applicableQuantity)
+    return getDB().collection('offers').find({}, {
       projection: {
         'beckn:id': 1,
-        'beckn:itemAttributes.availableQuantity': 1,
+        'beckn:items': 1,
+        'beckn:price.applicableQuantity': 1,
         catalogId: 1
       }
     }).toArray();
   },
 
+  /**
+   * @deprecated Use reduceOfferInventory instead - quantity is now stored on offers
+   */
   async reduceInventory(itemId: string, amount: number) {
     const db = getDB();
     const result = await db.collection('items').findOneAndUpdate(
@@ -69,6 +74,23 @@ export const catalogStore = {
 
     if (!result) throw new Error(`Insufficient inventory: ${itemId}`);
     return result['beckn:itemAttributes'].availableQuantity;
+  },
+
+  async reduceOfferInventory(offerId: string, amount: number) {
+    const db = getDB();
+    const result = await db.collection('offers').findOneAndUpdate(
+      {
+        'beckn:id': offerId,
+        'beckn:price.applicableQuantity.unitQuantity': { $gte: amount }
+      },
+      {
+        $inc: { 'beckn:price.applicableQuantity.unitQuantity': -amount }
+      },
+      { returnDocument: 'after' }
+    );
+
+    if (!result) throw new Error(`Insufficient inventory for offer: ${offerId}`);
+    return result['beckn:price'].applicableQuantity.unitQuantity;
   },
 
   async getItem(itemId: string) {
@@ -304,6 +326,70 @@ export const catalogStore = {
       }
     }
     return null;
-  }
+  },
 
+  async getPublishedItems(userId: string) {
+    try {
+      const db = getDB();
+      return await db
+        .collection("items")
+        .aggregate([
+          // Stage 1: Match items with userId and isActive = true
+          {
+            $match: {
+              userId: userId,
+              "beckn:isActive": true,
+            },
+          },
+
+          // Stage 2: Lookup matching offers
+          {
+            $lookup: {
+              from: "offers",
+              let: { itemId: "$beckn:id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        // Ensure beckn:items exists and is an array
+                        { $isArray: "$beckn:items" },
+                        // Check if itemId is in beckn:items array
+                        { $in: ["$$itemId", "$beckn:items"] },
+                        // Ensure price path exists and unitQuantity > 0
+                        {
+                          $gt: [
+                            {
+                              $ifNull: [
+                                "$beckn:price.applicableQuantity.unitQuantity",
+                                0,
+                              ],
+                            },
+                            0,
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
+              ],
+              as: "beckn:offers",
+            },
+          },
+
+          // Stage 3: Filter out items that don't have matching offers
+          {
+            $match: {
+              "beckn:offers": { $ne: [] },
+            },
+          },
+        ])
+        .toArray();
+    } catch (error: any) {
+      console.error(
+        `[CatalogStore] Error retrieving published items: ${error.message}`,
+      );
+      throw error;
+    }
+  },
 };

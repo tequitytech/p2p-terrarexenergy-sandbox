@@ -254,8 +254,9 @@ async function verifyVc(req: Request, res: Response) {
       // Map VC fields to expected profile fields
       const mappedSubject: Record<string, any> = { ...vc.credentialSubject };
 
-      // For GenerationProfileCredential, map issuerName → utilityId
-      if (vcType === 'GenerationProfileCredential' && mappedSubject.issuerName) {
+      // Map issuerName → utilityId for all credential types that have it
+      // (GenerationProfile, ConsumptionProfile, UtilityCustomer all use issuerName for DISCOM)
+      if (mappedSubject.issuerName) {
         mappedSubject.utilityId = mappedSubject.issuerName;
         delete mappedSubject.issuerName;
       }

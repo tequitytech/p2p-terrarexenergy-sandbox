@@ -250,18 +250,40 @@ describe('sync-api/controller', () => {
   });
 
   describe('syncConfirm', () => {
-    it('should reject missing utilityIdBuyer', async () => {
+    // Helper to create valid confirm order with new schema
+    const createValidConfirmOrder = (overrides: any = {}) => ({
+      'beckn:buyer': {
+        'beckn:buyerAttributes': {
+          utilityId: 'BRPL',
+          ...overrides.buyerAttributes
+        }
+      },
+      'beckn:orderItems': [{
+        'beckn:orderItemAttributes': {
+          providerAttributes: {
+            utilityId: 'TPDDL',
+            ...overrides.providerAttributes
+          }
+        }
+      }],
+      'beckn:orderAttributes': {
+        '@type': 'EnergyTradeOrder',
+        ...overrides.orderAttributes
+      },
+      ...overrides.order
+    });
+
+    it('should reject missing buyer utilityId', async () => {
       const req = mockRequest({
         context: createBecknContext('confirm'),
         message: {
-          order: {
-            'beckn:orderAttributes': {
-              utilityIdSeller: 'BESCOM'
-              // Missing utilityIdBuyer
-            }
-          }
+          order: createValidConfirmOrder({
+            buyerAttributes: { utilityId: undefined }
+          })
         }
       }) as Request;
+      // Remove utilityId from buyer
+      delete req.body.message.order['beckn:buyer']['beckn:buyerAttributes'].utilityId;
 
       await syncConfirm(req, res.res as Response);
 
@@ -269,23 +291,22 @@ describe('sync-api/controller', () => {
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
         error: expect.objectContaining({
           code: 'MISSING_REQUIRED_FIELD',
-          message: expect.stringContaining('utilityIdBuyer')
+          message: expect.stringContaining('buyerAttributes')
         })
       }));
     });
 
-    it('should reject missing utilityIdSeller', async () => {
+    it('should reject missing seller utilityId', async () => {
       const req = mockRequest({
         context: createBecknContext('confirm'),
         message: {
-          order: {
-            'beckn:orderAttributes': {
-              utilityIdBuyer: 'TPDDL'
-              // Missing utilityIdSeller
-            }
-          }
+          order: createValidConfirmOrder({
+            providerAttributes: { utilityId: undefined }
+          })
         }
       }) as Request;
+      // Remove utilityId from provider
+      delete req.body.message.order['beckn:orderItems'][0]['beckn:orderItemAttributes'].providerAttributes.utilityId;
 
       await syncConfirm(req, res.res as Response);
 
@@ -293,21 +314,18 @@ describe('sync-api/controller', () => {
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
         error: expect.objectContaining({
           code: 'MISSING_REQUIRED_FIELD',
-          message: expect.stringContaining('utilityIdSeller')
+          message: expect.stringContaining('providerAttributes')
         })
       }));
     });
 
-    it('should reject empty string utilityIdBuyer', async () => {
+    it('should reject empty string buyer utilityId', async () => {
       const req = mockRequest({
         context: createBecknContext('confirm'),
         message: {
-          order: {
-            'beckn:orderAttributes': {
-              utilityIdBuyer: '  ',
-              utilityIdSeller: 'BESCOM'
-            }
-          }
+          order: createValidConfirmOrder({
+            buyerAttributes: { utilityId: '  ' }
+          })
         }
       }) as Request;
 
@@ -316,7 +334,7 @@ describe('sync-api/controller', () => {
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
-    it('should add @type EnergyTradeOrderInterUtility', async () => {
+    it('should forward valid confirm request', async () => {
       mockedAxios.post.mockResolvedValue({
         data: { message: { ack: { status: 'ACK' } } }
       });
@@ -324,28 +342,15 @@ describe('sync-api/controller', () => {
       const req = mockRequest({
         context: createBecknContext('confirm'),
         message: {
-          order: {
-            'beckn:orderAttributes': {
-              utilityIdBuyer: 'TPDDL',
-              utilityIdSeller: 'BESCOM'
-            }
-          }
+          order: createValidConfirmOrder()
         }
       }) as Request;
 
       await syncConfirm(req, res.res as Response);
 
       expect(mockedAxios.post).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          message: expect.objectContaining({
-            order: expect.objectContaining({
-              'beckn:orderAttributes': expect.objectContaining({
-                '@type': 'EnergyTradeOrderInterUtility'
-              })
-            })
-          })
-        }),
+        expect.stringContaining('/bap/caller/confirm'),
+        expect.any(Object),
         expect.any(Object)
       );
     });
@@ -361,12 +366,7 @@ describe('sync-api/controller', () => {
       const req = mockRequest({
         context: createBecknContext('confirm'),
         message: {
-          order: {
-            'beckn:orderAttributes': {
-              utilityIdBuyer: 'TPDDL',
-              utilityIdSeller: 'BESCOM'
-            }
-          }
+          order: createValidConfirmOrder()
         }
       }) as Request;
 
