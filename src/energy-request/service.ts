@@ -1,7 +1,6 @@
-import axios, { isAxiosError } from "axios";
+import axios from "axios";
 import crypto from "crypto";
 import dotenv from "dotenv";
-import { getDB } from "../db";
 
 dotenv.config();
 
