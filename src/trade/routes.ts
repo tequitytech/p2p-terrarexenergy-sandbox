@@ -621,12 +621,12 @@ export const tradeRoutes = () => {
           data: getPublishedItems,
         });
       } catch (error: any) {
-        console.error("[API] Error fetching buyer orders:", error);
+        console.error("[API] Error fetching published items:", error);
         res.status(500).json({
           success: false,
           error: {
             code: "INTERNAL_SERVER_ERROR",
-            message: "Failed to list orders",
+            message: "Failed to list published items",
             details: error.message,
           },
         });
