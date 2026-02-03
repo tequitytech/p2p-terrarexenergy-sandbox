@@ -23,7 +23,7 @@ export async function processDonationTransaction(
   quantity: number,
   authToken: string
 ): Promise<TransactionResult> {
-  const BASE_URI = new URL(BAP_URI!).origin;
+  const BASE_URI = BAP_URI ? new URL(BAP_URI!).origin : "https://p2p.terrarexenergy.com";
 
   console.log(
     `[TransactionService] Processing donation flow for buyer ${buyerId} -> seller ${sellerId}`,
