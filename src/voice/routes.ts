@@ -41,7 +41,8 @@ export function voiceRoutes(): Router {
       const latencyMs = Date.now() - startTime;
 
       // Convert entities array to object keyed by name
-      const entities: Record<string, { value: string; type: string }> = {};
+      // time_window value can be structured { start, end } or string
+      const entities: Record<string, { value: string | { start: string; end: string }; type: string }> = {};
       for (const e of result.entities) {
         entities[e.name] = { value: e.value, type: e.type };
       }
