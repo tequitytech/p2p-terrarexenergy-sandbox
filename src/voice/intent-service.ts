@@ -71,15 +71,15 @@ TIME WINDOW RULES (CRITICAL):
 - Return time_window as object with "start" and "end" ISO strings
 - If only one time given (e.g., "3PM"), assume 1-hour window (3PM to 4PM)
 - If no date given but time given, assume tomorrow
-- All times should be converted to UTC (IST is UTC+5:30)
+- Return all times in IST with +05:30 offset (NOT UTC)
 - "subah" (morning) typically means 6AM-10AM, use 10AM if unspecified
 - "dopahar" (afternoon) typically means 12PM-4PM, use 2PM if unspecified
 - "shaam" (evening) typically means 5PM-8PM, use 6PM if unspecified
 
-Example time_window outputs:
-- Input "tomorrow 3PM" with current time 2026-02-03T10:00:00Z → { "start": "2026-02-04T09:30:00.000Z", "end": "2026-02-04T10:30:00.000Z" }
-- Input "kal subah 10 baje" → { "start": "2026-02-04T04:30:00.000Z", "end": "2026-02-04T05:30:00.000Z" }
-- Input "today 5PM to 7PM" with current date 2026-02-03 → { "start": "2026-02-03T11:30:00.000Z", "end": "2026-02-03T13:30:00.000Z" }
+Example time_window outputs (all in IST +05:30):
+- Input "tomorrow 3PM" with current date 2026-02-03 → { "start": "2026-02-04T15:00:00.000+05:30", "end": "2026-02-04T16:00:00.000+05:30" }
+- Input "kal subah 10 baje" → { "start": "2026-02-04T10:00:00.000+05:30", "end": "2026-02-04T11:00:00.000+05:30" }
+- Input "today 5PM to 7PM" with current date 2026-02-03 → { "start": "2026-02-03T17:00:00.000+05:30", "end": "2026-02-03T19:00:00.000+05:30" }
 
 USER INPUT: "${text}"`;
 }
