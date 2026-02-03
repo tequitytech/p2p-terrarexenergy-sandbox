@@ -185,6 +185,11 @@ const publishEnergy = async ({
   const response = await axios.post(
     "https://p2p.terrarexenergy.com/api/publish",
     data,
+    {
+      headers: {
+        Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwaG9uZSI6Ijg0MzMxMDAwMTgiLCJ1c2VySWQiOiI2OTdmN2M4MDcwZWQyNWU1MzI1OGNjNzYiLCJpYXQiOjE3NzAwNDYxOTB9.XQmNIkovSyu0ybR6K9EGn_76lYFtncsflixeAxcPOiM'
+      }
+    }
   );
   return response.data;
 };

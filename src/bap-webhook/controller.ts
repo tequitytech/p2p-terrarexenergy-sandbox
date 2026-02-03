@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { orderService } from "../services/order-service";
 import { resolvePendingTransaction, hasPendingTransaction } from "../services/transaction-store";
 import { settlementStore } from "../services/settlement-store";
+import { notificationService } from "../services/notification-service";
 
 export const onSelect = (req: Request, res: Response) => {
   const { context, message, error }: { context: any; message: any; error?: any } = req.body;
@@ -101,6 +102,13 @@ export const onConfirm = (req: Request, res: Response) => {
           sellerDiscomId
         );
         console.log(`[BAP Webhook] Settlement record created: txn=${transactionId}, role=BUYER, qty=${totalQuantity}`);
+
+
+        // --- Send Email Notification ---
+        await notificationService.sendOrderConfirmation(transactionId, order);
+        // -------------------------------
+
+
       } catch (err: any) {
         console.error(`[BAP Webhook] Failed to create settlement record: ${err.message}`);
       }
