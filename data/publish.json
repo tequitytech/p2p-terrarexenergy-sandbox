@@ -1,0 +1,113 @@
+{
+  "context": {
+    "version": "2.0.0",
+    "action": "catalog_publish",
+    "timestamp": "2026-01-23T15:51:38.375Z",
+    "message_id": "3d8ac264-5453-40f4-b7fa-0e6b736f1df2",
+    "transaction_id": "2b4d69aa-22e4-4c78-9f56-5a7b9e2b1994",
+    "bap_id": "p2p.terrarexenergy.com",
+    "bap_uri": "https://p2p.terrarexenergy.com/bap/receiver",
+    "bpp_id": "p2p.terrarexenergy.com",
+    "bpp_uri": "https://p2p.terrarexenergy.com/bpp/receiver",
+    "ttl": "PT30S",
+    "domain": "beckn.one:deg:p2p-trading-interdiscom:2.0.0"
+  },
+  "message": {
+    "catalogs": [
+      {
+        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+        "@type": "beckn:Catalog",
+        "beckn:id": "terrarex-solar-catalog-002",
+        "beckn:descriptor": {
+          "@type": "beckn:Descriptor",
+          "schema:name": "My Solar Energy Trading Catalog"
+        },
+        "beckn:bppId": "p2p.terrarexenergy.com",
+        "beckn:bppUri": "https://p2p.terrarexenergy.com/bpp/receiver",
+        "beckn:items": [
+          {
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+            "@type": "beckn:Item",
+            "beckn:networkId": ["p2p-interdiscom-trading-pilot-network"],
+            "beckn:isActive": true,
+            "beckn:id": "terrarex-solar-item-005",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "Solar Energy - 30.5 kWh",
+              "beckn:shortDesc": "Carbon Offset Certified Solar Energy",
+              "beckn:longDesc": "High-quality solar energy from verified source with carbon offset certification"
+            },
+            "beckn:provider": {
+              "beckn:id": "terrarex-provider-001",
+              "beckn:descriptor": {
+                "@type": "beckn:Descriptor",
+                "schema:name": "Solar Farm 001"
+              }
+            },
+            "beckn:itemAttributes": {
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld",
+              "@type": "EnergyResource",
+              "sourceType": "SOLAR",
+              "deliveryMode": "GRID_INJECTION",
+              "certificationStatus": "Carbon Offset Certified",
+              "meterId": "der://meter/100200300",
+              "availableQuantity": 10.5,
+              "productionWindow": [
+                {
+                  "@type": "beckn:TimePeriod",
+                  "schema:startTime": "2026-01-24T10:00:00Z",
+                  "schema:endTime": "2026-01-24T18:00:00Z"
+                }
+              ],
+              "sourceVerification": {
+                "verified": true,
+                "verificationDate": "2024-09-01T00:00:00Z",
+                "certificates": [
+                  "https://example.com/certs/solar-panel-cert.pdf"
+                ]
+              },
+              "productionAsynchronous": true
+            }
+          }
+        ],
+        "beckn:offers": [
+          {
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+            "@type": "beckn:Offer",
+            "beckn:id": "terrarex-offer-003",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "Bulk Solar Energy Offer"
+            },
+            "beckn:provider": "terrarex-provider-001",
+            "beckn:items": ["terrarex-solar-item-002"],
+            "beckn:price": {
+              "@type": "schema:PriceSpecification",
+              "schema:price": 1.45,
+              "schema:priceCurrency": "INR",
+              "schema:unitText": "kWh"
+            },
+            "beckn:offerAttributes": {
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld",
+              "@type": "EnergyTradeOffer",
+              "pricingModel": "PER_KWH",
+              "settlementType": "WEEKLY",
+              "wheelingCharges": {
+                "amount": 1.2,
+                "currency": "INR",
+                "description": "Grid wheeling charge"
+              },
+              "minimumQuantity": 10.0,
+              "maximumQuantity": 500.0,
+              "validityWindow": {
+                "@type": "beckn:TimePeriod",
+                "schema:startTime": "2026-01-24T00:00:00Z",
+                "schema:endTime": "2026-01-31T23:59:59Z"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
