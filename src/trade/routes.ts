@@ -62,6 +62,14 @@ interface ProsumerDetails {
   providerId: string;
 }
 
+export interface BuyerDetails {
+  buyerId: string;        // did from profile
+  fullName: string;       // user.name
+  meterId: string;        // from utilityCustomer or consumptionProfile
+  utilityCustomerId: string;
+  utilityId: string;
+}
+
 function extractProsumerDetails(user: any): ProsumerDetails {
   const generationProfile = user.profiles?.generationProfile;
 
@@ -108,6 +116,36 @@ function extractProsumerDetails(user: any): ProsumerDetails {
     utilityId,
     consumerNumber,
     providerId,
+  };
+}
+
+/**
+ * Extract buyer details from user profile (for select requests).
+ * Tries utilityCustomer profile first, then consumptionProfile.
+ */
+export async function extractBuyerDetails(userId: ObjectId): Promise<BuyerDetails> {
+  const db = getDB();
+  const user = await db.collection('users').findOne({ _id: userId });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Try utilityCustomer profile first, then consumptionProfile
+  const profile = user.profiles?.utilityCustomer || user.profiles?.consumptionProfile;
+
+  if (!profile) {
+    const error = new Error('No verified buyer profile found. Please verify your utility customer credential.');
+    (error as any).code = 'NO_BUYER_PROFILE';
+    throw error;
+  }
+
+  return {
+    buyerId: profile.did || `buyer-${userId}`,
+    fullName: user.name || 'Unknown',
+    meterId: profile.meterNumber || user.meters?.[0] || '',
+    utilityCustomerId: profile.consumerNumber || '',
+    utilityId: profile.utilityId || '',
   };
 }
 
