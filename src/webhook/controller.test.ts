@@ -301,7 +301,7 @@ describe("Webhook Controller", () => {
       mockedAxios.post.mockResolvedValue({ data: { ack: "success" } });
     });
 
-    it("onUpdate should regenerate message_id and timestamp in callback", async () => {
+    it("onUpdate should preserve message_id and regenerate timestamp in callback", async () => {
       const req = mockRequest({ context: validContext, message: {} });
       const res = mockResponse();
 
@@ -317,9 +317,8 @@ describe("Webhook Controller", () => {
       expect(mockedAxios.post).toHaveBeenCalled();
       const callPayload = mockedAxios.post.mock.calls[0][1] as any;
 
-      // Verify message_id is regenerated (not original)
-      expect(callPayload.context.message_id).toBe("test-uuid-1234");
-      expect(callPayload.context.message_id).not.toBe("original-message-id");
+      // Verify message_id is preserved (per Beckn spec)
+      expect(callPayload.context.message_id).toBe("original-message-id");
 
       // Verify timestamp is regenerated (not original)
       expect(callPayload.context.timestamp).not.toBe("2024-01-01T00:00:00Z");

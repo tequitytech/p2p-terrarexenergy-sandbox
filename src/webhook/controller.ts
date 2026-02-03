@@ -192,7 +192,8 @@ export const onSelect = (req: Request, res: Response) => {
             context: {
               ...context,
               action: "on_select",
-              message_id: uuidv4(),
+              // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+              // message_id preserved from ...context (Beckn spec requires matching original request)
               timestamp: new Date().toISOString(),
             },
             message: {
@@ -257,7 +258,8 @@ export const onSelect = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_select",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
         message: {
@@ -404,7 +406,8 @@ export const onInit = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_init",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
         message: {
@@ -523,7 +526,8 @@ export const onConfirm = (req: Request, res: Response) => {
               context: {
                 ...context,
                 action: "on_confirm",
-                message_id: uuidv4(),
+                // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+                // message_id preserved from ...context (Beckn spec requires matching original request)
                 timestamp: new Date().toISOString(),
               },
               message: {
@@ -640,7 +644,8 @@ export const onConfirm = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_confirm",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
         message: {
@@ -728,7 +733,8 @@ export const onStatus = (req: Request, res: Response) => {
           context: {
             ...context,
             action: "on_status",
-            message_id: uuidv4(),
+            // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+            // message_id preserved from ...context (Beckn spec requires matching original request)
             timestamp: new Date().toISOString(),
           },
           error: {
@@ -831,7 +837,8 @@ export const onStatus = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_status",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: now.toISOString(),
         },
         message: {
@@ -905,7 +912,8 @@ export const onUpdate = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_update",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
       };
@@ -953,7 +961,8 @@ export const onRating = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_rating",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
       };
@@ -1003,7 +1012,8 @@ export const onSupport = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_support",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
       };
@@ -1051,7 +1061,8 @@ export const onTrack = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_track",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
       };
@@ -1099,7 +1110,8 @@ export const onCancel = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_cancel",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
       };
