@@ -425,7 +425,10 @@ export const onInit = (req: Request, res: Response) => {
                   : "EnergyTradeOrder",
               bap_id: context.bap_id,
               bpp_id: context.bpp_id,
-              total_quantity: totalQuantity,
+              total_quantity: {
+                unitQuantity: totalQuantity,
+                unitText: "kWh"
+              },
               // Include inter-utility fields if present
               ...(orderAttributes?.utilityIdBuyer && {
                 utilityIdBuyer: orderAttributes.utilityIdBuyer,
