@@ -10,6 +10,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const ONIX_BAP_URL = process.env.ONIX_BAP_URL || 'http://onix-bap:8081';
+const WHEELING_RATE = parseFloat(process.env.WHEELING_RATE || "1.50"); // INR/kWh
 
 // --- Zod Schemas (Full Spec Compliance) ---
 // Per: https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/examples/p2p-trading-interdiscom/v2/select-request.json
@@ -318,16 +319,22 @@ function transformSelectToInit(
   customAttributes: { payment: { id: string } }
 ): any {
   // Calculate total amount from order items' accepted offers
-  let totalAmount = 0;
+  let totalEnergyCost = 0;
+  let totalQuantity = 0;
   let currency = 'INR';
 
   for (const item of select['beckn:orderItems']) {
     const offer = item['beckn:acceptedOffer'];
     const price = offer?.['beckn:price']?.['schema:price'] || 0;
     const quantity = item['beckn:quantity']?.unitQuantity || 0;
-    totalAmount += Number(price) * Number(quantity);
+    totalEnergyCost += Number(price) * Number(quantity);
+    totalQuantity += Number(quantity);
     currency = offer?.['beckn:price']?.['schema:priceCurrency'] || currency;
   }
+
+  // Add wheeling charges (same as webhook controller)
+  const wheelingCharges = Math.round(totalQuantity * WHEELING_RATE * 100) / 100;
+  const totalAmount = Math.round((totalEnergyCost + wheelingCharges) * 100) / 100;
 
   return {
     context,
