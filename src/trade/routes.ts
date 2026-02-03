@@ -36,6 +36,8 @@ const BAP_URI =
 const BPP_ID = process.env.BPP_ID || "p2p.terrarexenergy.com";
 const BPP_URI =
   process.env.BPP_URI || "https://p2p.terrarexenergy.com/bpp/receiver";
+const BECKN_DOMAIN =
+  process.env.BECKN_DOMAIN || "beckn.one:deg:p2p-trading-interdiscom:2.0.0";
 
 // ============================================
 // Publish Input Schema & Helpers
@@ -168,7 +170,6 @@ function buildCatalog(input: PublishInput, prosumer: ProsumerDetails) {
             "@type": "EnergyResource",
             sourceType: input.sourceType,
             meterId: prosumer.meterId,
-            availableQuantity: input.quantity,
           },
         },
       ],
@@ -237,7 +238,7 @@ function buildPublishRequest(catalog: any): {
         bpp_id: BPP_ID,
         bpp_uri: BPP_URI,
         ttl: "PT30S",
-        domain: "beckn.one:deg:p2p-trading-interdiscom:2.0.0",
+        domain: BECKN_DOMAIN,
       },
       message: {
         catalogs: [catalog],
@@ -350,6 +351,7 @@ export const tradeRoutes = () => {
           offer_id: offerId,
           userId,
           input,
+          onix_request: request,
           onix_forwarded: onixError === null,
           onix_response: onixResponse,
           onix_error: onixError,
