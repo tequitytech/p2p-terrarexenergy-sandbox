@@ -200,6 +200,41 @@ const selectBasedInitSchema = z.object({
 
 type SelectBasedInitInput = z.infer<typeof selectBasedInitSchema>;
 
+// --- Init-Based Confirm Schema (Simplified Input) ---
+// Accepts init response (message.order from on_init) + customAttributes
+
+// customAttributes for confirm - currently empty but extensible
+const confirmCustomAttributesSchema = z.object({
+  // Add future fields here if needed
+}).optional();
+
+// Init-based confirm schema
+const initBasedConfirmSchema = z.object({
+  context: z.object({
+    version: z.string(),
+    action: z.literal('confirm'),
+    transaction_id: z.string(),
+    message_id: z.string().optional(),
+    bap_id: z.string(),
+    bap_uri: z.string().url(),
+    bpp_id: z.string(),
+    bpp_uri: z.string().url(),
+  }).passthrough(),
+  init: z.object({
+    'beckn:id': z.string().optional(),
+    'beckn:orderStatus': z.string().optional(),
+    'beckn:seller': z.string().optional(),
+    'beckn:buyer': z.any(),
+    'beckn:orderAttributes': z.any().optional(),
+    'beckn:orderItems': z.array(z.any()).min(1, 'At least one beckn:orderItems is required'),
+    'beckn:fulfillment': z.any().optional(),
+    'beckn:payment': z.any().optional(),
+  }).passthrough(),
+  customAttributes: confirmCustomAttributesSchema,
+});
+
+type InitBasedConfirmInput = z.infer<typeof initBasedConfirmSchema>;
+
 // Platform settlement accounts (hardcoded - not user-provided)
 const PLATFORM_SETTLEMENT_ACCOUNTS = [
   {
@@ -374,6 +409,39 @@ function transformSelectToInit(
   };
 }
 
+/**
+ * Transform init-based input to full beckn confirm request.
+ * Takes on_init response's message.order and updates payment status.
+ */
+function transformInitToConfirm(
+  context: any,
+  init: any,
+  customAttributes?: any
+): any {
+  // Update payment status to AUTHORIZED for confirm request
+  const payment = init['beckn:payment'] ? {
+    ...init['beckn:payment'],
+    'beckn:paymentStatus': 'AUTHORIZED',
+  } : undefined;
+
+  return {
+    context,
+    message: {
+      order: {
+        '@context': BECKN_CONTEXT_ROOT,
+        '@type': 'beckn:Order',
+        'beckn:orderStatus': init['beckn:orderStatus'] || 'CREATED',
+        'beckn:seller': init['beckn:seller'],
+        'beckn:buyer': init['beckn:buyer'],
+        'beckn:orderAttributes': init['beckn:orderAttributes'],
+        'beckn:orderItems': init['beckn:orderItems'],
+        'beckn:fulfillment': init['beckn:fulfillment'],
+        'beckn:payment': payment,
+      },
+    },
+  };
+}
+
 // --- Validation Middleware ---
 
 function validateBody(schema: z.ZodSchema) {
@@ -410,6 +478,25 @@ export function validateSelect(req: Request, res: Response, next: NextFunction) 
 export function validateInit(req: Request, res: Response, next: NextFunction) {
   // If select-based format, skip standard validation (handled in handler)
   if (req.body.select && req.body.customAttributes) {
+    return next();
+  }
+  // For raw beckn format, basic context validation only (full validation in BPP)
+  if (!req.body.context?.transaction_id) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'context.transaction_id is required',
+      },
+    });
+  }
+  return next();
+}
+
+// Combined validation for confirm: accepts either init-based or full beckn format
+export function validateConfirm(req: Request, res: Response, next: NextFunction) {
+  // If init-based format, skip standard validation (handled in handler)
+  if (req.body.init && typeof req.body.init === 'object') {
     return next();
   }
   // For raw beckn format, basic context validation only (full validation in BPP)
@@ -732,23 +819,47 @@ export async function syncInit(req: Request, res: Response) {
 
 export async function syncConfirm(req: Request, res: Response) {
   try {
-    const transactionId = req.body.context?.transaction_id;
-    const messageId = req.body.context?.message_id || uuidv4();
+    let becknRequest = req.body;
 
-    // Extract utility IDs from new schema (v0.3) - EnergyTrade schema
-    const order = req.body.message?.order;
-    const orderAttributes = order?.['beckn:orderAttributes'] || {};
+    // Detect init-based format and transform
+    if (req.body.init && typeof req.body.init === 'object') {
+      // Validate init-based format
+      const parseResult = initBasedConfirmSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Init-based confirm request validation failed',
+            details: parseResult.error.issues.map((e: z.ZodIssue) => ({
+              field: e.path.join('.'),
+              message: e.message,
+            })),
+          },
+        });
+      }
+
+      becknRequest = transformInitToConfirm(
+        parseResult.data.context,
+        parseResult.data.init,
+        parseResult.data.customAttributes
+      );
+      console.log(`[SyncAPI] Transformed init-based confirm request for txn: ${parseResult.data.context.transaction_id}`);
+    }
+
+    const transactionId = becknRequest.context?.transaction_id;
+    const messageId = becknRequest.context?.message_id || uuidv4();
+
+    // Extract utility IDs from order for validation
+    const order = becknRequest.message?.order;
     const buyerAttributes = order?.['beckn:buyer']?.['beckn:buyerAttributes'];
     const orderItems = order?.['beckn:orderItems'] || [];
     const providerAttributes = orderItems[0]?.['beckn:orderItemAttributes']?.providerAttributes;
 
-    // New schema: beckn:buyer.beckn:buyerAttributes.utilityId
     const utilityIdBuyer = buyerAttributes?.utilityId;
-    // New schema: beckn:orderItems[].beckn:orderItemAttributes.providerAttributes.utilityId
     const utilityIdSeller = providerAttributes?.utilityId;
 
     if (!utilityIdBuyer || utilityIdBuyer.trim() === '') {
-      console.log(`[SyncAPI] syncConfirm validation error: missing utilityIdBuyer`);
       return res.status(400).json({
         success: false,
         error: {
@@ -759,7 +870,6 @@ export async function syncConfirm(req: Request, res: Response) {
     }
 
     if (!utilityIdSeller || utilityIdSeller.trim() === '') {
-      console.log(`[SyncAPI] syncConfirm validation error: missing utilityIdSeller`);
       return res.status(400).json({
         success: false,
         error: {
@@ -769,14 +879,13 @@ export async function syncConfirm(req: Request, res: Response) {
       });
     }
 
-    const becknRequest = {
-      ...req.body,
-      context: { ...req.body.context, message_id: messageId }
+    becknRequest = {
+      ...becknRequest,
+      context: { ...becknRequest.context, message_id: messageId }
     };
 
     const response = await executeAndWait('confirm', becknRequest, transactionId);
 
-    // Check for error in response (e.g., insufficient inventory)
     if (response.error) {
       console.log(`[SyncAPI] syncConfirm business error:`, response.error);
       return res.status(400).json({
@@ -793,11 +902,27 @@ export async function syncConfirm(req: Request, res: Response) {
     });
   } catch (error: any) {
     console.error(`[SyncAPI] syncConfirm error:`, error.message);
-    const statusCode = error.statusCode || (error.message?.includes('Timeout') ? 504 : 500);
+
+    let statusCode = 500;
+    let errorCode = 'INTERNAL_ERROR';
+
+    if (error.code === 'UPSTREAM_ERROR') {
+      statusCode = 502;
+      errorCode = 'UPSTREAM_ERROR';
+    } else if (error.message?.includes('Timeout')) {
+      statusCode = 504;
+      errorCode = 'TIMEOUT';
+    } else if (error.statusCode) {
+      statusCode = error.statusCode;
+    }
+
     return res.status(statusCode).json({
       success: false,
-      error: error.message,
-      details: error.onixError || null
+      error: {
+        code: errorCode,
+        message: error.message,
+        details: error.errorDetails || null
+      }
     });
   }
 }
