@@ -17,6 +17,7 @@ const discoverSchema = z.object({
   order: z.enum(["asc", "desc"]).optional(),
   itemId: z.string().optional(),
   isActive: z.enum(["true", "false"]).transform((val) => val === "true").default(true),
+  tag: z.enum(['farmer']).optional(),
 });
 
 export const discoverRoutes = () => {
@@ -112,8 +113,14 @@ export const discoverRoutes = () => {
              return (valA - valB) * sortOrder;
           });
         }
+
+        if(query.tag === 'farmer') {
+          catalogs.forEach((catalog:any) => {
+            catalog["beckn:items"] = catalog["beckn:items"].filter((item:any) => item["beckn:provider"]?.["beckn:descriptor"]?.["schema:name"] === 'Suresh - BRPL Prosumer');
+          })
+        }
         
-        data.message.catalogs = catalogs;
+        data.message.catalogs = catalogs.filter((p:any) => p["beckn:items"].length > 0);
       }
 
       return res.status(200).json({
