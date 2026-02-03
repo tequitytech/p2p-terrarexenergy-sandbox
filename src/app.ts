@@ -35,6 +35,13 @@ export async function createApp() {
   // Create main API router
   const apiRouter = Router();
 
+  app.use((req, res, next) => {
+    res.on('finish', () => {
+      console.log(`${req.method} ${req.url} ${res.statusCode}`);
+    });
+    next();
+  })
+
   // Mount all routes under the main API router
   apiRouter.use("/webhook", webhookRoutes());
   apiRouter.use("/bap-webhook", bapWebhookRoutes());
