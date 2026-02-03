@@ -385,6 +385,8 @@ export const onInit = (req: Request, res: Response) => {
       // Calculate wheeling charges
       const wheelingCharges = totalQuantity * WHEELING_RATE;
       const totalOrderValue = totalEnergyCost + wheelingCharges;
+      // Round total amount to 2 decimal places (includes energy + wheeling)
+      const roundedTotalOrderValue = Math.round(totalOrderValue * 100) / 100;
 
       console.log(
         `[Init] Total: ${totalQuantity} kWh, Energy: ${currency} ${totalEnergyCost.toFixed(2)}, Wheeling: ${currency} ${wheelingCharges.toFixed(2)}, Total: ${currency} ${totalOrderValue.toFixed(2)}`,
@@ -438,24 +440,6 @@ export const onInit = (req: Request, res: Response) => {
               }),
             },
             "beckn:orderItems": enrichedOrderItems, // Enriched with acceptedOffer from DB lookup
-            "beckn:orderValue": {
-              value: totalOrderValue,
-              currency: currency,
-              components: [
-                {
-                  type: "UNIT",
-                  description: "Energy Cost",
-                  value: totalEnergyCost,
-                  currency: currency,
-                },
-                {
-                  type: "FEE",
-                  description: "Wheeling Charges",
-                  value: wheelingCharges,
-                  currency: currency,
-                },
-              ],
-            },
             "beckn:fulfillment": {
               "@context": BECKN_CONTEXT_ROOT,
               "@type": "beckn:Fulfillment",
@@ -468,7 +452,7 @@ export const onInit = (req: Request, res: Response) => {
               "beckn:id": payment?.["beckn:id"] || `payment-${context.transaction_id}`,
               "beckn:amount": {
                 currency: currency,
-                value: totalOrderValue,
+                value: roundedTotalOrderValue,
               },
               "beckn:beneficiary": "BPP",
               "beckn:paymentStatus": "AUTHORIZED",
