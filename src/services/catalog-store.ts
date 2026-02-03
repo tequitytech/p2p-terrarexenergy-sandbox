@@ -304,6 +304,56 @@ export const catalogStore = {
       }
     }
     return null;
+  },
+
+  async getPublishedItems(userId: string) {
+    const db = getDB();
+      return await db.collection("items").aggregate([
+    // Stage 1: Match items with userId and isActive = true
+    {
+      $match: {
+        userId: userId,
+        "beckn:isActive": true
+      }
+    },
+    
+    // Stage 2: Lookup matching offers
+    {
+      $lookup: {
+        from: "offers",
+        let: { itemId: "$beckn:id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  // Ensure beckn:items exists and is an array
+                  { $isArray: "$beckn:items" },
+                  // Check if itemId is in beckn:items array
+                  { $in: ["$$itemId", "$beckn:items"] },
+                  // Ensure price path exists and unitQuantity > 0
+                  { 
+                    $gt: [
+                      { $ifNull: ["$beckn:price.applicableQuantity.unitQuantity", 0] },
+                      0
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        as: "beckn:offers"
+      }
+    },
+    
+    // Stage 3: Filter out items that don't have matching offers
+    {
+      $match: {
+        "beckn:offers": { $ne: [] }
+      }
+    }
+  ]).toArray();
   }
 
 };

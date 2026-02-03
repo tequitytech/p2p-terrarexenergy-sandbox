@@ -556,6 +556,42 @@ export const tradeRoutes = () => {
     }
   });
 
+    // GET /api/published-items/ - List user's published items
+  router.get(
+    "/published-items",
+    authMiddleware,
+    async (req: Request, res: Response) => {
+      try {
+        const userDetails = (req as any).user;
+        console.log("User Details:", userDetails);
+        if (!userDetails) {
+          return res
+            .status(401)
+            .json({ success: false, error: "Unauthorized" });
+        }
+
+        // Fetch orders for this user using the authenticated user's ID
+        const getPublishedItems = await catalogStore.getPublishedItems(
+          userDetails.userId
+        );
+
+        res.json({
+          success: true,
+          data: getPublishedItems,
+        });
+      } catch (error: any) {
+        console.error("[API] Error fetching buyer orders:", error);
+        res.status(500).json({
+          success: false,
+          error: {
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to list orders",
+            details: error.message,
+          },
+        });
+      }
+    },
+  );
 
   return router;
 };
