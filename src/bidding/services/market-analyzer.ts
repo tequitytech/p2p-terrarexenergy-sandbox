@@ -21,26 +21,21 @@ const UNDERCUT_PERCENT = parseFloat(
  */
 export function buildDiscoverRequest({
   sourceType,
-  minQty,
-  maxQty,
   deliveryMode,
-  startDate,
-  endDate,
   itemId,
   isActive
 }: {
   sourceType?: string;
-  minQty?: number;
-  maxQty?: number;
   deliveryMode?: DeliveryMode,
-  startDate?: Date;
-  endDate?: Date;
   sortBy?: string,
   order?: string,
   itemId?: string,
   isActive?: boolean
 }) {
   const conditions = [];
+
+  // Network Id
+  conditions.push(`@.beckn:networkId == 'p2p-interdiscom-trading-pilot-network'`);
 
   // 1. Delivery Mode
   if(deliveryMode) {
@@ -50,26 +45,6 @@ export function buildDiscoverRequest({
   // 2. Source Type
   if(sourceType) {
     conditions.push(`@.beckn:itemAttributes.sourceType == '${sourceType}'`);
-  }
-
-  // 3. Min Quantity
-  if(minQty) {
-    conditions.push(`@.beckn:itemAttributes.availableQuantity >= ${minQty}`);
-  }
-
-  // 4. Max Quantity
-  if(maxQty) {
-    conditions.push(`@.beckn:itemAttributes.availableQuantity <= ${maxQty}`);
-  }
-
-  // 5. Start Date (productionWindow start >= requested start)
-  if(startDate) {
-    conditions.push(`@.beckn:itemAttributes.productionWindow[0].schema:startTime >= '${startDate.toISOString()}'`);
-  }
-
-  // 6. End Date (productionWindow start <= requested end - as per user example)
-  if(endDate) {
-    conditions.push(`@.beckn:itemAttributes.productionWindow[0].schema:startTime <= '${endDate.toISOString()}'`);
   }
 
   // 7. Active Status
@@ -187,8 +162,6 @@ export async function fetchMarketData(
   try {
     const request = buildDiscoverRequest({
       sourceType,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate)
     });
 
     const response = await axios.post(discoverUrl, request, {
