@@ -17,7 +17,7 @@ import { ObjectId } from 'mongodb';
 const JWT_SECRET = process.env.JWT_SECRET || 'p2p-trading-pilot-secret';
 
 // VC Verification API
-const VC_API_BASE = 'http://35.244.45.209/credential/credentials';
+const VC_API_BASE = 'https://35.244.45.209.sslip.io/credential/credentials';
 const VC_TIMEOUT = 10000; // 10 seconds
 
 // Valid VC types we accept
