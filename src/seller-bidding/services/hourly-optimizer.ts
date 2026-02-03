@@ -17,9 +17,6 @@ import {
 import {
   buildDeliveryWindow,
   buildValidityWindow,
-  buildHourlyPublishRequest,
-  extractHourlyIds,
-  buildHourlyCatalog,
 } from "./hourly-catalog-builder";
 import {
   fetchMarketData,
@@ -251,27 +248,20 @@ export async function confirm(
     console.log(`[SellerBidding] Publishing bid for ${bid.hour}...`);
 
     try {
-      // Build the catalog and publish request
-      const publishRequest = buildHourlyPublishRequest({
-        provider_id: request.provider_id,
-        meter_id: request.meter_id,
-        source_type: request.source_type,
-        date: targetDate,
-        bid,
-      });
+      // 1. Construct simplified payload for /api/publish
+      const hourNum = parseInt(bid.hour.split(':')[0], 10);
+      
+      const publishPayload = {
+        quantity: bid.quantity_kwh,
+        price: bid.price_inr,
+        deliveryDate: targetDate,
+        startHour: hourNum,
+        duration: 1, // Hourly bids are always 1 hour duration
+        sourceType: request.source_type
+      };
 
-      // Extract IDs from the built catalog
-      const catalog = buildHourlyCatalog({
-        provider_id: request.provider_id,
-        meter_id: request.meter_id,
-        source_type: request.source_type,
-        date: targetDate,
-        bid,
-      });
-      const ids = extractHourlyIds(catalog);
-
-      // POST to internal publish API
-      const response = await axios.post(PUBLISH_URL, publishRequest, {
+      // 2. POST to internal publish API
+      const response = await axios.post(PUBLISH_URL, publishPayload, {
         headers: {
           "Content-Type": "application/json",
           authorization: authorizationToken,
@@ -280,16 +270,18 @@ export async function confirm(
       });
 
       if (response.status === 200 || response.status === 201) {
+        const { catalog_id, offer_id, item_id } = response.data;
+        
         console.log(
-          `[SellerBidding] Published bid for ${bid.hour}: catalog=${ids.catalog_id}`,
+          `[SellerBidding] Published bid for ${bid.hour}: catalog=${catalog_id}`,
         );
         placedBids.push({
           hour: bid.hour,
           quantity_kwh: bid.quantity_kwh,
           price_inr: bid.price_inr,
-          catalog_id: ids.catalog_id,
-          offer_id: ids.offer_id,
-          item_id: ids.item_id,
+          catalog_id: catalog_id,
+          offer_id: offer_id,
+          item_id: item_id,
           status: "PUBLISHED",
         });
       } else {
