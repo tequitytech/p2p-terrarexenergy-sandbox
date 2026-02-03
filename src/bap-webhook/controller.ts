@@ -82,15 +82,34 @@ export const onConfirm = (req: Request, res: Response) => {
         const sellerPlatformId = context?.bpp_id || null;
         const sellerDiscomId = order?.['beckn:orderAttributes']?.utilityIdSeller || null;
 
+        // Calculate costs
+        let totalUnitCost = 0;
+        orderItems.forEach((item: any) => {
+          const qty = item['beckn:quantity']?.unitQuantity || 0;
+          const acceptedOffer = item['beckn:acceptedOffer'];
+          const price = acceptedOffer?.['beckn:offerAttributes']?.['beckn:price']?.value ||
+            acceptedOffer?.['beckn:price']?.['schema:price'] ||
+            acceptedOffer?.['beckn:price']?.value ||
+            0;
+          totalUnitCost += qty * price;
+        });
+
+        const wheelingCharges = totalQuantity * 0.40;
+        const totalPrice = totalUnitCost + wheelingCharges;
+
         /**
          * Store the full Beckn order details in the buyer_orders collection for reference
          */
         if (order) {
           await orderService.saveBuyerOrder(transactionId, {
             order: order,
+            totalUnitCost: Number(totalUnitCost.toFixed(2)),
+            wheelingCharges: Number(wheelingCharges.toFixed(2)),
+            totalPrice: Number(totalPrice.toFixed(2)),
+            status: 'SCHEDULED',
             updatedAt: new Date()
           });
-          console.log(`[BAP-Webhook] Buyer Order ${transactionId} updated with full Beckn order details`);
+          console.log(`[BAP-Webhook] Buyer Order ${transactionId} updated with cost details and Beckn order`);
         }
 
         await settlementStore.createSettlement(
