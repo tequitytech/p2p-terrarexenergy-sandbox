@@ -5,11 +5,12 @@ import { z } from 'zod';
 import { ObjectId } from 'mongodb';
 import { createPendingTransaction, getPendingCount, cancelPendingTransaction } from '../services/transaction-store';
 import { extractBuyerDetails, BuyerDetails } from '../trade/routes';
-import { BECKN_CONTEXT_ROOT, ENERGY_TRADE_SCHEMA_CTX } from '../constants/schemas';
+import { BECKN_CONTEXT_ROOT, ENERGY_TRADE_SCHEMA_CTX, PAYMENT_SETTLEMENT_SCHEMA_CTX } from '../constants/schemas';
 import dotenv from "dotenv";
 dotenv.config();
 
 const ONIX_BAP_URL = process.env.ONIX_BAP_URL || 'http://onix-bap:8081';
+const WHEELING_RATE = parseFloat(process.env.WHEELING_RATE || "1.50"); // INR/kWh
 
 // --- Zod Schemas (Full Spec Compliance) ---
 // Per: https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/examples/p2p-trading-interdiscom/v2/select-request.json
@@ -165,6 +166,52 @@ const catalogBasedSelectSchema = z.object({
 
 type CatalogBasedSelectInput = z.infer<typeof catalogBasedSelectSchema>;
 
+// --- Select-Based Init Schema (Simplified Input) ---
+// Accepts select response (message.order from on_select) + customAttributes
+
+// customAttributes for init - only payment ID required
+const initCustomAttributesSchema = z.object({
+  payment: z.object({
+    id: z.string().min(1, 'payment.id is required'),
+  }),
+});
+
+// Select-based init schema
+const selectBasedInitSchema = z.object({
+  context: z.object({
+    version: z.string(),
+    action: z.literal('init'),
+    transaction_id: z.string(),
+    message_id: z.string().optional(),
+    bap_id: z.string(),
+    bap_uri: z.string().url(),
+    bpp_id: z.string(),
+    bpp_uri: z.string().url(),
+  }).passthrough(),
+  select: z.object({
+    'beckn:orderStatus': z.string().optional(),
+    'beckn:seller': z.string().optional(),
+    'beckn:buyer': z.any(),
+    'beckn:orderAttributes': z.any().optional(),
+    'beckn:orderItems': z.array(z.any()).min(1, 'At least one beckn:orderItems is required'),
+  }).passthrough(),
+  customAttributes: initCustomAttributesSchema,
+});
+
+type SelectBasedInitInput = z.infer<typeof selectBasedInitSchema>;
+
+// Platform settlement accounts (hardcoded - not user-provided)
+const PLATFORM_SETTLEMENT_ACCOUNTS = [
+  {
+    beneficiaryId: 'terrarex-energy-platform',
+    accountHolderName: 'Terrarex Energy Trading Pvt Ltd',
+    accountNumber: '50200087654321',
+    ifscCode: 'HDFC0001729',
+    bankName: 'HDFC Bank',
+    vpa: 'terrarex.energy@hdfcbank',
+  },
+];
+
 /**
  * Transform catalog-based input to full beckn spec Order structure.
  * Buyer details come from the authenticated user's profile.
@@ -262,6 +309,71 @@ function transformCatalogToOrder(
   };
 }
 
+/**
+ * Transform select-based input to full beckn init request.
+ * Takes on_select response's message.order and adds fulfillment + payment.
+ */
+function transformSelectToInit(
+  context: any,
+  select: any,
+  customAttributes: { payment: { id: string } }
+): any {
+  // Calculate total amount from order items' accepted offers
+  let totalEnergyCost = 0;
+  let totalQuantity = 0;
+  let currency = 'INR';
+
+  for (const item of select['beckn:orderItems']) {
+    const offer = item['beckn:acceptedOffer'];
+    const price = offer?.['beckn:price']?.['schema:price'] || 0;
+    const quantity = item['beckn:quantity']?.unitQuantity || 0;
+    totalEnergyCost += Number(price) * Number(quantity);
+    totalQuantity += Number(quantity);
+    currency = offer?.['beckn:price']?.['schema:priceCurrency'] || currency;
+  }
+
+  // Add wheeling charges (same as webhook controller)
+  const wheelingCharges = Math.round(totalQuantity * WHEELING_RATE * 100) / 100;
+  const totalAmount = Math.round((totalEnergyCost + wheelingCharges) * 100) / 100;
+
+  return {
+    context,
+    message: {
+      order: {
+        '@context': BECKN_CONTEXT_ROOT,
+        '@type': 'beckn:Order',
+        'beckn:orderStatus': select['beckn:orderStatus'] || 'CREATED',
+        'beckn:seller': select['beckn:seller'],
+        'beckn:buyer': select['beckn:buyer'],
+        'beckn:orderAttributes': select['beckn:orderAttributes'],
+        'beckn:orderItems': select['beckn:orderItems'],
+        'beckn:fulfillment': {
+          '@context': BECKN_CONTEXT_ROOT,
+          '@type': 'beckn:Fulfillment',
+          'beckn:id': `fulfillment-${context.transaction_id}`,
+          'beckn:mode': 'DELIVERY',
+        },
+        'beckn:payment': {
+          '@context': BECKN_CONTEXT_ROOT,
+          '@type': 'beckn:Payment',
+          'beckn:id': customAttributes.payment.id,
+          'beckn:amount': {
+            currency,
+            value: Math.round(totalAmount * 100) / 100,
+          },
+          'beckn:beneficiary': 'BPP',
+          'beckn:paymentStatus': 'INITIATED',
+          'beckn:paymentAttributes': {
+            '@context': PAYMENT_SETTLEMENT_SCHEMA_CTX,
+            '@type': 'PaymentSettlement',
+            settlementAccounts: PLATFORM_SETTLEMENT_ACCOUNTS,
+          },
+        },
+      },
+    },
+  };
+}
+
 // --- Validation Middleware ---
 
 function validateBody(schema: z.ZodSchema) {
@@ -292,6 +404,25 @@ export function validateSelect(req: Request, res: Response, next: NextFunction) 
   }
   // Otherwise validate against standard beckn schema
   return validateBody(selectSchema)(req, res, next);
+}
+
+// Combined validation for init: accepts either select-based or full beckn format
+export function validateInit(req: Request, res: Response, next: NextFunction) {
+  // If select-based format, skip standard validation (handled in handler)
+  if (req.body.select && req.body.customAttributes) {
+    return next();
+  }
+  // For raw beckn format, basic context validation only (full validation in BPP)
+  if (!req.body.context?.transaction_id) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'context.transaction_id is required',
+      },
+    });
+  }
+  return next();
 }
 
 /**
@@ -502,15 +633,69 @@ export async function syncSelect(req: Request, res: Response) {
 
 export async function syncInit(req: Request, res: Response) {
   try {
-    const transactionId = req.body.context?.transaction_id;
-    const messageId = req.body.context?.message_id || uuidv4();
+    let becknRequest = req.body;
 
-    const becknRequest = {
-      ...req.body,
-      context: { ...req.body.context, message_id: messageId }
+    // Detect select-based format and transform
+    if (req.body.select && req.body.customAttributes) {
+      // Validate select-based format
+      const parseResult = selectBasedInitSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Select-based init request validation failed',
+            details: parseResult.error.issues.map((e: z.ZodIssue) => ({
+              field: e.path.join('.'),
+              message: e.message,
+            })),
+          },
+        });
+      }
+
+      // Auth required for select-based format
+      const userId = (req as any).user?.userId;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required for select-based init. Provide a valid JWT token.',
+          },
+        });
+      }
+
+      becknRequest = transformSelectToInit(
+        parseResult.data.context,
+        parseResult.data.select,
+        parseResult.data.customAttributes
+      );
+      console.log(`[SyncAPI] Transformed select-based init request for txn: ${parseResult.data.context.transaction_id}`);
+    }
+
+    const transactionId = becknRequest.context?.transaction_id;
+    const messageId = becknRequest.context?.message_id || uuidv4();
+
+    becknRequest = {
+      ...becknRequest,
+      context: { ...becknRequest.context, message_id: messageId }
     };
 
     const response = await executeAndWait('init', becknRequest, transactionId);
+
+    // Check for business error in response
+    if (response.error) {
+      console.log(`[SyncAPI] syncInit business error:`, response.error);
+      return res.status(400).json({
+        success: false,
+        transaction_id: transactionId,
+        error: {
+          code: 'BUSINESS_ERROR',
+          message: response.error.message || 'Business rule validation failed',
+          details: response.error
+        }
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -519,11 +704,28 @@ export async function syncInit(req: Request, res: Response) {
     });
   } catch (error: any) {
     console.error(`[SyncAPI] syncInit error:`, error.message);
-    const statusCode = error.statusCode || (error.message?.includes('Timeout') ? 504 : 500);
+
+    // Determine HTTP status and error code
+    let statusCode = 500;
+    let errorCode = 'INTERNAL_ERROR';
+
+    if (error.code === 'UPSTREAM_ERROR') {
+      statusCode = 502;
+      errorCode = 'UPSTREAM_ERROR';
+    } else if (error.message?.includes('Timeout')) {
+      statusCode = 504;
+      errorCode = 'TIMEOUT';
+    } else if (error.statusCode) {
+      statusCode = error.statusCode;
+    }
+
     return res.status(statusCode).json({
       success: false,
-      error: error.message,
-      details: error.onixError || null
+      error: {
+        code: errorCode,
+        message: error.message,
+        details: error.errorDetails || null
+      }
     });
   }
 }
