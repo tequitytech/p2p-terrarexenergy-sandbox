@@ -475,7 +475,8 @@ export const onInit = (req: Request, res: Response) => {
                 currency: currency,
                 value: roundedTotalOrderValue,
               },
-              "beckn:uri": paymentUri,
+              // "beckn:uri": paymentUri,  // BUG: beckn:uri not in ONIX schema
+              "beckn:paymentURL": paymentUri,  // Fixed: use beckn:paymentURL per Beckn v2 Payment schema
               "beckn:beneficiary": "BPP",
               "beckn:paymentStatus": "AUTHORIZED",
               "beckn:paymentAttributes": {
