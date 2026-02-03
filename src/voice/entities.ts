@@ -1,7 +1,23 @@
 export const ENTITY_TYPES = {
-  quantity: { description: 'Energy quantity in kWh', unit: 'kWh' },
-  price: { description: 'Price per unit', unit: '₹/kWh' },
-  time_window: { description: 'Time range for energy delivery' },
-  meter_id: { description: 'Meter identifier' },
-  source_type: { description: 'Energy source type', values: ['solar', 'wind', 'battery', 'grid'] }
+  quantity: {
+    description: 'Energy quantity as a number',
+    unit: 'kWh'
+  },
+  price: {
+    description: 'Price per unit as a number',
+    unit: 'INR/kWh'
+  },
+  time_window: {
+    description: 'Delivery time as ISO 8601 timestamp',
+    unit: 'ISO8601'
+  },
+  meter_id: {
+    description: 'Meter identifier string',
+    unit: 'mRID'
+  },
+  source_type: {
+    description: 'Energy source type',
+    unit: 'enum',
+    values: ['solar', 'wind', 'battery', 'grid']
+  }
 };
