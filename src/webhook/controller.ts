@@ -12,6 +12,7 @@ import { catalogStore } from "../services/catalog-store";
 import { SettlementDocument, settlementStore } from "../services/settlement-store";
 import { parseError, readDomainResponse } from "../utils";
 import { getDB } from "../db";
+import { paymentService } from "../services/payment-service";
 dotenv.config();
 
 const WHEELING_RATE = parseFloat(process.env.WHEELING_RATE || "1.50"); // INR/kWh
@@ -401,6 +402,23 @@ export const onInit = (req: Request, res: Response) => {
         BPP_SETTLEMENT_ACCOUNT,
       ];
 
+      // Generate Payment Link
+      let paymentUri = "";
+      try {
+          const rzpOrder = await paymentService.createOrder(roundedTotalOrderValue, currency);
+          const rzpLink = await paymentService.createPaymentLink({
+              id: rzpOrder.id,
+              amount: rzpOrder.amount,
+              currency: rzpOrder.currency,
+              name: buyer?.["beckn:id"] || "Energy Buyer",
+              contact: "9876543210" // Default contact if not available (must be valid)
+          });
+          paymentUri = rzpLink.short_url;
+          console.log(`[Init] Generated Payment Link: ${paymentUri}`);
+      } catch (err) {
+          console.error("[Init] Failed to generate payment link:", err);
+      }
+
       // Build response per P2P Trading implementation guide
       const responsePayload = {
         context: {
@@ -457,6 +475,7 @@ export const onInit = (req: Request, res: Response) => {
                 currency: currency,
                 value: roundedTotalOrderValue,
               },
+              "beckn:uri": paymentUri,
               "beckn:beneficiary": "BPP",
               "beckn:paymentStatus": "AUTHORIZED",
               "beckn:paymentAttributes": {
