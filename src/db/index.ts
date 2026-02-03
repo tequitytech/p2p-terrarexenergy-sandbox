@@ -83,6 +83,12 @@ export async function connectDB(): Promise<Db> {
   await db.collection("energy_requests").createIndex({ status: 1 });
   await db.collection("energy_requests").createIndex({ createdAt: -1 });
 
+  // Publish Records collection for audit trail
+  await db.collection("publish_records").createIndex({ message_id: 1 });
+  await db.collection("publish_records").createIndex({ transaction_id: 1 });
+  await db.collection("publish_records").createIndex({ userId: 1 });
+  await db.collection("publish_records").createIndex({ createdAt: -1 });
+
   return db;
 }
 

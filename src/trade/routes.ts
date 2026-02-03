@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 import { Request, Response, Router } from "express";
 import * as fs from "fs";
 import * as path from "path";
+import { v4 as uuidv4 } from "uuid";
+import { ObjectId } from "mongodb";
 import { catalogStore } from "../services/catalog-store";
 import { ledgerClient } from "../services/ledger-client";
 import {
@@ -19,75 +21,361 @@ import { startOfToday } from "date-fns";
 import z from "zod";
 import { getDB } from "../db";
 import { authMiddleware } from "../auth/routes";
+import {
+  BECKN_CONTEXT_ROOT,
+  ENERGY_TRADE_SCHEMA_CTX,
+} from "../constants/schemas";
 dotenv.config();
 
 const ONIX_BPP_URL = process.env.ONIX_BPP_URL || "http://onix-bpp:8082";
 const EXCESS_DATA_PATH =
   process.env.EXCESS_DATA_PATH || "data/excess_predicted_hourly.json";
-const BAP_ID = process.env.BAP_ID;
-const BAP_URI = process.env.BAP_URI;
-const BPP_ID = process.env.BPP_ID;
-const BPP_URI = process.env.BPP_URI;
+const BAP_ID = process.env.BAP_ID || "p2p.terrarexenergy.com";
+const BAP_URI =
+  process.env.BAP_URI || "https://p2p.terrarexenergy.com/bap/receiver";
+const BPP_ID = process.env.BPP_ID || "p2p.terrarexenergy.com";
+const BPP_URI =
+  process.env.BPP_URI || "https://p2p.terrarexenergy.com/bpp/receiver";
+
+// ============================================
+// Publish Input Schema & Helpers
+// ============================================
+
+const publishInputSchema = z.object({
+  quantity: z.number().positive().max(1000), // kWh
+  price: z.number().positive().max(100), // INR/kWh
+  deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startHour: z.number().int().min(0).max(23).default(10),
+  duration: z.number().int().min(1).max(12).default(1),
+  sourceType: z.enum(["SOLAR", "WIND", "HYDRO"]).default("SOLAR"),
+});
+
+type PublishInput = z.infer<typeof publishInputSchema>;
+
+interface ProsumerDetails {
+  fullName: string;
+  meterId: string;
+  utilityId: string;
+  consumerNumber: string;
+  providerId: string;
+}
+
+function extractProsumerDetails(user: any): ProsumerDetails {
+  const generationProfile = user.profiles?.generationProfile;
+
+  if (!generationProfile) {
+    throw new Error("User does not have a verified generationProfile");
+  }
+
+  const fullName = user.name;
+  if (!fullName) {
+    throw new Error("User name is required for publishing");
+  }
+
+  const meterId = generationProfile.meterNumber || user.meters?.[0];
+  if (!meterId) {
+    throw new Error(
+      "Meter ID is required for publishing. Verify your generationProfile credential.",
+    );
+  }
+
+  const utilityId = generationProfile.utilityId;
+  if (!utilityId) {
+    throw new Error(
+      "Utility ID is required for publishing. Verify your generationProfile credential.",
+    );
+  }
+
+  const consumerNumber = generationProfile.consumerNumber;
+  if (!consumerNumber) {
+    throw new Error(
+      "Consumer number is required for publishing. Verify your generationProfile credential.",
+    );
+  }
+
+  const providerId = generationProfile.did;
+  if (!providerId) {
+    throw new Error(
+      "Provider DID is required for publishing. Verify your generationProfile credential.",
+    );
+  }
+
+  return {
+    fullName,
+    meterId,
+    utilityId,
+    consumerNumber,
+    providerId,
+  };
+}
+
+function buildCatalog(input: PublishInput, prosumer: ProsumerDetails) {
+  const now = new Date();
+  const catalogId = `catalog-${prosumer.meterId}-${Date.now()}`;
+  const itemId = `item-${prosumer.meterId}-${Date.now()}`;
+  const offerId = `offer-${prosumer.meterId}-${Date.now()}`;
+
+  // Build time windows
+  const deliveryStart = `${input.deliveryDate}T${String(input.startHour).padStart(2, "0")}:00:00.000Z`;
+  const deliveryEnd = `${input.deliveryDate}T${String(input.startHour + input.duration).padStart(2, "0")}:00:00.000Z`;
+  const validityStart = now.toISOString();
+  const validityEnd = `${input.deliveryDate}T${String(input.startHour - 1).padStart(2, "0")}:00:00.000Z`;
+
+  return {
+    catalogId,
+    itemId,
+    offerId,
+    catalog: {
+      "@context": BECKN_CONTEXT_ROOT,
+      "@type": "beckn:Catalog",
+      "beckn:id": catalogId,
+      "beckn:descriptor": {
+        "@type": "beckn:Descriptor",
+        "schema:name": `Solar Energy Trading Catalog - ${prosumer.fullName}`,
+      },
+      "beckn:bppId": BPP_ID,
+      "beckn:bppUri": BPP_URI,
+      "beckn:items": [
+        {
+          "@context": BECKN_CONTEXT_ROOT,
+          "@type": "beckn:Item",
+          "beckn:networkId": ["p2p-interdiscom-trading-pilot-network"],
+          "beckn:isActive": true,
+          "beckn:id": itemId,
+          "beckn:descriptor": {
+            "@type": "beckn:Descriptor",
+            "schema:name": `Solar Energy - ${input.quantity} kWh`,
+            "beckn:shortDesc": `Rooftop Solar from ${prosumer.utilityId} Prosumer`,
+            "beckn:longDesc": `Clean solar energy from ${prosumer.utilityId} net-metered installation`,
+          },
+          "beckn:provider": {
+            "beckn:id": prosumer.providerId,
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": `${prosumer.fullName} - ${prosumer.utilityId} Prosumer`,
+            },
+            "beckn:providerAttributes": {
+              "@context": ENERGY_TRADE_SCHEMA_CTX,
+              "@type": "EnergyCustomer",
+              meterId: prosumer.meterId,
+              utilityId: prosumer.utilityId,
+              utilityCustomerId: prosumer.consumerNumber,
+            },
+          },
+          "beckn:itemAttributes": {
+            "@context": ENERGY_TRADE_SCHEMA_CTX,
+            "@type": "EnergyResource",
+            sourceType: input.sourceType,
+            meterId: prosumer.meterId,
+            availableQuantity: input.quantity,
+          },
+        },
+      ],
+      "beckn:offers": [
+        {
+          "@context": BECKN_CONTEXT_ROOT,
+          "@type": "beckn:Offer",
+          "beckn:id": offerId,
+          "beckn:descriptor": {
+            "@type": "beckn:Descriptor",
+            "schema:name": `Solar Energy Offer - ${input.startHour}:00-${input.startHour + input.duration}:00`,
+          },
+          "beckn:provider": prosumer.providerId,
+          "beckn:items": [itemId],
+          "beckn:price": {
+            "@type": "schema:PriceSpecification",
+            "schema:price": input.price,
+            "schema:priceCurrency": "INR",
+            unitText: "kWh",
+            applicableQuantity: {
+              unitQuantity: input.quantity,
+              unitText: "kWh",
+            },
+          },
+          "beckn:offerAttributes": {
+            "@context": ENERGY_TRADE_SCHEMA_CTX,
+            "@type": "EnergyTradeOffer",
+            pricingModel: "PER_KWH",
+            deliveryWindow: {
+              "@type": "beckn:TimePeriod",
+              "schema:startTime": deliveryStart,
+              "schema:endTime": deliveryEnd,
+            },
+            validityWindow: {
+              "@type": "beckn:TimePeriod",
+              "schema:startTime": validityStart,
+              "schema:endTime": validityEnd,
+            },
+          },
+        },
+      ],
+    },
+  };
+}
+
+function buildPublishRequest(catalog: any): {
+  request: any;
+  messageId: string;
+  transactionId: string;
+} {
+  const messageId = uuidv4();
+  const transactionId = uuidv4();
+
+  return {
+    messageId,
+    transactionId,
+    request: {
+      context: {
+        version: "2.0.0",
+        action: "catalog_publish",
+        timestamp: new Date().toISOString(),
+        message_id: messageId,
+        transaction_id: transactionId,
+        bap_id: BAP_ID,
+        bap_uri: BAP_URI,
+        bpp_id: BPP_ID,
+        bpp_uri: BPP_URI,
+        ttl: "PT30S",
+        domain: "beckn.one:deg:p2p-trading-interdiscom:2.0.0",
+      },
+      message: {
+        catalogs: [catalog],
+      },
+    },
+  };
+}
 
 export const tradeRoutes = () => {
   const router = Router();
 
-  // POST /api/publish - Store catalog and forward to ONIX
-  router.post("/publish", authMiddleware, async (req: Request, res: Response) => {
-    try {
-      const catalog = req.body.message?.catalogs?.[0];
-      if (!catalog) {
-        return res.status(400).json({ error: "No catalog in request" });
-      }
-        const userDetails = (req as any).user; // From authMiddleware
-
-
-      console.log(`[API] POST /publish - Catalog: ${catalog["beckn:id"]}`);
-
-        // Store in MongoDB (primary action)
-        const catalogId = await catalogStore.saveCatalog(catalog, userDetails.userId);
-
-      for (const item of catalog["beckn:items"] || []) {
-        await catalogStore.saveItem(catalogId, item, userDetails.userId);
-      }
-
-      for (const offer of catalog["beckn:offers"] || []) {
-        await catalogStore.saveOffer(catalogId, offer);
-      }
-
-      // Forward to ONIX BPP (secondary action - don't fail if this fails)
-      const forwardUrl = `${ONIX_BPP_URL}/bpp/caller/publish`;
-      console.log(`[API] Forwarding to ${forwardUrl}`);
-
-      let onixResponse = null;
-      let onixError = null;
+  // POST /api/publish - Accept minimal input, build catalog server-side
+  router.post(
+    "/publish",
+    authMiddleware,
+    async (req: Request, res: Response) => {
+      const db = getDB();
 
       try {
-        const onixRes = await axios.post(forwardUrl, req.body, {
-          headers: { "Content-Type": "application/json" },
-          timeout: 30000,
-        });
-        onixResponse = onixRes.data;
-        console.log(`[API] ONIX forwarding successful`);
-      } catch (error: any) {
-        onixError = parseError(error);
-        console.warn(
-          `[API] ONIX forwarding failed (catalog saved locally): ${error.message}`,
-        );
-      }
+        // 1. Validate minimal input
+        const parseResult = publishInputSchema.safeParse(req.body);
+        if (!parseResult.success) {
+          return res.status(400).json({
+            error: "VALIDATION_ERROR",
+            details: parseResult.error.flatten(),
+          });
+        }
+        const input = parseResult.data;
 
-      return res.status(200).json({
-        success: true,
-        catalog_id: catalogId,
-        onix_forwarded: onixError === null,
-        onix_error: onixError,
-        onix_response: onixResponse,
-      });
-    } catch (error: any) {
-      console.error(`[API] Error:`, error.message);
-      return res.status(500).json({ error: error.message });
-    }
-  });
+        // 2. Get user from DB
+        const userId = (req as any).user.userId;
+        const user = await db
+          .collection("users")
+          .findOne({ _id: new ObjectId(userId) });
+
+        if (!user) {
+          return res.status(404).json({ error: "USER_NOT_FOUND" });
+        }
+
+        // 3. Verify user is a prosumer and extract details
+        let prosumerDetails: ProsumerDetails;
+        try {
+          prosumerDetails = extractProsumerDetails(user);
+        } catch (error: any) {
+          // Missing generationProfile or required fields
+          if (error.message.includes("generationProfile")) {
+            return res.status(403).json({
+              error: "NOT_PROSUMER",
+              message: error.message,
+            });
+          }
+          return res.status(400).json({
+            error: "MISSING_PROFILE_DATA",
+            message: error.message,
+          });
+        }
+
+        console.log(
+          `[API] POST /publish - User: ${prosumerDetails.fullName}, Meter: ${prosumerDetails.meterId}`,
+        );
+
+        // 4. Build spec-compliant catalog
+        const { catalog, catalogId, itemId, offerId } = buildCatalog(
+          input,
+          prosumerDetails,
+        );
+
+        // 5. Build publish request for ONIX
+        const { request, messageId, transactionId } =
+          buildPublishRequest(catalog);
+
+        // 6. Store in MongoDB (primary action)
+        await catalogStore.saveCatalog(catalog, userId);
+
+        for (const item of catalog["beckn:items"] || []) {
+          await catalogStore.saveItem(catalogId, item, userId);
+        }
+
+        for (const offer of catalog["beckn:offers"] || []) {
+          await catalogStore.saveOffer(catalogId, offer);
+        }
+
+        // 7. Forward to ONIX BPP (secondary action - don't fail if this fails)
+        const forwardUrl = `${ONIX_BPP_URL}/bpp/caller/publish`;
+        console.log(`[API] Forwarding to ${forwardUrl}`);
+
+        let onixResponse = null;
+        let onixError = null;
+
+        try {
+          const onixRes = await axios.post(forwardUrl, request, {
+            headers: { "Content-Type": "application/json" },
+            timeout: 30000,
+          });
+          onixResponse = onixRes.data;
+          console.log(`[API] ONIX forwarding successful`);
+        } catch (error: any) {
+          onixError = parseError(error);
+          console.warn(
+            `[API] ONIX forwarding failed (catalog saved locally): ${error.message}`,
+          );
+        }
+
+        // 8. Store publish record for audit trail
+        await db.collection("publish_records").insertOne({
+          message_id: messageId,
+          transaction_id: transactionId,
+          catalog_id: catalogId,
+          item_id: itemId,
+          offer_id: offerId,
+          userId,
+          input,
+          onix_forwarded: onixError === null,
+          onix_response: onixResponse,
+          onix_error: onixError,
+          createdAt: new Date(),
+        });
+
+        return res.status(200).json({
+          success: true,
+          message_id: messageId,
+          transaction_id: transactionId,
+          catalog_id: catalogId,
+          item_id: itemId,
+          offer_id: offerId,
+          prosumer: {
+            name: prosumerDetails.fullName,
+            meterId: prosumerDetails.meterId,
+            utilityId: prosumerDetails.utilityId,
+          },
+          onix_forwarded: onixError === null,
+          onix_response: onixResponse,
+        });
+      } catch (error: any) {
+        console.error(`[API] Error:`, error.message);
+        return res.status(500).json({ error: error.message });
+      }
+    },
+  );
 
   // GET /api/inventory
   router.get("/inventory", async (req: Request, res: Response) => {
