@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { syncSelect, syncInit, syncConfirm, syncStatus, syncHealth, validateSelect } from './controller';
+import { syncSelect, syncInit, syncConfirm, syncStatus, syncHealth, validateSelect, validateInit } from './controller';
 import { authMiddleware } from '../auth/routes';
 
 /**
@@ -22,7 +22,8 @@ export const syncApiRoutes = () => {
 
   // Select: optional auth (required for catalog-based, not for raw beckn)
   router.post('/select', optionalAuthMiddleware, validateSelect, syncSelect);
-  router.post('/init', syncInit);
+  // Init: optional auth (required for select-based, not for raw beckn)
+  router.post('/init', optionalAuthMiddleware, validateInit, syncInit);
   router.post('/confirm', syncConfirm);
   router.post('/status', syncStatus);
   router.get('/sync/health', syncHealth);

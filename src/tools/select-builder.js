@@ -11,6 +11,9 @@ const BAP = {
   uri: "https://p2p.terrarexenergy.com/bap/receiver"
 };
 
+// Schema context URL for EnergyTrade v0.3
+const ENERGY_TRADE_CONTEXT = 'https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld';
+
 const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
 const ask = q => new Promise(r => rl.question(q, r));
 
@@ -67,15 +70,21 @@ async function main() {
   const qty = parseFloat(await ask('> '));
   if (qty < min || qty > max) { console.error('ERROR: Invalid quantity'); process.exit(1); }
 
-  // Get buyer info
-  const buyerId = await ask('Buyer ID [terrarex-buyer-001]: ') || 'terrarex-buyer-001';
-  const utilityBuyer = await ask('Buyer Utility [BESCOM-KA]: ') || 'BESCOM-KA';
-  const utilitySeller = await ask('Seller Utility [TPDDL-DL]: ') || 'TPDDL-DL';
+  // Get buyer info (defaults from HEAD ADMIN BRPL's ConsumptionProfileCredential)
+  const buyerId = await ask('Buyer ID [buyer-152685823]: ') || 'buyer-152685823';
+  const buyerMeterId = await ask('Buyer Meter ID [41410739]: ') || '41410739';
+  const buyerUtilityCustomerId = await ask('Buyer Utility Customer ID [152685823]: ') || '152685823';
+  const buyerUtilityId = await ask('Buyer Utility ID [BRPL]: ') || 'BRPL';
   rl.close();
 
   // Build request
   const provider = offer['beckn:provider'] || item['beckn:provider']?.['beckn:id'] || 'unknown';
-  const meterId = item['beckn:itemAttributes']?.meterId || 'unknown';
+
+  // Extract seller/provider attributes from catalog
+  const providerAttrs = item['beckn:provider']?.['beckn:providerAttributes'] || {};
+  const sellerMeterId = providerAttrs.meterId || item['beckn:itemAttributes']?.meterId || 'unknown';
+  const sellerUtilityCustomerId = providerAttrs.utilityCustomerId || 'unknown';
+  const sellerUtilityId = providerAttrs.utilityId || 'unknown';
 
   const request = {
     context: {
@@ -98,41 +107,54 @@ async function main() {
         "beckn:orderStatus": "CREATED",
         "beckn:seller": provider,
         "beckn:buyer": {
-          "beckn:id": buyerId,
           "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
-          "@type": "beckn:Buyer"
+          "@type": "beckn:Buyer",
+          "beckn:id": buyerId,
+          "beckn:buyerAttributes": {
+            "@context": ENERGY_TRADE_CONTEXT,
+            "@type": "EnergyCustomer",
+            "meterId": buyerMeterId,
+            "utilityCustomerId": buyerUtilityCustomerId,
+            "utilityId": buyerUtilityId
+          }
         },
         "beckn:orderAttributes": {
-          "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyTradeOrder/v0.2/context.jsonld",
-          "@type": "EnergyTradeOrderInterUtility",
+          "@context": ENERGY_TRADE_CONTEXT,
+          "@type": "EnergyTradeOrder",
           "bap_id": BAP.id,
           "bpp_id": bppId,
-          "total_quantity": qty,
-          "utilityIdBuyer": utilityBuyer,
-          "utilityIdSeller": utilitySeller
+          "total_quantity": {
+            "unitQuantity": qty,
+            "unitText": "kWh"
+          }
         },
         "beckn:orderItems": [{
           "beckn:orderedItem": itemId,
           "beckn:orderItemAttributes": {
-            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyOrderItem/v0.1/context.jsonld",
+            "@context": ENERGY_TRADE_CONTEXT,
             "@type": "EnergyOrderItem",
             "providerAttributes": {
-              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyCustomer/v0.1/context.jsonld",
+              "@context": ENERGY_TRADE_CONTEXT,
               "@type": "EnergyCustomer",
-              "meterId": meterId,
-              "utilityCustomerId": `UTIL-CUST-${provider}`,
-              "utilityId": utilitySeller
+              "meterId": sellerMeterId,
+              "utilityCustomerId": sellerUtilityCustomerId,
+              "utilityId": sellerUtilityId
             }
           },
           "beckn:quantity": { "unitQuantity": qty, "unitText": "kWh" },
           "beckn:acceptedOffer": {
-            "beckn:id": offer['beckn:id'],
             "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
             "@type": "beckn:Offer",
+            "beckn:id": offer['beckn:id'],
             "beckn:descriptor": offer['beckn:descriptor'],
             "beckn:provider": provider,
             "beckn:items": [itemId],
-            "beckn:offerAttributes": { "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/p2p-trading/schema/EnergyTradeOffer/v0.2/context.jsonld", "@type": "EnergyTradeOffer", ...offerAttrs }
+            "beckn:price": offer['beckn:price'],
+            "beckn:offerAttributes": {
+              "@context": ENERGY_TRADE_CONTEXT,
+              "@type": "EnergyTradeOffer",
+              ...offerAttrs
+            }
           }
         }]
       }
