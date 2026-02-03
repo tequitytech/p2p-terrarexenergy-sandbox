@@ -111,9 +111,10 @@ function extractProsumerDetails(user: any): ProsumerDetails {
 
 function buildCatalog(input: PublishInput, prosumer: ProsumerDetails) {
   const now = new Date();
-  const catalogId = `catalog-${prosumer.meterId}-${Date.now()}`;
-  const itemId = `item-${prosumer.meterId}-${Date.now()}`;
-  const offerId = `offer-${prosumer.meterId}-${Date.now()}`;
+ const timestamp = Date.now();
+  const catalogId = `catalog-${prosumer.meterId}-${timestamp}`;
+  const itemId = `item-${prosumer.meterId}-${timestamp}`;
+  const offerId = `offer-${prosumer.meterId}-${timestamp}`;
 
   // Build time windows
   const deliveryStart = `${input.deliveryDate}T${String(input.startHour).padStart(2, "0")}:00:00.000Z`;
