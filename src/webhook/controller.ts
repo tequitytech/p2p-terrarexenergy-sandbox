@@ -6,6 +6,7 @@ import {
   BECKN_CONTEXT_ROOT,
   ENERGY_TRADE_DELIVERY_SCHEMA_CTX,
   ENERGY_TRADE_ORDER_SCHEMA_CTX,
+  PAYMENT_SETTLEMENT_SCHEMA_CTX,
 } from "../constants/schemas";
 import { catalogStore } from "../services/catalog-store";
 import { SettlementDocument, settlementStore } from "../services/settlement-store";
@@ -14,6 +15,16 @@ import { getDB } from "../db";
 dotenv.config();
 
 const WHEELING_RATE = parseFloat(process.env.WHEELING_RATE || "1.50"); // INR/kWh
+
+// BPP platform settlement account (for on_init/on_confirm responses)
+const BPP_SETTLEMENT_ACCOUNT = {
+  beneficiaryId: "p2p.terrarexenergy.com",
+  accountHolderName: "Terrarex Energy Trading Pvt Ltd",
+  accountNumber: "50200087654321",
+  ifscCode: "HDFC0001729",
+  bankName: "HDFC Bank",
+  vpa: "terrarex.energy@hdfcbank",
+};
 
 // Calculate delivery progress for on_status based on time elapsed since confirmation
 // Exported for testing
@@ -290,6 +301,8 @@ export const onInit = (req: Request, res: Response) => {
       const buyer = order?.["beckn:buyer"];
       const seller = order?.["beckn:seller"];
       const orderAttributes = order?.["beckn:orderAttributes"];
+      const payment = order?.["beckn:payment"];
+      const fulfillment = order?.["beckn:fulfillment"];
 
       console.log(`[Init] Processing ${orderItems.length} order items`);
 
@@ -377,6 +390,13 @@ export const onInit = (req: Request, res: Response) => {
         `[Init] Total: ${totalQuantity} kWh, Energy: ${currency} ${totalEnergyCost.toFixed(2)}, Wheeling: ${currency} ${wheelingCharges.toFixed(2)}, Total: ${currency} ${totalOrderValue.toFixed(2)}`,
       );
 
+      // Build settlement accounts: BAP account from request + BPP platform account
+      const requestSettlementAccounts = payment?.["beckn:paymentAttributes"]?.settlementAccounts || [];
+      const settlementAccounts = [
+        ...requestSettlementAccounts,
+        BPP_SETTLEMENT_ACCOUNT,
+      ];
+
       // Build response per P2P Trading implementation guide
       const responsePayload = {
         context: {
@@ -436,8 +456,24 @@ export const onInit = (req: Request, res: Response) => {
             "beckn:fulfillment": {
               "@context": BECKN_CONTEXT_ROOT,
               "@type": "beckn:Fulfillment",
-              "beckn:id": `fulfillment-${context.transaction_id || "energy-001"}`,
-              "beckn:mode": "DELIVERY",
+              "beckn:id": fulfillment?.["beckn:id"] || `fulfillment-${context.transaction_id || "energy-001"}`,
+              "beckn:mode": fulfillment?.["beckn:mode"] || "DELIVERY",
+            },
+            "beckn:payment": {
+              "@context": BECKN_CONTEXT_ROOT,
+              "@type": "beckn:Payment",
+              "beckn:id": payment?.["beckn:id"] || `payment-${context.transaction_id}`,
+              "beckn:amount": {
+                currency: currency,
+                value: totalOrderValue,
+              },
+              "beckn:beneficiary": "BPP",
+              "beckn:paymentStatus": "AUTHORIZED",
+              "beckn:paymentAttributes": {
+                "@context": PAYMENT_SETTLEMENT_SCHEMA_CTX,
+                "@type": "PaymentSettlement",
+                settlementAccounts: settlementAccounts,
+              },
             },
           },
         },
