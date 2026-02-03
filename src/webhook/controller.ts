@@ -577,7 +577,7 @@ export const onConfirm = (req: Request, res: Response) => {
         const publishUrl = `${ONIX_BPP_URL}/bpp/caller/publish`;
         const publishRes = await axios.post(publishUrl, publishPayload, {
           headers: { "Content-Type": "application/json" },
-        });
+        })
         console.log(
           `[Confirm] Catalog republished: ${catalogId}`,
           publishRes.data,

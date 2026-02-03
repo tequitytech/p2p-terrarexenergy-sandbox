@@ -2,6 +2,10 @@ import { Request, Response } from 'express';
 import { getDB } from '../db';
 import { EnergyRequest, CreateEnergyRequestDTO } from './types';
 import { ObjectId } from 'mongodb';
+import { buildDiscoverRequest } from '../bidding/services/market-analyzer';
+import axios from 'axios';
+
+const ONIX_BAP_URL = process.env.ONIX_BAP_URL || "http://onix-bap:8081";
 
 const COLLECTION_NAME = 'energy_requests';
 
@@ -105,25 +109,83 @@ export async function findBestSeller(req: Request, res: Response) {
       return res.status(404).json({ success: false, error: 'Energy request not found' });
     }
 
-    // 2. Find cheapest seller with >= required quantity
-    // Using 'offers' collection which contains Beckn Offer objects.
-    // Price path: "beckn:price.schema:price" (or beckn:offerAttributes.beckn:price.value)
-    // Quantity path: "beckn:offerAttributes.beckn:maxQuantity.unitQuantity"
+    // 2. Discover Best Seller via BAP
+    // Use buildDiscoverRequest to ensure consistent logic with Discover API (active items etc)
+    const discoverPayload = buildDiscoverRequest({
+        minQty: Number(request.requiredEnergy),
+        isActive: true, // Only active items
+        // startDate: request.startTime ? new Date(request.startTime) : undefined,
+        // endDate: request.endTime ? new Date(request.endTime) : undefined
+    });
 
-    const bestSeller = await db.collection('offers').find({
-        "beckn:offerAttributes.beckn:maxQuantity.unitQuantity": { $gte: Number(request.requiredEnergy) }
-    })
-    .sort({ "beckn:price.schema:price": 1 })
-    .limit(1)
-    .toArray();
+    const discoverUrl = `${ONIX_BAP_URL}/bap/caller/discover`;
+    console.log(`[EnergyRequest] Finding best seller via ${discoverUrl}`);
 
-    if (!bestSeller || bestSeller.length === 0) {
-        return res.status(404).json({ success: false, message: 'No suitable seller found' });
+    const response = await axios.post(discoverUrl, discoverPayload, {
+        headers: { "Content-Type": "application/json" },
+        timeout: 15000
+    });
+
+    const data = response.data;
+    const catalogs = data?.message?.catalogs || [];
+
+    if (catalogs.length === 0) {
+         return res.status(404).json({ success: false, message: 'No suitable seller found' });
     }
+
+    // Flatten offers and sort by price
+    const allOffers: any[] = [];
+    catalogs.forEach((catalog: any) => {
+        if(catalog["beckn:offers"]) {
+            catalog["beckn:offers"].forEach((offer: any) => {
+                 // Attach catalog info for context
+                 offer._catalog = {
+                    "beckn:descriptor": catalog["beckn:descriptor"],
+                    "beckn:provider": catalog["beckn:provider"],
+                    "beckn:bppId": catalog["beckn:bppId"],
+                    "items": catalog["beckn:items"]
+                 };
+                 allOffers.push(offer);
+            });
+        }
+    });
+
+    if (allOffers.length === 0) {
+        return res.status(404).json({ success: false, message: 'No suitable offers found in catalogs' });
+    }
+
+    // Sort by Price (Ascending)
+    allOffers.sort((a: any, b: any) => {
+        const priceA = Number(a["beckn:price"]?.["schema:price"] || a["beckn:offerAttributes"]?.["beckn:price"]?.value || Number.MAX_VALUE);
+        const priceB = Number(b["beckn:price"]?.["schema:price"] || b["beckn:offerAttributes"]?.["beckn:price"]?.value || Number.MAX_VALUE);
+        return priceA - priceB;
+    });
+
+    const bestOffer = allOffers[0];
+
+    // Find matching item logic
+    let matchedItem = null;
+    if (bestOffer["beckn:items"] && bestOffer["beckn:items"].length > 0) {
+        const itemId = bestOffer["beckn:items"][0];
+        if (bestOffer._catalog.items) {
+             matchedItem = bestOffer._catalog.items.find((i: any) => i["beckn:id"] === itemId);
+        }
+    } else if (bestOffer._catalog.items && bestOffer._catalog.items.length > 0) {
+        // Fallback: take the first item if offer doesn't specify
+        matchedItem = bestOffer._catalog.items[0];
+    }
+
+    // Remove temporary field to keep response clean
+    const { _catalog, ...cleanOffer } = bestOffer;
+
 
     return res.status(200).json({
         success: true,
-        bestSeller: bestSeller[0]
+        bestSeller: {
+            ...cleanOffer,
+            providerId: _catalog?.["beckn:provider"]?.id || _catalog?.["beckn:bppId"],
+            item: matchedItem
+        }
     });
 
   } catch (error: any) {
@@ -131,6 +193,9 @@ export async function findBestSeller(req: Request, res: Response) {
     return res.status(500).json({ success: false, error: error.message || 'Internal Server Error' });
   }
 }
+
+import { processDonationTransaction } from './service';
+import z from 'zod';
 
 /**
  * giftEnergy
@@ -140,39 +205,137 @@ export async function giftEnergy(req: Request, res: Response) {
     try {
         const { requestId, sellerId } = req.body;
         
-        // This is a "Purchase on behalf" logic.
-        // real implementation would involve transaction, payment, ledger update etc.
-        // For now, we will mark request as FULFILLED and simulate success.
-        
         if (!requestId || !sellerId) {
              return res.status(400).json({ success: false, error: 'Missing requestId or sellerId' });
         }
 
         const db = getDB();
+        // 1. Get Request Details
+        const request = await db.collection(COLLECTION_NAME).findOne({ _id: new ObjectId(requestId) });
+        if (!request) {
+            return res.status(404).json({ success: false, error: 'Request not found' });
+        }
+        
+        if (request.status === 'FULFILLED') {
+            return res.status(400).json({ success: false, error: 'Request already fulfilled' });
+        }
+
+        // 2. Perform Transaction
+        // Buyer is the requester (beneficiary), Seller is the provider
+        const transaction = await processDonationTransaction(request.userId.toString(), sellerId, request.requiredEnergy, req.headers.authorization!);
+
+        // 3. Update Request Status
         const updateResult = await db.collection(COLLECTION_NAME).updateOne(
             { _id: new ObjectId(requestId) },
             { 
                 $set: { 
                     status: 'FULFILLED', 
                     fulfilledBy: sellerId,
+                    transactionId: transaction.transactionId,
                     updatedAt: new Date()
                 } 
             }
         );
 
-        if (updateResult.modifiedCount === 0) {
-             return res.status(400).json({ success: false, error: 'Request not found or already fulfilled' });
-        }
-
         return res.status(200).json({
             success: true, 
             message: 'Energy gifted successfully',
             requestId,
-            sellerId
+            sellerId,
+            transactionId: transaction.transactionId,
+            orderId: transaction.orderId,
+            status: transaction.status,
+            amount: transaction.amount
         });
 
     } catch (error: any) {
         console.error('[EnergyRequest] Gift Energy Error:', error);
+        return res.status(500).json({ success: false, error: error.message || 'Internal Server Error' });
+    }
+}
+
+/**
+ * donateEnergy
+ * POST /api/donate
+ */
+export async function donateEnergy(req: Request, res: Response) {
+    try {
+        const user = (req as any).user;
+        if (!user) {
+            return res.status(401).json({ success: false, error: 'Unauthorized' });
+        }
+
+         const { requestId } = z
+              .object({
+                requestId: z.string(),
+              })
+              .parse(req.body);
+
+        const db = getDB();
+        
+        // 1. Get Seller (Authenticated User) ID
+        // Assuming seller ID is in profiles.consumptionProfile.id or similar.
+        // We need to fetch the full user profile since authMiddleware might only attach basic info.
+        const sellerProfile = await db.collection("users").findOne({ phone: user.phone });
+        if (!sellerProfile) {
+             return res.status(404).json({ success: false, error: 'Seller profile not found' });
+        }
+
+        // Ideally, we'd use a dedicated 'sellerProfile.id' or 'generationProfile.id' if they are a prosumer.
+        // For now, let's look for a valid Beckn ID in their profiles.
+        const sellerId = sellerProfile.profiles?.generationProfile?.id || 
+                         sellerProfile.profiles?.consumptionProfile?.id || 
+                         sellerProfile.profiles?.utilityCustomer?.did;
+
+        if (!sellerId) {
+             return res.status(400).json({ success: false, error: 'User does not have a valid seller/provider ID configured' });
+        }
+
+        // 2. Get Request Details & Verify Buyer (Beneficiary)
+        const request = await db.collection(COLLECTION_NAME).findOne({ _id: new ObjectId(requestId) });
+        if (!request) {
+            return res.status(404).json({ success: false, error: 'Request not found' });
+        }
+        
+        // Check if request is already fulfilled?
+        // if (request.status === 'FULFILLED') {
+        //    return res.status(400).json({ success: false, error: 'Request already fulfilled' });
+        // }
+
+        const buyerId = request.userId.toString();
+        // Use verified logic if needed
+        const quantity = request.requiredEnergy;
+
+        const transaction = await processDonationTransaction(buyerId, sellerId, quantity, req.headers.authorization!);
+
+        // 3. Update Request Status (Optional: only if fully fulfilled? Or just mark as fulfilled by this donation?)
+        // For simplicity, let's assume this donation fulfills the request or at least links to it.
+        // If partial donations are allowed, we might need to track 'fulfilledAmount'.
+        // For now, let's mark as FULFILLED as per gift logic.
+        
+        await db.collection(COLLECTION_NAME).updateOne(
+            { _id: new ObjectId(requestId) },
+            { 
+                $set: { 
+                    status: 'FULFILLED', 
+                    fulfilledBy: sellerId,
+                    transactionId: transaction.transactionId,
+                    updatedAt: new Date()
+                } 
+            }
+        );
+
+        return res.status(200).json({
+            success: true,
+            transactionId: transaction.transactionId,
+            orderId: transaction.orderId,
+            status: transaction.status,
+            amount: transaction.amount,
+            requestId
+        });
+
+    } catch (error: any) {
+        console.error('[EnergyRequest] Donate Energy Error:', error);
         return res.status(500).json({ success: false, error: error.message || 'Internal Server Error' });
     }
 }

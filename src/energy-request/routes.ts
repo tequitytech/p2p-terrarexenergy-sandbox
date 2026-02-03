@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createEnergyRequest, getEnergyRequests, findBestSeller, giftEnergy } from './controller';
+import { createEnergyRequest, getEnergyRequests, findBestSeller, giftEnergy, donateEnergy } from './controller';
 import { authMiddleware } from '../auth/routes';
 
 export function energyRequestRoutes() {
@@ -37,11 +37,7 @@ export function energyRequestRoutes() {
   // Let's create a `donateEnergy` controller method if needed.
   // For now, I will wire it to a new controller function `donateEnergy` which I'll add to controller.ts
   
-  router.post('/donate', authMiddleware, async (req, res) => {
-      // Placeholder until logic is defined or I can infer from "publishing catalog"
-      // If it means creating an offer check trade/routes.ts
-      res.status(501).json({ message: "Donate endpoint implementation pending clarification on catalog publish logic" });
-  });
+  router.post('/donate', authMiddleware, donateEnergy);
 
   return router;
 }
