@@ -12,6 +12,7 @@ import { catalogStore } from "../services/catalog-store";
 import { SettlementDocument, settlementStore } from "../services/settlement-store";
 import { parseError, readDomainResponse } from "../utils";
 import { getDB } from "../db";
+import { paymentService } from "../services/payment-service";
 dotenv.config();
 
 const WHEELING_RATE = parseFloat(process.env.WHEELING_RATE || "1.50"); // INR/kWh
@@ -192,7 +193,8 @@ export const onSelect = (req: Request, res: Response) => {
             context: {
               ...context,
               action: "on_select",
-              message_id: uuidv4(),
+              // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+              // message_id preserved from ...context (Beckn spec requires matching original request)
               timestamp: new Date().toISOString(),
             },
             message: {
@@ -257,7 +259,8 @@ export const onSelect = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_select",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
         message: {
@@ -399,12 +402,30 @@ export const onInit = (req: Request, res: Response) => {
         BPP_SETTLEMENT_ACCOUNT,
       ];
 
+      // Generate Payment Link
+      let paymentUri = "";
+      try {
+          const rzpOrder = await paymentService.createOrder(roundedTotalOrderValue, currency);
+          const rzpLink = await paymentService.createPaymentLink({
+              id: rzpOrder.id,
+              amount: rzpOrder.amount,
+              currency: rzpOrder.currency,
+              name: buyer?.["beckn:id"] || "Energy Buyer",
+              contact: "9876543210" // Default contact if not available (must be valid)
+          });
+          paymentUri = rzpLink.short_url;
+          console.log(`[Init] Generated Payment Link: ${paymentUri}`);
+      } catch (err) {
+          console.error("[Init] Failed to generate payment link:", err);
+      }
+
       // Build response per P2P Trading implementation guide
       const responsePayload = {
         context: {
           ...context,
           action: "on_init",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
         message: {
@@ -454,6 +475,8 @@ export const onInit = (req: Request, res: Response) => {
                 currency: currency,
                 value: roundedTotalOrderValue,
               },
+              // "beckn:uri": paymentUri,  // BUG: beckn:uri not in ONIX schema
+              "beckn:paymentURL": paymentUri,  // Fixed: use beckn:paymentURL per Beckn v2 Payment schema
               "beckn:beneficiary": "BPP",
               "beckn:paymentStatus": "AUTHORIZED",
               "beckn:paymentAttributes": {
@@ -523,7 +546,8 @@ export const onConfirm = (req: Request, res: Response) => {
               context: {
                 ...context,
                 action: "on_confirm",
-                message_id: uuidv4(),
+                // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+                // message_id preserved from ...context (Beckn spec requires matching original request)
                 timestamp: new Date().toISOString(),
               },
               message: {
@@ -640,7 +664,8 @@ export const onConfirm = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_confirm",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
         message: {
@@ -746,7 +771,8 @@ export const onStatus = (req: Request, res: Response) => {
           context: {
             ...context,
             action: "on_status",
-            message_id: uuidv4(),
+            // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+            // message_id preserved from ...context (Beckn spec requires matching original request)
             timestamp: new Date().toISOString(),
           },
           error: {
@@ -849,7 +875,8 @@ export const onStatus = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_status",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: now.toISOString(),
         },
         message: {
@@ -923,7 +950,8 @@ export const onUpdate = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_update",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
       };
@@ -971,7 +999,8 @@ export const onRating = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_rating",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
       };
@@ -1021,7 +1050,8 @@ export const onSupport = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_support",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
       };
@@ -1069,7 +1099,8 @@ export const onTrack = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_track",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
       };
@@ -1117,7 +1148,8 @@ export const onCancel = (req: Request, res: Response) => {
         context: {
           ...context,
           action: "on_cancel",
-          message_id: uuidv4(),
+          // message_id: uuidv4(),  // BUG: was overwriting original - removed per Beckn spec
+          // message_id preserved from ...context (Beckn spec requires matching original request)
           timestamp: new Date().toISOString(),
         },
       };

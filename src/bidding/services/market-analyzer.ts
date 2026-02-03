@@ -162,7 +162,7 @@ export async function fetchMarketData(
   endDate: string,
   sourceType: string,
 ): Promise<CompetitorOffer[]> {
-  const discoverUrl = `${ONIX_BAP_URL}/bap/caller/discover`;
+  const discoverUrl = `https://p2p.terrarexenergy.com/bap/caller/discover`;
   console.log(`[BidService] Fetching market data via ONIX: ${discoverUrl}`);
 
   try {

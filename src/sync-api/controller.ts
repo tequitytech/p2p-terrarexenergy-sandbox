@@ -584,6 +584,7 @@ async function executeAndWait(action: string, becknRequest: any, transactionId: 
 
     // Extract ONIX error details from axios error response
     if (error.response?.data) {
+      console.log("[SyncAPI] Failed with request", JSON.stringify(becknRequest, null, 2));
       const onixError = error.response.data;
       console.error(`[SyncAPI] ONIX error response:`, JSON.stringify(onixError, null, 2));
       // ONIX error format: {message: {ack: {status: "NACK"}, error: {code, paths, message}}}

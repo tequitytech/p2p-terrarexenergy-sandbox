@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { classifyIntent } from './intent-service';
+import { ENTITY_TYPES } from './entities';
 
 const intentRequestSchema = z.object({
   text: z.string().min(1, 'Text is required').refine(
@@ -40,10 +41,14 @@ export function voiceRoutes(): Router {
       const result = await classifyIntent(text);
       const latencyMs = Date.now() - startTime;
 
-      // Convert entities array to object keyed by name
-      const entities: Record<string, { value: string; type: string }> = {};
+      // Convert entities array to object with hardcoded units
+      const entities: Record<string, { value: string | number; unit: string }> = {};
       for (const e of result.entities) {
-        entities[e.name] = { value: e.value, type: e.type };
+        const entityType = ENTITY_TYPES[e.name as keyof typeof ENTITY_TYPES];
+        entities[e.name] = {
+          value: e.value,
+          unit: entityType?.unit || 'unknown'
+        };
       }
 
       // Logging (privacy: no input text logged)
