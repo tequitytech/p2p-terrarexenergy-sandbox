@@ -695,6 +695,11 @@ export const onConfirm = (req: Request, res: Response) => {
         "[Confirm] Sending actual order data:",
         JSON.stringify(confirmedOrder, null, 2),
       );
+      // Debug: Log orderItems to verify beckn:orderedItem vs beckn:acceptedOffer.beckn:id
+      const debugOrderItems = confirmedOrder?.["beckn:orderItems"] || [];
+      debugOrderItems.forEach((item: any, idx: number) => {
+        console.log(`[Confirm] DEBUG orderItem[${idx}]: orderedItem=${item["beckn:orderedItem"]}, acceptedOffer.id=${item["beckn:acceptedOffer"]?.["beckn:id"]}`);
+      });
       const confirm_data = await axios.post(callbackUrl, responsePayload);
       console.log("On Confirm api call response: ", confirm_data.data);
     } catch (error: any) {
