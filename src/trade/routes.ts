@@ -111,7 +111,7 @@ function extractProsumerDetails(user: any): ProsumerDetails {
 
 function buildCatalog(input: PublishInput, prosumer: ProsumerDetails) {
   const now = new Date();
- const timestamp = Date.now();
+  const timestamp = now.getTime();
   const catalogId = `catalog-${prosumer.meterId}-${timestamp}`;
   const itemId = `item-${prosumer.meterId}-${timestamp}`;
   const offerId = `offer-${prosumer.meterId}-${timestamp}`;
