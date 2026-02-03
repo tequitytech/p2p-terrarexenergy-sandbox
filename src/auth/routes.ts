@@ -251,9 +251,18 @@ async function verifyVc(req: Request, res: Response) {
       }
 
       // Verification passed - extract credentialSubject and store
+      // Map VC fields to expected profile fields
+      const mappedSubject: Record<string, any> = { ...vc.credentialSubject };
+
+      // For GenerationProfileCredential, map issuerName → utilityId
+      if (vcType === 'GenerationProfileCredential' && mappedSubject.issuerName) {
+        mappedSubject.utilityId = mappedSubject.issuerName;
+        delete mappedSubject.issuerName;
+      }
+
       const profile = {
         did,
-        ...vc.credentialSubject,
+        ...mappedSubject,
         verifiedAt: new Date(),
       };
 
