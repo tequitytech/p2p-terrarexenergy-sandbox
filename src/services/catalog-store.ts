@@ -50,15 +50,20 @@ export const catalogStore = {
   },
 
   async getInventory() {
-    return getDB().collection('items').find({}, {
+    // Read inventory from offers collection (quantity stored in beckn:price.applicableQuantity)
+    return getDB().collection('offers').find({}, {
       projection: {
         'beckn:id': 1,
-        'beckn:itemAttributes.availableQuantity': 1,
+        'beckn:items': 1,
+        'beckn:price.applicableQuantity': 1,
         catalogId: 1
       }
     }).toArray();
   },
 
+  /**
+   * @deprecated Use reduceOfferInventory instead - quantity is now stored on offers
+   */
   async reduceInventory(itemId: string, amount: number) {
     const db = getDB();
     const result = await db.collection('items').findOneAndUpdate(
@@ -69,6 +74,23 @@ export const catalogStore = {
 
     if (!result) throw new Error(`Insufficient inventory: ${itemId}`);
     return result['beckn:itemAttributes'].availableQuantity;
+  },
+
+  async reduceOfferInventory(offerId: string, amount: number) {
+    const db = getDB();
+    const result = await db.collection('offers').findOneAndUpdate(
+      {
+        'beckn:id': offerId,
+        'beckn:price.applicableQuantity.unitQuantity': { $gte: amount }
+      },
+      {
+        $inc: { 'beckn:price.applicableQuantity.unitQuantity': -amount }
+      },
+      { returnDocument: 'after' }
+    );
+
+    if (!result) throw new Error(`Insufficient inventory for offer: ${offerId}`);
+    return result['beckn:price'].applicableQuantity.unitQuantity;
   },
 
   async getItem(itemId: string) {

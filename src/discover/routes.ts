@@ -8,7 +8,7 @@ import { SourceType } from "../types";
 const ONIX_BAP_URL = process.env.ONIX_BAP_URL || "http://onix-bap:8081";
 
 const discoverSchema = z.object({
-  sourceType: z.enum(SourceType).optional(),
+  sourceType: z.enum(SourceType).default(SourceType.SOLAR),
   startDate: z.coerce.date().optional(),
   endDate: z.coerce.date().optional(),
   minQty: z.coerce.number().optional(),
@@ -16,7 +16,7 @@ const discoverSchema = z.object({
   sortBy: z.enum(["price", "energy"]).optional(),
   order: z.enum(["asc", "desc"]).optional(),
   itemId: z.string().optional(),
-  isActive: z.enum(["true", "false"]).transform((val) => val === "true").optional(),
+  isActive: z.enum(["true", "false"]).transform((val) => val === "true").default(true),
 });
 
 export const discoverRoutes = () => {

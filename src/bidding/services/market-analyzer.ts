@@ -21,70 +21,49 @@ const UNDERCUT_PERCENT = parseFloat(
  */
 export function buildDiscoverRequest({
   sourceType,
-  minQty,
-  maxQty,
   deliveryMode,
-  startDate,
-  endDate,
   itemId,
-  isActive
+  isActive,
 }: {
   sourceType?: string;
-  minQty?: number;
-  maxQty?: number;
-  deliveryMode?: DeliveryMode,
-  startDate?: Date;
-  endDate?: Date;
-  sortBy?: string,
-  order?: string,
-  itemId?: string,
-  isActive?: boolean
+  deliveryMode?: DeliveryMode;
+  sortBy?: string;
+  order?: string;
+  itemId?: string;
+  isActive?: boolean;
 }) {
   const conditions = [];
 
+  // Network Id
+  conditions.push(
+    `@.beckn:networkId == 'p2p-interdiscom-trading-pilot-network'`,
+  );
+
   // 1. Delivery Mode
-  if(deliveryMode) {
+  if (deliveryMode) {
     conditions.push(`@.beckn:itemAttributes.deliveryMode == '${deliveryMode}'`);
   }
 
   // 2. Source Type
-  if(sourceType) {
+  if (sourceType) {
     conditions.push(`@.beckn:itemAttributes.sourceType == '${sourceType}'`);
   }
 
-  // 3. Min Quantity
-  if(minQty) {
-    conditions.push(`@.beckn:itemAttributes.availableQuantity >= ${minQty}`);
-  }
-
-  // 4. Max Quantity
-  if(maxQty) {
-    conditions.push(`@.beckn:itemAttributes.availableQuantity <= ${maxQty}`);
-  }
-
-  // 5. Start Date (productionWindow start >= requested start)
-  if(startDate) {
-    conditions.push(`@.beckn:itemAttributes.productionWindow[0].schema:startTime >= '${startDate.toISOString()}'`);
-  }
-
-  // 6. End Date (productionWindow start <= requested end - as per user example)
-  if(endDate) {
-    conditions.push(`@.beckn:itemAttributes.productionWindow[0].schema:startTime <= '${endDate.toISOString()}'`);
-  }
-
   // 7. Active Status
-  if(isActive !== undefined) {
+  if (isActive !== undefined) {
     conditions.push(`@.beckn:isActive == ${isActive}`);
   }
 
   // 8. Item Id
-  if(itemId) {
-    conditions.push(`@.beckn:id == "${itemId}"`)
+  if (itemId) {
+    conditions.push(`@.beckn:id == "${itemId}"`);
   }
 
   const expression = `$[?(${conditions.join(" && ")})]`;
 
-  console.log(`[MARKET-ANALYZER] Fetching market data with expression: ${expression}`);
+  console.log(
+    `[MARKET-ANALYZER] Fetching market data with expression: ${expression}`,
+  );
 
   return {
     context: {
@@ -103,12 +82,14 @@ export function buildDiscoverRequest({
         city: { code: "BLR", name: "Bangalore" },
         country: { code: "IND", name: "India" },
       },
+      schema_context: [
+        "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld",
+      ],
     },
     message: {
       filters: {
         type: "jsonpath",
-        expression,
-        expressionType: "jsonpath",
+        expression
       },
     },
   };
@@ -187,8 +168,6 @@ export async function fetchMarketData(
   try {
     const request = buildDiscoverRequest({
       sourceType,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate)
     });
 
     const response = await axios.post(discoverUrl, request, {
@@ -235,16 +214,14 @@ async function saveSnapshot(
       offers: response?.message?.catalogs || [],
     };
 
-    await db
-      .collection("market_snapshots")
-      .updateOne(
-        {
-          "date_range.start": dateRange.start,
-          "date_range.end": dateRange.end,
-        },
-        { $set: snapshot },
-        { upsert: true },
-      );
+    await db.collection("market_snapshots").updateOne(
+      {
+        "date_range.start": dateRange.start,
+        "date_range.end": dateRange.end,
+      },
+      { $set: snapshot },
+      { upsert: true },
+    );
   } catch (error) {
     console.log(`[BidService] Failed to save market snapshot:`, error);
   }
