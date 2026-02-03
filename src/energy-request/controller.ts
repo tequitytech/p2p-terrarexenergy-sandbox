@@ -118,7 +118,7 @@ export async function findBestSeller(req: Request, res: Response) {
         // endDate: request.endTime ? new Date(request.endTime) : undefined
     });
 
-    const discoverUrl = `${ONIX_BAP_URL}/bap/caller/discover`;
+    const discoverUrl = `https://p2p.terrarexenergy.com/bap/caller/discover`;
     console.log(`[EnergyRequest] Finding best seller via ${discoverUrl}`);
 
     const response = await axios.post(discoverUrl, discoverPayload, {
