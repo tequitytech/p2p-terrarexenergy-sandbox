@@ -60,6 +60,16 @@ RULES:
 4. Extract and normalize entities to typed values (e.g., "fifty" → 50)
 5. If input is unrelated to energy trading, use "off_topic"
 
+SELL vs AUTO_BID RULE (CRITICAL):
+- Use "sell_energy" ONLY if user explicitly mentions a quantity/units (e.g., "sell 50 units", "50 kWh bechna hai")
+- If user wants to sell but does NOT mention quantity, use "auto_bid" instead
+- Examples:
+  - "sell 50 units tomorrow" → sell_energy (has quantity)
+  - "I want to sell energy" → auto_bid (no quantity)
+  - "bijli bechni hai" → auto_bid (no quantity)
+  - "sell my solar power" → auto_bid (no quantity)
+  - "mujhe 100 unit bechna hai" → sell_energy (has quantity)
+
 TIME WINDOW RULES (CRITICAL):
 - ALWAYS convert relative dates to actual ISO 8601 timestamps
 - "today" → current date
