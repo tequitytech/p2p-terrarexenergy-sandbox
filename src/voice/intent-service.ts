@@ -4,12 +4,6 @@ import { z } from "zod";
 import { INTENTS } from "./intents";
 import { ENTITY_TYPES } from "./entities";
 
-// Schema for time_window entity value
-const timeWindowValueSchema = z.object({
-  start: z.string(),
-  end: z.string(),
-});
-
 const classificationSchema = z.object({
   intent: z.string(),
   confidence: z.number().min(0).max(1),
@@ -17,8 +11,7 @@ const classificationSchema = z.object({
   entities: z.array(
     z.object({
       name: z.string(),
-      value: z.union([z.string(), timeWindowValueSchema]),
-      type: z.string(),
+      value: z.union([z.string(), z.number()]),
     }),
   ),
 });
@@ -57,7 +50,7 @@ RULES:
 1. Return the single best matching intent
 2. Set confidence 0-1 based on how well the input matches
 3. Detect language: "en" (English), "hi" (Hindi/Devanagari), "hinglish" (romanized Hindi or mix)
-4. Extract and normalize entities to typed values (e.g., "fifty" → 50)
+4. Extract entities with typed values (numbers as numbers, strings as strings)
 5. If input is unrelated to energy trading, use "off_topic"
 
 SELL vs AUTO_BID RULE (CRITICAL):
@@ -70,7 +63,15 @@ SELL vs AUTO_BID RULE (CRITICAL):
   - "sell my solar power" → auto_bid (no quantity)
   - "mujhe 100 unit bechna hai" → sell_energy (has quantity)
 
-TIME WINDOW RULES (CRITICAL):
+ENTITY VALUE RULES (CRITICAL):
+- Return ONLY the raw value, NEVER include units in the value
+- quantity: Return as NUMBER (e.g., "fifty units" → 50, "100 kWh" → 100)
+- price: Return as NUMBER (e.g., "5 rupees" → 5, "₹3.50" → 3.5)
+- time_window: Return as SINGLE ISO 8601 timestamp string (the start time only, NOT an object)
+- meter_id: Return as STRING (just the ID)
+- source_type: Return as STRING (one of: solar, wind, battery, grid)
+
+TIME WINDOW RULES:
 - ALWAYS convert relative dates to actual ISO 8601 timestamps
 - "today" → current date
 - "tomorrow" → next day's date
@@ -78,18 +79,20 @@ TIME WINDOW RULES (CRITICAL):
 - "kal" (Hindi for tomorrow) → next day's date
 - "parso" (Hindi for day after tomorrow) → date + 2 days
 - Time like "3PM", "3 baje", "15:00" → actual hour in 24h format
-- Return time_window as object with "start" and "end" ISO strings
-- If only one time given (e.g., "3PM"), assume 1-hour window (3PM to 4PM)
+- Return time_window as SINGLE string timestamp (the start time)
 - If no date given but time given, assume tomorrow
 - Return all times in IST with +05:30 offset (NOT UTC)
-- "subah" (morning) typically means 6AM-10AM, use 10AM if unspecified
-- "dopahar" (afternoon) typically means 12PM-4PM, use 2PM if unspecified
-- "shaam" (evening) typically means 5PM-8PM, use 6PM if unspecified
+- "subah" (morning) → 10:00
+- "dopahar" (afternoon) → 14:00
+- "shaam" (evening) → 18:00
 
-Example time_window outputs (all in IST +05:30):
-- Input "tomorrow 3PM" with current date 2026-02-03 → { "start": "2026-02-04T15:00:00.000+05:30", "end": "2026-02-04T16:00:00.000+05:30" }
-- Input "kal subah 10 baje" → { "start": "2026-02-04T10:00:00.000+05:30", "end": "2026-02-04T11:00:00.000+05:30" }
-- Input "today 5PM to 7PM" with current date 2026-02-03 → { "start": "2026-02-03T17:00:00.000+05:30", "end": "2026-02-03T19:00:00.000+05:30" }
+Entity examples:
+- "50 units" → { name: "quantity", value: 50 }
+- "₹5 per kWh" → { name: "price", value: 5 }
+- "tomorrow 3PM" (current date 2026-02-03) → { name: "time_window", value: "2026-02-04T15:00:00.000+05:30" }
+- "kal subah 10 baje" → { name: "time_window", value: "2026-02-04T10:00:00.000+05:30" }
+- "meter 41434064" → { name: "meter_id", value: "41434064" }
+- "solar power" → { name: "source_type", value: "solar" }
 
 USER INPUT: "${text}"`;
 }
