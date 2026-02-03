@@ -194,7 +194,7 @@ export async function findBestSeller(req: Request, res: Response) {
   }
 }
 
-import { processDonationTransaction } from './service';
+import { executeDirectTransaction, discoverBestSeller } from './service';
 import z from 'zod';
 import { SourceType } from '../types';
 
@@ -204,14 +204,25 @@ import { SourceType } from '../types';
  */
 export async function giftEnergy(req: Request, res: Response) {
     try {
-        const { requestId, sellerId } = req.body;
+        const user = (req as any).user;
+        if (!user) {
+            return res.status(401).json({ success: false, error: 'Unauthorized' });
+        }
+
+        const { requestId } = req.body;
         
-        if (!requestId || !sellerId) {
-             return res.status(400).json({ success: false, error: 'Missing requestId or sellerId' });
+        if (!requestId) {
+             return res.status(400).json({ success: false, error: 'Missing requestId' });
         }
 
         const db = getDB();
-        // 1. Get Request Details
+        
+        // 1. Get Gifter (Buyer) ID
+        const gifterProfile = await db.collection("users").findOne({ phone: user.phone });
+        // Use available ID or fallback to user ID string
+        const gifterId = gifterProfile?.profiles?.consumptionProfile?.id || user.userId || "unknown-gifter";
+
+        // 2. Get Request Details
         const request = await db.collection(COLLECTION_NAME).findOne({ _id: new ObjectId(requestId) });
         if (!request) {
             return res.status(404).json({ success: false, error: 'Request not found' });
@@ -221,17 +232,38 @@ export async function giftEnergy(req: Request, res: Response) {
             return res.status(400).json({ success: false, error: 'Request already fulfilled' });
         }
 
-        // 2. Perform Transaction
-        // Buyer is the requester (beneficiary), Seller is the provider
-        const transaction = await processDonationTransaction(request.userId.toString(), sellerId, request.requiredEnergy, req.headers.authorization!);
+        const beneficiaryId = request.userId.toString();
 
-        // 3. Update Request Status
+        // 3. Find Best Seller (Dynamic Discovery)
+        const sellerInfo = await discoverBestSeller(request.requiredEnergy, req.headers.authorization);
+
+        if (!sellerInfo || !sellerInfo.sellerId) {
+             return res.status(404).json({ success: false, error: 'No suitable energy seller found' });
+        }
+
+        const { sellerId, price } = sellerInfo;
+        console.log(`[EnergyRequest] Gift matched with seller ${sellerId} at price ${price}`);
+
+        // 4. Perform Transaction
+        // Buyer = Gifter, Seller = Provider, Beneficiary = Requester
+        const transaction = await executeDirectTransaction(
+            gifterId, 
+            sellerId, 
+            request.requiredEnergy, 
+            Number(price),
+            req.headers.authorization!,
+            beneficiaryId,
+            false // autoConfirm = false for Gift (wait for payment)
+        );
+
+        // 4. Update Request Status
         const updateResult = await db.collection(COLLECTION_NAME).updateOne(
             { _id: new ObjectId(requestId) },
             { 
                 $set: { 
-                    status: 'FULFILLED', 
+                    status: 'PAYMENT_PENDING', 
                     fulfilledBy: sellerId,
+                    giftedBy: gifterId,
                     transactionId: transaction.transactionId,
                     updatedAt: new Date()
                 } 
@@ -240,13 +272,15 @@ export async function giftEnergy(req: Request, res: Response) {
 
         return res.status(200).json({
             success: true, 
-            message: 'Energy gifted successfully',
+            message: 'Energy gift initiated. Proceed to payment.',
             requestId,
             sellerId,
+            gifterId,
             transactionId: transaction.transactionId,
             orderId: transaction.orderId,
             status: transaction.status,
-            amount: transaction.amount
+            amount: transaction.amount,
+            paymentDetails: transaction.message?.order?.["beckn:payment"] || transaction.message?.["beckn:payment"] // Return payment details for FE
         });
 
     } catch (error: any) {
@@ -307,13 +341,17 @@ export async function donateEnergy(req: Request, res: Response) {
         // Use verified logic if needed
         const quantity = request.requiredEnergy;
 
-        const transaction = await processDonationTransaction(buyerId, sellerId, quantity, req.headers.authorization!);
+        // Seller donates to Buyer (Beneficiary). Price = 0.
+        const transaction = await executeDirectTransaction(
+            buyerId, 
+            sellerId, 
+            quantity, 
+            0, // Price is 0 for donation
+            req.headers.authorization!,
+            buyerId // Beneficiary is the buyer
+        );
 
-        // 3. Update Request Status (Optional: only if fully fulfilled? Or just mark as fulfilled by this donation?)
-        // For simplicity, let's assume this donation fulfills the request or at least links to it.
-        // If partial donations are allowed, we might need to track 'fulfilledAmount'.
-        // For now, let's mark as FULFILLED as per gift logic.
-        
+        // 3. Update Request Status
         await db.collection(COLLECTION_NAME).updateOne(
             { _id: new ObjectId(requestId) },
             { 
@@ -329,7 +367,7 @@ export async function donateEnergy(req: Request, res: Response) {
         return res.status(200).json({
             success: true,
             transactionId: transaction.transactionId,
-            orderId: transaction.orderId,
+            orderId: transaction.transactionId,
             status: transaction.status,
             amount: transaction.amount,
             requestId

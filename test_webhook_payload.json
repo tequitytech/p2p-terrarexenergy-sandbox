@@ -1,0 +1,43 @@
+{
+  "context": {
+    "domain": "beckn.one:deg:p2p-trading-interdiscom:2.0.0",
+    "country": "IND",
+    "city": "std:080",
+    "action": "on_init",
+    "core_version": "1.0.0",
+    "bap_id": "p2p.terrarexenergy.com",
+    "bap_uri": "https://p2p.terrarexenergy.com/bap/receiver",
+    "bpp_id": "p2p.terrarexenergy.com",
+    "bpp_uri": "https://p2p.terrarexenergy.com/bpp/receiver",
+    "transaction_id": "test-txn-123",
+    "message_id": "msg-123",
+    "timestamp": "2023-10-04T10:00:00.000Z"
+  },
+  "message": {
+    "order": {
+      "beckn:id": "order-test-123",
+      "beckn:seller": "did:rcw:seller-123",
+      "beckn:buyer": {
+        "beckn:id": "did:rcw:buyer-123"
+      },
+      "beckn:orderItems": [
+        {
+          "beckn:orderedItem": "item-123",
+          "beckn:quantity": {
+            "unitQuantity": 50,
+            "unitText": "kWh"
+          },
+          "beckn:acceptedOffer": {
+             "beckn:price": {
+                "schema:price": 2,
+                "currency": "INR"
+             }
+          }
+        }
+      ],
+      "beckn:payment": {
+         "beckn:type": "POST-FULFILLMENT"
+      }
+    }
+  }
+}

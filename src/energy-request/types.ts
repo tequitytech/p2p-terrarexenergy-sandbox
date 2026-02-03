@@ -8,7 +8,7 @@ export interface EnergyRequest {
   purpose: string;
   startTime: string; // ISO Stringw
   endTime: string; // ISO String
-  status: 'PENDING' | 'FULFILLED' | 'CANCELLED';
+  status: 'PENDING' | 'FULFILLED' | 'CANCELLED' | 'PAYMENT_PENDING';
   createdAt: Date;
   updatedAt: Date;
   fulfilledBy?: string; // Seller/Provider ID if fulfilled
