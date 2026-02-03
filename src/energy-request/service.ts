@@ -17,6 +17,47 @@ export interface TransactionResult {
   amount: number;
 }
 
+const createContext = (
+  action: string,
+  transactionId: string,
+  {
+    bppId,
+    bppUri,
+    location,
+    schema_context,
+  }: {
+    bppId?: string;
+    bppUri?: string;
+    location?: {
+      city: {
+        code: string;
+        name: string;
+      };
+      country: {
+        code: string;
+        name: string;
+      };
+    };
+    schema_context?: string[];
+  } = {},
+) => {
+  return {
+    version: "2.0.0",
+    action: action,
+    message_id: crypto.randomUUID(),
+    bap_id: BAP_ID || "p2p.terrarexenergy.com",
+    bap_uri: BAP_URI || "https://p2p.terrarexenergy.com/bap/receiver",
+    bpp_id: bppId || "p2p.terrarexenergy.com",
+    bpp_uri: bppUri || "https://p2p.terrarexenergy.com/bpp/receiver",
+    ttl: "PT30S",
+    domain: process.env.DOMAIN || "beckn.one:deg:p2p-trading-interdiscom:2.0.0",
+    timestamp: new Date().toISOString(),
+    transaction_id: transactionId,
+    location,
+    schema_context,
+  };
+};
+
 export async function processDonationTransaction(
   buyerId: string,
   sellerId: string,
@@ -33,6 +74,9 @@ export async function processDonationTransaction(
   const catalogId = crypto.randomUUID();
   const itemId = crypto.randomUUID();
   const offerId = crypto.randomUUID();
+
+  // Create Context for Publish
+  const publishContext = createContext("catalog_publish", crypto.randomUUID());
 
   const itemData = {
     "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
@@ -58,6 +102,15 @@ export async function processDonationTransaction(
       "sourceType": "SOLAR",
       "meterId": "MTR-AUTO-" + sellerId.split("-").pop(),
       "availableQuantity": quantity,
+      "productionWindow": [
+        {
+          "@type": "beckn:TimePeriod",
+          "schema:startTime": new Date().toISOString(),
+          "schema:endTime": new Date(
+             Date.now() + 60 * 60 * 1000,
+          ).toISOString(), // 1 hour
+        },
+      ],
       "productionAsynchronous": true
     }
   };
@@ -84,26 +137,22 @@ export async function processDonationTransaction(
       "pricingModel": "PER_KWH",
       "beckn:maxQuantity": {
          "unitQuantity": quantity,
-         "unitText": "kWh"
-      }
+         "unitText": "kWh",
+         "unitCode": "KWH"
+      },
+      "validityWindow": {
+          "@type": "beckn:TimePeriod",
+          "schema:startTime": new Date().toISOString(),
+          "schema:endTime": new Date(
+            Date.now() + 60 * 60 * 1000,
+          ).toISOString(), // 1 hour
+       }
     }
   };
 
   // Create Publish Payload
   const publishPayload = {
-    context: {
-      domain: process.env.DOMAIN,
-      action: "catalog_publish",
-      version: process.env.VERSION,
-      bap_id: BAP_ID,
-      bap_uri: BAP_URI,
-      bpp_id: BPP_ID,
-      bpp_uri: BPP_URI,
-      transaction_id: crypto.randomUUID(),
-      message_id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-      ttl: "PT30S",
-    },
+    context: publishContext,
     message: {
       catalogs: [
         {
@@ -114,8 +163,8 @@ export async function processDonationTransaction(
             "@type": "beckn:Descriptor",
             "schema:name": "Auto-Generated Solar Catalog"
           },
-          "beckn:bppId": BPP_ID,
-          "beckn:bppUri": BPP_URI,
+          "beckn:bppId": BPP_ID || "p2p.terrarexenergy.com",
+          "beckn:bppUri": BPP_URI || "https://p2p.terrarexenergy.com/bpp/receiver",
           "beckn:items": [itemData],
           "beckn:offers": [offerData]
         }
@@ -132,19 +181,7 @@ export async function processDonationTransaction(
   const transactionId = crypto.randomUUID();
 
   // 2. SELECT
-  const contextSelect = {
-    domain: process.env.DOMAIN || "Energy",
-    action: "select",
-    version: process.env.VERSION || "0.0.1",
-    bap_id: BAP_ID,
-    bap_uri: BAP_URI,
-    bpp_id: BPP_ID,
-    bpp_uri: BPP_URI,
-    transaction_id: transactionId,
-    message_id: crypto.randomUUID(),
-    timestamp: new Date().toISOString(),
-    ttl: "PT30S",
-  };
+  const contextSelect = createContext("select", transactionId);
 
   const selectPayload = {
     context: contextSelect,
@@ -202,17 +239,14 @@ export async function processDonationTransaction(
   const selectRes = await axios.post(`${BASE_URI}/api/select`, selectPayload);
   const selectResponse = selectRes.data;
 
+  // Since it's a donation, price is 0, but logic remains consistent
   const price = offerData["beckn:price"]["schema:price"];
   const amountValue = price * quantity;
 
   console.log(`[TransactionService] Calling Init with amount ${amountValue}`);
 
   // 3. INIT
-  const contextInit = {
-    ...contextSelect,
-    action: "init",
-    message_id: crypto.randomUUID(),
-  };
+  const contextInit = createContext("init", transactionId);
   const initPayload = {
     context: contextInit,
     message: {
@@ -252,11 +286,7 @@ export async function processDonationTransaction(
   const initResponse = initRes.data;
 
   // 4. CONFIRM
-  const contextConfirm = {
-    ...contextInit,
-    action: "confirm",
-    message_id: crypto.randomUUID(),
-  };
+  const contextConfirm = createContext("confirm", transactionId);
   const confirmPayload = {
     context: contextConfirm,
     message: initResponse.message,
