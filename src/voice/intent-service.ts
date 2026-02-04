@@ -73,24 +73,23 @@ ENTITY VALUE RULES (CRITICAL):
 
 TIME WINDOW RULES:
 - ALWAYS convert relative dates to actual ISO 8601 timestamps
-- "today" → current date
-- "tomorrow" → next day's date
-- "day after tomorrow" → date + 2 days
-- "kal" (Hindi for tomorrow) → next day's date
-- "parso" (Hindi for day after tomorrow) → date + 2 days
+- "today" / "aaj" → current date
+- "tomorrow" / "kal" → next day's date
+- "day after tomorrow" / "parso" → date + 2 days
 - Time like "3PM", "3 baje", "15:00" → actual hour in 24h format
 - Return time_window as SINGLE string timestamp (the start time)
 - If no date given but time given, assume tomorrow
 - Return all times in IST with +05:30 offset (NOT UTC)
-- "subah" (morning) → 10:00
-- "dopahar" (afternoon) → 14:00
-- "shaam" (evening) → 18:00
+- "subah" / "morning" → 10:00
+- "dopahar" / "afternoon" → 14:00
+- "shaam" / "evening" → 18:00
 
 Entity examples:
 - "50 units" → { name: "quantity", value: 50 }
 - "₹5 per kWh" → { name: "price", value: 5 }
-- "tomorrow 3PM" (current date 2026-02-03) → { name: "time_window", value: "2026-02-04T15:00:00.000+05:30" }
-- "kal subah 10 baje" → { name: "time_window", value: "2026-02-04T10:00:00.000+05:30" }
+- "tomorrow 3PM" → { name: "time_window", value: "2026-02-04T15:00:00.000+05:30" }
+- "kal" → { name: "time_window", value: "2026-02-04T10:00:00.000+05:30" }
+- "kal 3 baje" → { name: "time_window", value: "2026-02-04T15:00:00.000+05:30" }
 - "meter 41434064" → { name: "meter_id", value: "41434064" }
 - "solar power" → { name: "source_type", value: "solar" }
 
