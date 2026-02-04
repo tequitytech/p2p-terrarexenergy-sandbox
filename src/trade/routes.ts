@@ -156,11 +156,27 @@ function buildCatalog(input: PublishInput, prosumer: ProsumerDetails) {
   const itemId = `item-${prosumer.meterId}-${timestamp}`;
   const offerId = `offer-${prosumer.meterId}-${timestamp}`;
 
-  // Build time windows
-  const deliveryStart = `${input.deliveryDate}T${String(input.startHour).padStart(2, "0")}:00:00.000Z`;
-  const deliveryEnd = `${input.deliveryDate}T${String(input.startHour + input.duration).padStart(2, "0")}:00:00.000Z`;
+  // Build time windows - Convert IST input to UTC (IST = UTC + 5:30)
+  const deliveryStartIST = new Date(`${input.deliveryDate}T${String(input.startHour).padStart(2, "0")}:00:00+05:30`);
+  const deliveryStart = deliveryStartIST.toISOString();
+
+  const deliveryEndIST = new Date(`${input.deliveryDate}T${String(input.startHour + input.duration).padStart(2, "0")}:00:00+05:30`);
+  const deliveryEnd = deliveryEndIST.toISOString();
+
   const validityStart = now.toISOString();
-  const validityEnd = `${input.deliveryDate}T${String(input.startHour - 1).padStart(2, "0")}:00:00.000Z`;
+
+  // Handle edge case where validity end crosses to previous day
+  let validityEndHour = input.startHour - 1;
+  let validityEndDate = input.deliveryDate;
+  if (validityEndHour < 0) {
+    validityEndHour = 23;
+    // Subtract one day from deliveryDate
+    const prevDay = new Date(input.deliveryDate);
+    prevDay.setDate(prevDay.getDate() - 1);
+    validityEndDate = prevDay.toISOString().split('T')[0];
+  }
+  const validityEndIST = new Date(`${validityEndDate}T${String(validityEndHour).padStart(2, "0")}:00:00+05:30`);
+  const validityEnd = validityEndIST.toISOString();
 
   return {
     catalogId,
