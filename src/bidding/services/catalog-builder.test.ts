@@ -6,6 +6,7 @@
 
 import { buildItem, buildOffer, buildCatalog, buildPublishRequest, extractIds } from './catalog-builder';
 import { createCalculatedBid, createValidityWindow } from '../../test-utils';
+import { ENERGY_TRADE_SCHEMA_CTX } from '../../constants/schemas';
 
 describe('catalog-builder', () => {
   const mockParams = {
@@ -385,13 +386,13 @@ describe('catalog-builder', () => {
       expect(catalog['beckn:offers'][0]['@context']).toMatch(/^https?:\/\//);
     });
 
-    it('should include EnergyResource context in items', () => {
+    it('should include EnergyTrade schema context in items', () => {
       const item = buildItem(mockParams);
 
-      expect(item['beckn:itemAttributes']['@context']).toContain('EnergyResource');
+      expect(item['beckn:itemAttributes']['@context']).toBe(ENERGY_TRADE_SCHEMA_CTX);
     });
 
-    it('should include EnergyTradeOffer context in offers', () => {
+    it('should include EnergyTrade schema context in offers', () => {
       const offer = buildOffer({
         provider_id: 'test',
         item_id: 'item-001',
@@ -401,7 +402,7 @@ describe('catalog-builder', () => {
         validityWindow: createValidityWindow('2026-01-28')
       });
 
-      expect(offer['beckn:offerAttributes']['@context']).toContain('EnergyTradeOffer');
+      expect(offer['beckn:offerAttributes']['@context']).toBe(ENERGY_TRADE_SCHEMA_CTX);
     });
   });
 });

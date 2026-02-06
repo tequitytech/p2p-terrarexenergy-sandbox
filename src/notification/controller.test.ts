@@ -1,12 +1,19 @@
 import { Request, Response } from "express";
-import { sendSmsHandler } from "./controller";
+import { sendSmsHandler, sendEmailHandler } from "./controller";
 import { smsService } from "../services/sms-service";
+import { emailService } from "../services/email-service";
 
-// Mock the smsService
+// Mock the services
 jest.mock("../services/sms-service", () => ({
   smsService: {
     sendSms: jest.fn(),
   },
+}));
+
+jest.mock("../services/email-service", () => ({
+  emailService: {
+    sendEmail: jest.fn()
+  }
 }));
 
 // Helper to create mock Request
@@ -26,27 +33,18 @@ describe("Notification Controller", () => {
   });
 
   describe("sendSmsHandler", () => {
-    it("should return 400 if validation fails (invalid phone)", async () => {
+    it("should throw validation error (invalid phone)", async () => {
       const req = mockRequest({ phone: "invalid-phone", message: "Test SMS" });
       const res = mockResponse();
 
-      await sendSmsHandler(req as Request, res as Response);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: "Validation failed",
-        })
-      );
+      await expect(sendSmsHandler(req as Request, res as Response)).rejects.toThrow();
     });
 
-    it("should return 400 if validation fails (missing message)", async () => {
-      const req = mockRequest({ phone: "+1234567890" }); // Missing message
+    it("should throw validation error (missing message)", async () => {
+      const req = mockRequest({ phone: "+1234567890" });
       const res = mockResponse();
 
-      await sendSmsHandler(req as Request, res as Response);
-
-      expect(res.status).toHaveBeenCalledWith(400);
+      await expect(sendSmsHandler(req as Request, res as Response)).rejects.toThrow();
     });
 
     it("should return 200 and messageId on success", async () => {
@@ -77,6 +75,41 @@ describe("Notification Controller", () => {
       expect(res.json).toHaveBeenCalledWith({
         error: "Failed to send SMS",
       });
+    });
+  });
+
+  describe("sendEmailHandler", () => {
+    it("should return 200 on successful email sent", async () => {
+      const req = mockRequest({ to: "test@example.com", subject: "Hello", body: "World" });
+      const res = mockResponse();
+
+      (emailService.sendEmail as jest.Mock).mockResolvedValue(true);
+
+      await sendEmailHandler(req as Request, res as Response);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: true
+      }));
+    });
+
+    it("should throw validation error for invalid email", async () => {
+      const req = mockRequest({ to: "invalid", subject: "S", body: "B" });
+      const res = mockResponse();
+
+      await expect(sendEmailHandler(req as Request, res as Response)).rejects.toThrow();
+    });
+
+    it("should return 500 if email service fails", async () => {
+      const req = mockRequest({ to: "test@example.com", subject: "S", body: "B" });
+      const res = mockResponse();
+
+      (emailService.sendEmail as jest.Mock).mockResolvedValue(false);
+
+      await sendEmailHandler(req as Request, res as Response);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
     });
   });
 });

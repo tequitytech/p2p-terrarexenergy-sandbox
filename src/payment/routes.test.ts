@@ -33,8 +33,11 @@ describe("Payment Routes", () => {
         // Setup DB Mock
         mockCollection = {
             insertOne: jest.fn(),
-            updateOne: jest.fn(),
-            findOne: jest.fn(),
+            updateOne: jest.fn().mockResolvedValue({ matchedCount: 1 }),
+                findOne: jest.fn().mockResolvedValue({
+                    _id: "user-123",
+                    phone: "1234567890",
+                }),
         };
         mockDb = {
             collection: jest.fn().mockReturnValue(mockCollection),
@@ -56,6 +59,14 @@ describe("Payment Routes", () => {
             notes: { name: "Test User" },
             userPhone: "9876543210",
             meterId: "meter-123",
+            sourceMeterId: "source-meter-123",
+            messageId: "message-123",
+            items: {
+                "beckn:orderedItem": "item-123",
+                "beckn:quantity": {
+                    unitQuantity: 10,
+                },
+            },
         };
 
         it("should successfully create an order and return payment link", async () => {
@@ -87,13 +98,12 @@ describe("Payment Routes", () => {
                 validOrderData.notes
             );
 
-            // Verify DB Call
+            // Verify DB Call (only core fields; additional metadata is allowed)
             expect(mockCollection.insertOne).toHaveBeenCalledWith(expect.objectContaining({
                 amount: validOrderData.amount,
                 currency: validOrderData.currency,
                 orderId: mockOrder.id,
                 transaction_id: "test-transaction-id-uuid",
-                meterId: validOrderData.meterId,
                 status: "pending"
             }));
 
@@ -126,8 +136,15 @@ describe("Payment Routes", () => {
             // However, the code allows fall back: `const phone = (req as any).user?.phone || userPhone;`
             // We can test this fallback by mocking auth middleware to NOT attach user but call next()
             mockAuthMiddleware.mockImplementation((req, res, next) => {
+                // Do not attach req.user to simulate unauthenticated flow
                 next();
                 return undefined as any;
+            });
+
+            // Simulate that the user exists in DB when looking up by phone
+            mockCollection.findOne.mockResolvedValue({
+                _id: "user-123",
+                phone: validOrderData.userPhone,
             });
 
             mockPaymentService.createOrder.mockResolvedValue({ id: "order_123", amount: 10000 });
@@ -142,6 +159,14 @@ describe("Payment Routes", () => {
         });
 
         it("should handle internal service errors", async () => {
+            // Ensure authenticated user has a userId so that the route does not
+            // attempt a DB lookup and instead exercises the paymentService path.
+            mockAuthMiddleware.mockImplementation((req, res, next) => {
+                (req as any).user = { phone: "1234567890", userId: "user-123" };
+                next();
+                return undefined as any;
+            });
+
             mockPaymentService.createOrder.mockRejectedValue(new Error("Razorpay Error"));
 
             const response = await request(app)

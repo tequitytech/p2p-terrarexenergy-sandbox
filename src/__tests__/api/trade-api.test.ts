@@ -43,8 +43,13 @@ jest.mock('../../services/ledger-client', () => ({
 // Import app after mocking
 import { createApp } from '../../app';
 
+// Import jwt and user seeding utils
+import jwt from 'jsonwebtoken';
+import { getTestUser, seedUserWithProfiles } from '../../test-utils/db';
+
 describe('Trade API Integration Tests', () => {
   let app: Express;
+  let token: string;
 
   beforeAll(async () => {
     await setupTestDB();
@@ -57,56 +62,65 @@ describe('Trade API Integration Tests', () => {
 
   beforeEach(async () => {
     await clearTestDB();
+
+    // Seed a prosumer user for publish tests
+    await seedUserWithProfiles({
+      name: 'Test Prosumer',
+      phone: '1234567890',
+      pin: '123456',
+      profiles: {
+        generationProfile: {
+          did: 'did:rcw:provider-001',
+          meterNumber: '100200300',
+          utilityId: 'BESCOM',
+          consumerNumber: 'CONS001'
+        }
+      }
+    });
+
+    const user = await getTestUser('1234567890');
+    token = jwt.sign(
+      { phone: user.phone, userId: user._id.toString() },
+      'p2p-trading-pilot-secret',
+      { algorithm: 'HS256' }
+    );
   });
 
   describe('POST /api/publish', () => {
     it('should store catalog and return success', async () => {
-      const item = createBecknItem('item-publish-001', 'test-provider', '100200300', 10);
-      const offer = createBecknOffer('offer-publish-001', 'item-publish-001', 'test-provider', 7.5, 10);
-      const catalog = createBecknCatalog('catalog-publish-001', [item], [offer]);
-
-      const publishRequest = {
-        context: createBecknContext('catalog_publish'),
-        message: { catalogs: [catalog] }
+      const publishInput = {
+        quantity: 10,
+        price: 5.5,
+        deliveryDate: '2026-01-30',
+        startHour: 12,
+        duration: 2,
+        sourceType: 'SOLAR'
       };
 
       const response = await request(app)
         .post('/api/publish')
-        .send(publishRequest)
+        .set('Authorization', `Bearer ${token}`)
+        .send(publishInput)
         .expect('Content-Type', /json/)
         .expect(200);
 
       expect(response.body.success).toBe(true);
+      expect(response.body.catalog_id).toBeDefined();
+      expect(response.body.item_id).toBeDefined();
+      expect(response.body.offer_id).toBeDefined();
     });
 
-    it('should return error for invalid catalog structure', async () => {
+    it('should reject invalid input', async () => {
       const response = await request(app)
         .post('/api/publish')
-        .send({ context: {}, message: {} })
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          quantity: -10, // Invalid
+          price: 5.5
+        })
         .expect(400);
 
-      expect(response.body.error).toBeDefined();
-    });
-
-    it('should store items and offers separately', async () => {
-      const item = createBecknItem('item-sep-001', 'test-provider', '100200300', 15);
-      const offer = createBecknOffer('offer-sep-001', 'item-sep-001', 'test-provider', 8.0, 15);
-      const catalog = createBecknCatalog('catalog-sep-001', [item], [offer]);
-
-      await request(app)
-        .post('/api/publish')
-        .send({
-          context: createBecknContext('catalog_publish'),
-          message: { catalogs: [catalog] }
-        })
-        .expect(200);
-
-      // Verify via inventory endpoint
-      const inventoryResponse = await request(app)
-        .get('/api/inventory')
-        .expect(200);
-
-      expect(inventoryResponse.body.items.some((i: any) => i['beckn:id'] === 'item-sep-001')).toBe(true);
+      expect(response.body.error).toBe('VALIDATION_ERROR');
     });
   });
 
