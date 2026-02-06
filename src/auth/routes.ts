@@ -12,9 +12,14 @@ import { z } from 'zod';
 import axios from 'axios';
 import { getDB } from '../db';
 import { ObjectId } from 'mongodb';
+import { smsService } from '../services/sms-service';
 
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'p2p-trading-pilot-secret';
+const REFRESH_SECRET = process.env.REFRESH_SECRET || (JWT_SECRET + '_refresh');
+
+const ACCESS_TOKEN_EXPIRY = '1h';
+const REFRESH_TOKEN_EXPIRY = '30d';
 
 // VC Verification API
 const VC_API_BASE = 'https://35.244.45.209.sslip.io/credential/credentials';
@@ -81,20 +86,60 @@ const verifyVcSchema = z.object({
     .max(10, 'Maximum 10 credentials per request'),
 });
 
+const sendOtpSchema = z.object({
+  phone: z
+    .string()
+    .min(10, 'Phone number must be at least 10 digits')
+    .max(10, 'Phone number must be at most 10 characters')
+    .regex(/^[\d]+$/, 'Phone number must contain only digits'),
+});
+
+const verifyOtpInputSchema = z.object({
+  phone: z
+    .string()
+    .min(10, "Phone number is required")
+    .max(10, "Phone number must be at most 10 characters")
+    .regex(/^[\d]+$/, "Phone number must contain only digits"),
+  otp: z.string().length(6, "OTP must be 6 digits"),
+});
+
+const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1, "Refresh token is required"),
+});
+
 // --- JWT Utilities ---
 
 interface JWTPayload {
   phone: string;
   userId?: string;
   iat: number;
+  exp: number; 
+  type: string;
 }
 
-function signToken(phone: string, userId?: string): string {
-  return jwt.sign({ phone, userId }, JWT_SECRET, { algorithm: 'HS256' });
+function signAccessToken(phone: string, userId?: string): string {
+  return jwt.sign({ phone, userId, type: 'access' }, JWT_SECRET, {
+    algorithm: 'HS256',
+    expiresIn: ACCESS_TOKEN_EXPIRY
+  });
 }
+
+function signRefreshToken(phone: string, userId?: string): string {
+  return jwt.sign({ phone, userId, type: 'refresh' }, REFRESH_SECRET, {
+    algorithm: 'HS256',
+    expiresIn: REFRESH_TOKEN_EXPIRY
+  });
+}
+
+// Backwards compatibility alias if needed, or deprecate
+const signToken = signAccessToken;
 
 function verifyToken(token: string): JWTPayload {
   return jwt.verify(token, JWT_SECRET) as JWTPayload;
+}
+
+function verifyRefreshToken(token: string): JWTPayload {
+  return jwt.verify(token, REFRESH_SECRET) as JWTPayload;
 }
 
 // Extend Express Request type
@@ -160,6 +205,219 @@ function authMiddleware(req: Request, res: Response, next: NextFunction) {
 
 // --- Handlers ---
 
+function generateOtp(): string {
+  // Generate a random 6-digit number
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+async function sendOtp(req: Request, res: Response) {
+  const { phone } = req.body;
+  console.log(`[Auth] Received OTP request for phone: ${phone}`); // Debug log
+  const db = getDB();
+
+  try {
+    // 1. Check if user exists, create if not
+    let user = await db.collection('users').findOne({ phone });
+
+    if (!user) {
+      console.log(`[Auth] Creating new user for phone: ${phone}`);
+      const result = await db.collection('users').insertOne({
+        phone,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        vcVerified: false,
+        meters: [],
+      });
+      user = await db.collection('users').findOne({ _id: result.insertedId });
+    }
+
+    if (!user) {
+      throw new Error("Failed to find or create user");
+    }
+
+    const userId = user._id;
+
+    // 2. Rate Limiting Check
+    const existingOtp = await db.collection('otps').findOne({ phone });
+    const now = new Date();
+    const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
+
+    let sendAttempts = existingOtp?.sendAttempts || 0;
+    let lastRequestAt = existingOtp?.lastRequestAt || new Date(0);
+
+    // Reset attempts if window passed
+    if (lastRequestAt < tenMinutesAgo) {
+      sendAttempts = 0;
+    }
+
+    if (sendAttempts >= 5) {
+      return res.status(429).json({
+        success: false,
+        error: {
+          code: 'RATE_LIMIT_EXCEEDED',
+          message: 'Max OTP send attempts reached. Please try again in 10 minutes.',
+        },
+      });
+    }
+
+    // 3. Generate and Save OTP
+    const otp = generateOtp();
+    const expiresAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes expiry
+
+    const updateDoc: any = {
+      $set: {
+        userId,
+        otp,
+        expiresAt,
+        verified: false,
+        attempts: 0, // Reset verify attempts for new OTP
+        lastRequestAt: now,
+      }
+    };
+
+    if (lastRequestAt < tenMinutesAgo) {
+      // Reset window: Set sendAttempts to 1
+      updateDoc.$set.sendAttempts = 1;
+    } else {
+      // Within window: Increment sendAttempts
+      updateDoc.$inc = { sendAttempts: 1 };
+    }
+
+    await db.collection('otps').updateOne(
+      { phone },
+      updateDoc,
+      { upsert: true }
+    );
+
+    // add SNS to send otp
+    const message = `Your Terrarex login OTP is ${otp}`;
+    const messageId = await smsService.sendSms(`+91${phone}`, message);
+
+    console.log(`[Auth] SMS sent to ${phone}, MessageId: ${messageId}`);
+
+    return res.json({
+      success: true,
+      message: 'OTP sent successfully',
+    });
+
+  } catch (err: any) {
+    console.error('Send OTP Error:', err);
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to send OTP',
+      },
+    });
+  }
+}
+
+async function verifyOtp(req: Request, res: Response) {
+  const { phone, otp } = req.body;
+  const db = getDB();
+
+  try {
+    const otpRecord = await db.collection('otps').findOne({ phone });
+    const now = new Date();
+
+    if (!otpRecord) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_REQUEST',
+          message: 'No OTP request found for this number. Please request a new OTP.',
+        },
+      });
+    }
+
+    // 1. Check if blocked by max attempts
+    if (otpRecord.attempts >= 5) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'MAX_ATTEMPTS_REACHED',
+          message: 'Too many failed attempts. Please request a new OTP.',
+        },
+      });
+    }
+
+    // 2. Check Expiry
+    if (otpRecord.expiresAt < now) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'OTP_EXPIRED',
+          message: 'OTP has expired. Please request a new one.',
+        },
+      });
+    }
+
+    // 3. Verify Code
+    if (otpRecord.otp !== otp) {
+      // Increment attempts
+      await db.collection('otps').updateOne(
+        { phone },
+        { $inc: { attempts: 1 } }
+      );
+
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_OTP',
+          message: 'Invalid OTP. Please try again.',
+        },
+      });
+    }
+
+    // 4. Success Flow
+    // Don't delete, just mark verified or consume (we keep it for rate limiting history)
+    await db.collection('otps').updateOne(
+      { phone },
+      {
+        $set: { verified: true },
+        $unset: { otp: "" } // Optional: remove OTP so it can't be reused
+      }
+    );
+
+    const user = await db.collection('users').findOne({ _id: otpRecord.userId });
+
+    if (!user) {
+      // Should not happen as we created it in sendOtp, but safe falback
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: 'USER_SYNC_ERROR',
+          message: 'User record missing.',
+        },
+      });
+    }
+
+    const token = signAccessToken(phone, user._id.toString());
+    const refreshToken = signRefreshToken(phone, user._id.toString());
+
+    return res.json({
+      success: true,
+      accessToken: token,
+      refreshToken,
+      user: {
+        phone: user.phone,
+        name: user.name,
+        vcVerified: user.vcVerified || false,
+      },
+    });
+
+  } catch (err: any) {
+    console.error('Verify OTP Error:', err);
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to verify OTP',
+      },
+    });
+  }
+}
+
 async function login(req: Request, res: Response) {
   const { phone, pin } = req.body;
 
@@ -177,11 +435,14 @@ async function login(req: Request, res: Response) {
     });
   }
 
-  const token = signToken(phone, user._id.toString());
+  const token = signAccessToken(phone, user._id.toString());
+  const refreshToken = signRefreshToken(phone, user._id.toString());
 
   return res.json({
     success: true,
-    token,
+    token, // Keeping 'token' for backward compatibility
+    accessToken: token,
+    refreshToken,
     user: {
       phone: user.phone,
       name: user.name,
@@ -346,6 +607,59 @@ async function verifyVc(req: Request, res: Response) {
   });
 }
 
+async function refreshTokenHandler(req: Request, res: Response) {
+  const { refreshToken } = req.body;
+
+  try {
+    // 1. Verify the refresh token
+    const decoded = verifyRefreshToken(refreshToken);
+
+    if (!decoded || decoded?.type !== "refresh") {
+      return res.status(401).json({
+        data: null,
+        error: {
+          code: 401,
+          message: "Invalid Refresh Token",
+        },
+      });
+    }
+
+    // 2. Check if user still exists
+    const db = getDB();
+    const user = await db.collection("users").findOne({
+      _id: new ObjectId(decoded.userId),
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: "USER_NOT_FOUND",
+          message: "User no longer exists",
+        },
+      });
+    }
+
+    // 3. Issue new tokens (Sliding Expiration: new RT has fresh 30d)
+    const newAccessToken = signAccessToken(user.phone, user._id.toString());
+    const newRefreshToken = signRefreshToken(user.phone, user._id.toString());
+
+    return res.json({
+      success: true,
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    });
+  } catch (err: any) {
+    return res.status(401).json({
+      success: false,
+      error: {
+        code: 'INVALID_REFRESH_TOKEN',
+        message: err?.message || 'Invalid or expired refresh token',
+      },
+    });
+  }
+}
+
 async function getMe(req: Request, res: Response) {
 
   const userDetails = req.user;
@@ -404,6 +718,15 @@ export function authRoutes(): Router {
   // POST /api/auth/login
   router.post('/auth/login', validateBody(loginSchema), login);
 
+  // POST /api/auth/send-otp
+  router.post('/auth/send-otp', validateBody(sendOtpSchema), sendOtp);
+
+  // POST /api/auth/verify-otp
+  router.post('/auth/verify-otp', validateBody(verifyOtpInputSchema), verifyOtp);
+
+  // POST /api/auth/refresh-token
+  router.post('/auth/refresh-token', validateBody(refreshTokenSchema), refreshTokenHandler);
+
   // POST /api/auth/verify-vc (requires JWT)
   router.post('/auth/verify-vc', authMiddleware, validateBody(verifyVcSchema), verifyVc);
 
@@ -414,4 +737,4 @@ export function authRoutes(): Router {
 }
 
 // Export utilities for testing
-export { signToken, verifyToken, authMiddleware, validateBody, loginSchema, verifyVcSchema };
+export { signToken, verifyToken, authMiddleware, validateBody, loginSchema, verifyVcSchema, sendOtpSchema, verifyOtpInputSchema, signRefreshToken, verifyRefreshToken };
