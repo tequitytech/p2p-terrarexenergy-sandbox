@@ -13,6 +13,13 @@ jest.mock('../../db', () => ({
     getDB: jest.fn(() => getTestDB()),
 }));
 
+// Mock SMS Service
+jest.mock('../../services/sms-service', () => ({
+    smsService: {
+        sendSms: jest.fn().mockResolvedValue('mock-message-id'),
+    },
+}));
+
 describe('OTP Auth Flow', () => {
     let app: Application;
 
@@ -129,7 +136,7 @@ describe('OTP Auth Flow', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
-            expect(res.body.token).toBeDefined();
+            expect(res.body.accessToken).toBeDefined();
             expect(res.body.user.phone).toBe(validPhone);
 
             // Verify OTP is marked verified or consumed
@@ -228,7 +235,7 @@ describe('OTP Auth Flow', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
-            expect(res.body.token).toBeDefined();
+            expect(res.body.accessToken).toBeDefined();
         });
     });
 });
