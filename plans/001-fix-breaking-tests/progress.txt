@@ -108,3 +108,21 @@
   - T09: 'should return 400 if validation fails (missing message)' → 'should return 400 with validation details when message field is missing'
 - **Verification**: All 4 tests pass. TypeScript compiles cleanly (tsc --noEmit).
 - **Note for next person**: T08 and T09 shared the same root cause so they were fixed together. The supertest pattern is the right approach for any handler that relies on Express middleware (error handlers, auth middleware, etc.). Remaining tasks: T12-T25 (14 tasks). Next up is T12 (payment/routes.test.ts).
+
+### 2026-02-07 — T12 (+ T14 side-effect): Fix "should successfully create an order and return payment link" in payment/routes.test.ts
+- **Status**: DONE
+- **File changed**: src/payment/routes.test.ts
+- **Root cause**: Three issues preventing the test from passing:
+  1. `validOrderData` was missing `sourceMeterId` and `messageId` fields, both required by the `paymentOrderSchema` Zod validation (routes.ts:58-59). This caused a 400 validation error before any business logic executed.
+  2. The auth middleware mock only set `{ phone: "1234567890" }` on `req.user`, missing `userId`. Without `userId`, the route tries to look up the user via `db.collection("users").findOne({ phone })` (routes.ts:122-133), adding unnecessary complexity and potential failure points.
+  3. `orderService.saveBuyerOrder()` was not mocked. The route calls it at line 175 after creating the Razorpay order and payment link. Without a mock, it would call the real implementation and fail.
+- **Fix**:
+  1. Added `sourceMeterId: "source-meter-456"` and `messageId: "msg-789"` to `validOrderData`
+  2. Added `jest.mock("../services/order-service")` and typed `mockOrderService`
+  3. Updated default auth middleware mock to include `userId: "aaaaaaaaaaaaaaaaaaaaaaaa"` (valid 24-char hex ObjectId)
+  4. Updated DB `insertOne` assertion to match actual `txnBody` shape (includes `userPhone`, `userId`; does NOT include `meterId` which was incorrectly asserted before)
+  5. Added assertion verifying `orderService.saveBuyerOrder` was called with correct transactionId and order data
+- **Test renamed**: 'should successfully create an order and return payment link' → 'should create Razorpay order, save to DB, generate payment link, and save buyer order'
+- **Side-effect fix (T14)**: The "should handle internal service errors" test also started passing because the shared `validOrderData` now passes Zod validation and the auth mock provides `userId`, allowing the request to reach the `createOrder` call which is mocked to reject.
+- **Verification**: 9 of 10 tests pass in payment/routes.test.ts. The 1 remaining failure is T13 ("should use userPhone from body if not authenticated") which needs its own specific fix (mocking `findOne` on users collection to return a user with `_id`, mocking `saveBuyerOrder`). TypeScript compiles cleanly (tsc --noEmit). Full test suite: 414 pass, 12 fail (down from 14).
+- **Note for next person**: T13 needs: (1) `mockCollection.findOne` to return `{ _id: new ObjectId('bbbbbbbbbbbbbbbbbbbbbbbb'), phone: '9876543210' }` when auth middleware doesn't set req.user, (2) `mockOrderService.saveBuyerOrder` mocked, (3) the test name renamed. The `validOrderData` and `orderService` mock are already in place from this commit. Remaining tasks: T13, T15-T25 (12 tasks).
