@@ -180,3 +180,31 @@
 - **Test renamed**: 'should store items and offers separately' → 'should store auto-generated items and offers separately in their collections after publish'
 - **Verification**: All 17 tests pass in trade-api.test.ts. TypeScript compiles cleanly (tsc --noEmit).
 - **Note for next person**: All trade-api tests (T16, T17) are now fixed — 17/17 pass. Next up is T18 (bidding-api.test.ts: bid preview test). T18-T24 are all in the same file and share a common issue: the `forecast-reader` mock is missing `getProcessedForecasts`. T22-T24 additionally need `authMiddleware` mocked for seller routes. T25 is the e2e lifecycle test. Remaining tasks: T18-T25 (8 tasks).
+
+### 2026-02-07 — T18-T24: Fix all bidding-api.test.ts tests
+- **Status**: DONE
+- **File changed**: src/__tests__/api/bidding-api.test.ts
+- **Root causes**:
+  1. **T18-T21 (bid/preview and bid/confirm)**: The `forecast-reader` mock only exported `readForecast` and `processDailyForecast`, but `bid-optimizer.ts` imports and calls `getProcessedForecasts` directly (line 13, 83). Since `getProcessedForecasts` wasn't in the mock factory, it was `undefined` → `TypeError: getProcessedForecasts is not a function` → caught by controller → 500.
+  2. **T22-T24 (seller/preview and seller/confirm)**: Seller routes use `authMiddleware` (from `auth/routes.ts`) which requires a valid JWT Bearer token. The test had no auth mock, so all requests got 401 `UNAUTHORIZED`. Additionally, the `hourly-forecast-reader` mock was missing `getTomorrowDate` (imported by `hourly-optimizer.ts` at line 13). Also, seller controller's `getSellerDetailsFromAuth()` queries `users` collection by phone for a user with `generationProfile` — no user was seeded in the test DB.
+- **Fix**:
+  1. Added `getProcessedForecasts: jest.fn()` to the `forecast-reader` mock factory
+  2. Added `getTomorrowDate: jest.fn()` to the `hourly-forecast-reader` mock factory
+  3. Added `jest.mock('../../auth/routes')` with pass-through `authMiddleware` that sets `req.user = { userId: 'aaa...', phone: '9876543210' }` and `authRoutes` returning an empty Router
+  4. Added user seeding with `generationProfile` in seller test `beforeEach` blocks via `db.collection('users').insertOne()`
+  5. Changed T18/T19 tests to mock `getProcessedForecasts` directly (returning `{ all, biddable }`) instead of `readForecast`/`processDailyForecast`
+  6. Added `mockedAxios.post` setup for CDS discover calls (returns empty catalogs → floor price used)
+  7. For T21 (publish failure), used `mockResolvedValueOnce` for the first CDS discover call then `mockRejectedValue` for subsequent publish calls
+  8. For T24 (seller confirm), mocked publish response with `{ catalog_id, offer_id, item_id }` since `hourly-optimizer.confirm()` destructures these from `response.data`
+  9. Created `buildProcessedDays()` helper that builds 7 `ProcessedDay` objects
+  10. Seller tests send `{ source_type: 'SOLAR' }` only — provider_id and meter_id come from the seeded user's generationProfile
+- **Tests renamed**:
+  - T18: 'should return 7-day bid preview' → 'should return 7-day bid preview with market-competitive pricing'
+  - T19: 'should return empty bids when no forecast data' → 'should return empty bids array when forecast has no biddable days'
+  - T20: 'should publish bids and return placed_bids' → 'should publish all calculated bids sequentially and return placed_bids with catalog IDs'
+  - T21: 'should handle publish failures gracefully' → 'should halt on first publish failure and return failed_at with error details'
+  - T22: 'should return top 5 hourly bids' → 'should return at most 5 highest-revenue hourly bids for tomorrow'
+  - T23: 'should track skipped hours' → 'should report skipped hours that fall below minimum kWh threshold'
+  - T24: 'should publish hourly bids' → 'should publish hourly bids to ONIX and return placed_bids with status'
+- **Verification**: All 8 tests pass in bidding-api.test.ts. Full suite: 425 pass, 1 fail (T25 e2e-order-flow only). TypeScript compiles cleanly (tsc --noEmit).
+- **Note for next person**: Only T25 (e2e-order-flow.test.ts) remains. It needs: (1) auth mock with pass-through middleware + valid ObjectId userId, (2) user seeding with generationProfile, (3) minimal publish input instead of full Beckn catalog, (4) updated response assertions for the new publish shape, (5) inventory verification via /api/offers. The patterns from T16-T17 (trade-api) and T18-T24 (bidding-api) apply directly. Remaining tasks: T25 (1 task).

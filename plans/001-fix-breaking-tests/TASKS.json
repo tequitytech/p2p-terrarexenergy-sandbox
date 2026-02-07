@@ -295,7 +295,7 @@
       "Rename test to: 'should return 7-day bid preview with market-competitive pricing'",
       "Run: npm test -- --testPathPattern='api/bidding-api'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",
@@ -310,7 +310,7 @@
       "Rename test to: 'should return empty bids array when forecast has no biddable days'",
       "Run: npm test -- --testPathPattern='api/bidding-api'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",
@@ -326,7 +326,7 @@
       "Rename test to: 'should publish all calculated bids sequentially and return placed_bids with catalog IDs'",
       "Run: npm test -- --testPathPattern='api/bidding-api'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",
@@ -342,7 +342,7 @@
       "Rename test to: 'should halt on first publish failure and return failed_at with error details'",
       "Run: npm test -- --testPathPattern='api/bidding-api'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",
@@ -358,7 +358,7 @@
       "Rename test to: 'should return at most 5 highest-revenue hourly bids for tomorrow'",
       "Run: npm test -- --testPathPattern='api/bidding-api'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",
@@ -374,7 +374,7 @@
       "Rename test to: 'should report skipped hours that fall below minimum kWh threshold'",
       "Run: npm test -- --testPathPattern='api/bidding-api'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",
@@ -390,7 +390,7 @@
       "Rename test to: 'should publish hourly bids to ONIX and return placed_bids with status'",
       "Run: npm test -- --testPathPattern='api/bidding-api'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",
