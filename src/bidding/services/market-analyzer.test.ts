@@ -5,9 +5,11 @@
  */
 
 import axios from 'axios';
-import { analyzeCompetitors, calculatePrice, fetchMarketData } from './market-analyzer';
-import { FLOOR_PRICE, DEFAULT_UNDERCUT_PERCENT } from '../types';
+
 import { createCompetitorOffer, createValidityWindow, createCDSCatalogWithOffers, createCDSResponse } from '../../test-utils';
+import { FLOOR_PRICE, DEFAULT_UNDERCUT_PERCENT } from '../types';
+
+import { analyzeCompetitors, calculatePrice, fetchMarketData } from './market-analyzer';
 
 // Mock axios
 jest.mock('axios');

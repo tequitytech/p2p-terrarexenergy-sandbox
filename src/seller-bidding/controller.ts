@@ -1,11 +1,14 @@
-import { Request, Response } from 'express';
-import { SellerBidRequest } from './types';
+import { getDB } from '../db';
+
 import { preview, confirm } from './services/hourly-optimizer';
+
+import type { SellerBidRequest } from './types';
+import type { Request, Response } from 'express';
+
 
 /**
  * Validate seller bid request parameters
  */
-import { getDB } from '../db';
 
 /**
  * Validate seller bid request body (only source_type needed from FE)

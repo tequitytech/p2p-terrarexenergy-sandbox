@@ -1,8 +1,11 @@
-import axios from "axios";
 import crypto from "crypto";
+
+import axios from "axios";
 import dotenv from "dotenv";
+
 import { buildDiscoverRequest } from '../bidding/services/market-analyzer';
-import { SourceType } from '../types';
+
+import type { SourceType } from '../types';
 
 dotenv.config();
 
@@ -72,7 +75,7 @@ export async function executeDirectTransaction(
   beneficiaryId?: string,
   autoConfirm: boolean = true
 ): Promise<TransactionResult> {
-  const BASE_URI = BAP_URI ? new URL(BAP_URI!).origin : "https://p2p.terrarexenergy.com";
+  const BASE_URI = BAP_URI ? new URL(BAP_URI).origin : "https://p2p.terrarexenergy.com";
   // const PORT = process.env.PORT || 3000;
   // const BASE_URI = `http://localhost:${PORT}`;
 

@@ -4,10 +4,11 @@
  * Tests settlement creation, status derivation, and ledger sync
  */
 
-import { settlementStore, deriveSettlementStatus, SettlementStatus } from './settlement-store';
-import { LedgerRecord } from './ledger-client';
 import { createLedgerRecord } from '../test-utils';
 import { setupTestDB, teardownTestDB, clearTestDB, seedSettlement, getTestSettlement } from '../test-utils/db';
+
+import { LedgerRecord } from './ledger-client';
+import { settlementStore, deriveSettlementStatus, SettlementStatus } from './settlement-store';
 
 // Mock getDB to use test database
 jest.mock('../db', () => {
@@ -324,7 +325,7 @@ describe('settlement-store', () => {
       const result = await settlementStore.getUnnotifiedSettlements();
 
       expect(result.every(s => s.settlementStatus === 'SETTLED')).toBe(true);
-      expect(result.every(s => s.onSettleNotified === false)).toBe(true);
+      expect(result.every(s => !s.onSettleNotified)).toBe(true);
     });
   });
 

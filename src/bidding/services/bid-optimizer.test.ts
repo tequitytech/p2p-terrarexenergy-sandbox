@@ -5,11 +5,17 @@
  */
 
 import axios from 'axios';
+
+import { createCompetitorOffer, createValidityWindow } from '../../test-utils';
+import { CompetitorOffer, FLOOR_PRICE } from '../types';
+
+
 import { preview, confirm } from './bid-optimizer';
 import * as forecastReader from './forecast-reader';
 import * as marketAnalyzer from './market-analyzer';
-import { BidRequest, ProcessedDay, CompetitorOffer, FLOOR_PRICE } from '../types';
-import { createCompetitorOffer, createValidityWindow } from '../../test-utils';
+
+import type { BidRequest, ProcessedDay} from '../types';
+
 
 // Mock dependencies
 jest.mock('axios');

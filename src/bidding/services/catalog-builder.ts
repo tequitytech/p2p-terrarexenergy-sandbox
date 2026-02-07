@@ -1,10 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
-import { CalculatedBid, ValidityWindow } from '../types';
+
 import {
   BECKN_CONTEXT_ROOT,
   ENERGY_RESOURCE_SCHEMA_CTX,
   ENERGY_TRADE_OFFER_SCHEMA_CTX
 } from '../../constants/schemas';
+
+import type { CalculatedBid, ValidityWindow } from '../types';
 
 /**
  * Generate unique IDs for catalog elements (includes timestamp for uniqueness)

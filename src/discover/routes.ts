@@ -1,9 +1,11 @@
 import axios, { isAxiosError } from "axios";
-import { Request, Response, Router } from "express";
+import { Router } from "express";
 import z from "zod";
-import { buildDiscoverRequest } from "../bidding/services/market-analyzer";
 
+import { buildDiscoverRequest } from "../bidding/services/market-analyzer";
 import { SourceType } from "../types";
+
+import type { Request, Response} from "express";
 
 const ONIX_BAP_URL = process.env.ONIX_BAP_URL || "http://onix-bap:8081";
 
@@ -39,7 +41,7 @@ export const discoverRoutes = () => {
 
       // Apply date filter & sort
       if (data?.message?.catalogs) {
-        let catalogs = data.message.catalogs;
+        const catalogs = data.message.catalogs;
 
         // 2. Sort
         if (query.sortBy) {

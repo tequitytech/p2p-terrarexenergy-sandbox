@@ -1,0 +1,146 @@
+[
+  {
+    "id": "E00",
+    "category": "metadata",
+    "title": "Skipped rules — risky or behaviour-changing",
+    "description": "These 3,392 violations (across 39 rules) are intentionally excluded from this plan. Each requires manual audit, may change runtime behaviour, or touches security-sensitive code. They should be addressed in a future plan after thorough review.",
+    "skippedRules": [
+      { "rule": "@typescript-eslint/no-unsafe-member-access",    "count": 934, "reason": "Requires adding proper types to untyped third-party data (beckn protocol objects, MongoDB results). Bulk-fixing with `any` casts would hide real type errors." },
+      { "rule": "@typescript-eslint/no-unsafe-assignment",        "count": 822, "reason": "Same as no-unsafe-member-access — needs proper type definitions for external data shapes." },
+      { "rule": "no-console",                                     "count": 318, "reason": "Removing console.log/warn/error requires introducing a structured logger first; blind removal would lose production diagnostics." },
+      { "rule": "@typescript-eslint/no-explicit-any",             "count": 289, "reason": "Each `any` needs a real type. Replacing with `unknown` can break callers; needs case-by-case analysis." },
+      { "rule": "@typescript-eslint/restrict-template-expressions","count": 211, "reason": "Fixing requires understanding what each interpolated value actually is at runtime; incorrect casts can mask bugs." },
+      { "rule": "@typescript-eslint/no-unsafe-argument",          "count": 124, "reason": "Same family as no-unsafe-assignment — requires proper typing of function arguments." },
+      { "rule": "@typescript-eslint/explicit-module-boundary-types","count": 102, "reason": "Adding return types to 102 exported functions needs verification that inferred types match intended contracts." },
+      { "rule": "@typescript-eslint/no-unsafe-call",              "count": 80,  "reason": "Requires tracing call targets to add proper types; incorrect typing can introduce runtime errors." },
+      { "rule": "@typescript-eslint/no-deprecated",               "count": 66,  "reason": "Replacing deprecated APIs requires identifying replacements and testing migration." },
+      { "rule": "sonarjs/deprecation",                            "count": 63,  "reason": "Same as no-deprecated; duplicate rule from sonarjs plugin." },
+      { "rule": "max-nested-callbacks",                           "count": 62,  "reason": "Refactoring deeply nested callbacks changes control flow; needs careful restructuring." },
+      { "rule": "@typescript-eslint/naming-convention",           "count": 49,  "reason": "Renaming variables/functions can break API contracts, destructured beckn fields, and MongoDB queries." },
+      { "rule": "sonarjs/no-clear-text-protocols",                "count": 38,  "reason": "Security-sensitive — URLs reference internal services; changing to HTTPS may break connectivity." },
+      { "rule": "@typescript-eslint/no-unsafe-return",            "count": 37,  "reason": "Same family as no-unsafe-assignment — needs proper return type annotations." },
+      { "rule": "@typescript-eslint/unbound-method",              "count": 30,  "reason": "Binding methods changes `this` semantics; requires understanding each call site." },
+      { "rule": "sonarjs/no-commented-code",                      "count": 29,  "reason": "Commented code may be intentional reference material; needs developer review before deletion." },
+      { "rule": "@typescript-eslint/no-unnecessary-condition",    "count": 19,  "reason": "Removing 'unnecessary' null checks can introduce runtime errors if types are wider than TypeScript infers." },
+      { "rule": "sonarjs/no-unused-vars",                         "count": 15,  "reason": "Overlaps with @typescript-eslint/no-unused-vars (E03); may auto-resolve when E03 is completed." },
+      { "rule": "@typescript-eslint/no-floating-promises",        "count": 15,  "reason": "Adding await/void changes async control flow; incorrect fixes can cause unhandled rejections." },
+      { "rule": "@typescript-eslint/restrict-plus-operands",      "count": 10,  "reason": "Requires understanding operand types; incorrect casts can produce wrong arithmetic." },
+      { "rule": "@typescript-eslint/no-non-null-assertion",       "count": 10,  "reason": "Removing `!` requires adding null checks that change control flow." },
+      { "rule": "sonarjs/no-dead-store",                          "count": 9,   "reason": "Removing assignments may affect side effects or future code paths." },
+      { "rule": "security/detect-non-literal-fs-filename",        "count": 8,   "reason": "Security rule — each dynamic path needs audit for path traversal risks." },
+      { "rule": "@typescript-eslint/no-confusing-void-expression","count": 8,   "reason": "Fixing changes return semantics; needs case-by-case review." },
+      { "rule": "max-depth",                                      "count": 7,   "reason": "Reducing nesting depth requires control flow refactoring." },
+      { "rule": "@typescript-eslint/require-await",               "count": 6,   "reason": "Removing async from functions may break callers expecting Promise return." },
+      { "rule": "@typescript-eslint/promise-function-async",      "count": 6,   "reason": "Adding async changes return type to Promise; may affect callers." },
+      { "rule": "sonarjs/cognitive-complexity",                   "count": 6,   "reason": "Reducing complexity requires significant refactoring of business logic." },
+      { "rule": "sonarjs/no-nested-template-literals",            "count": 4,   "reason": "Extracting nested templates changes readability; cosmetic but needs review." },
+      { "rule": "sonarjs/no-ignored-exceptions",                  "count": 3,   "reason": "Adding error handling to empty catch blocks changes failure behaviour." },
+      { "rule": "@typescript-eslint/no-unnecessary-type-conversion","count": 2, "reason": "Removing type conversions may affect edge cases with unexpected input types." },
+      { "rule": "@typescript-eslint/no-namespace",                "count": 2,   "reason": "Replacing namespaces with modules changes import semantics." },
+      { "rule": "@typescript-eslint/use-unknown-in-catch-callback-variable","count": 2, "reason": "Changing catch parameter type can break error handling code." },
+      { "rule": "sonarjs/cors",                                   "count": 1,   "reason": "Security-sensitive — CORS configuration changes affect API access control." },
+      { "rule": "sonarjs/pseudo-random",                          "count": 1,   "reason": "Security-sensitive — replacing Math.random needs crypto-safe alternative." },
+      { "rule": "security/detect-unsafe-regex",                   "count": 1,   "reason": "Security-sensitive — regex needs ReDoS analysis before modification." },
+      { "rule": "@typescript-eslint/only-throw-error",            "count": 1,   "reason": "Changing thrown value type can break catch handlers expecting specific shapes." },
+      { "rule": "@typescript-eslint/no-unnecessary-type-assertion","count": 1,  "reason": "Removing type assertion may re-surface type errors; needs verification." },
+      { "rule": "@typescript-eslint/no-unnecessary-boolean-literal-compare","count": 1, "reason": "Cosmetic, but grouped with skipped rules to keep auto-fix batch conservative." }
+    ],
+    "totalSkipped": 3392
+  },
+  {
+    "id": "E01",
+    "category": "auto-fix",
+    "status": "done",
+    "completedAt": "2026-02-08",
+    "title": "Auto-fix safe lint violations (277 auto-fixable)",
+    "description": "Run eslint --fix for only the 4 safe auto-fixable rules. These rules reorder imports, add `const`, remove unused imports, and convert to `import type` — none change runtime behaviour.",
+    "rules": [
+      { "rule": "import-x/order",                            "count": 224, "fixable": true,  "description": "Reorder import statements into consistent groups" },
+      { "rule": "@typescript-eslint/consistent-type-imports", "count": 57,  "fixable": true,  "description": "Convert value imports to `import type` where only types are used" },
+      { "rule": "sonarjs/unused-import",                      "count": 22,  "fixable": true,  "description": "Remove unused import statements" },
+      { "rule": "prefer-const",                               "count": 5,   "fixable": true,  "description": "Change `let` to `const` for variables that are never reassigned" }
+    ],
+    "steps": [
+      "npx eslint --fix --rule '{\"import-x/order\": \"error\", \"@typescript-eslint/consistent-type-imports\": \"error\", \"sonarjs/unused-import\": \"error\", \"prefer-const\": \"error\"}' --no-eslintrc -c eslint.config.mjs 'src/**/*.ts'",
+      "npm run build",
+      "npm run lint"
+    ],
+    "expectedReduction": "~277 violations (from 3,771 to ~3,494)",
+    "actualReduction": "293 violations (from 3,771 to 3,478). Ran 2 auto-fix passes; second pass caught 5 additional sonarjs/unused-import fixes.",
+    "verification": "npm run build && npm run lint"
+  },
+  {
+    "id": "E02",
+    "category": "verification",
+    "title": "Verify auto-fix did not break tests or build",
+    "description": "Run the full test suite and build after E01 auto-fixes to confirm no regressions were introduced by import reordering, type import conversion, or unused import removal.",
+    "steps": [
+      "npm test",
+      "npm run build",
+      "npm run lint"
+    ],
+    "verification": "npm test && npm run build && npm run lint"
+  },
+  {
+    "id": "E03",
+    "category": "manual-fix",
+    "title": "Fix @typescript-eslint/no-unused-vars (69 violations)",
+    "description": "Manually fix unused variable warnings. These are NOT auto-fixable. For each violation: prefix unused function parameters with `_` (e.g., `_req`, `_next`), remove truly dead local variables, and remove unused destructured properties.",
+    "rules": [
+      { "rule": "@typescript-eslint/no-unused-vars", "count": 69, "fixable": false, "description": "Prefix unused params with _, remove dead variables" }
+    ],
+    "steps": [
+      "Run: npx eslint --format json . 2>/dev/null | python3 -c \"import json,sys; [print(f'{f[\\\"filePath\\\"]}:{m[\\\"line\\\"]}:{m[\\\"column\\\"]} {m[\\\"message\\\"]}') for f in json.load(sys.stdin) for m in f.get('messages',[]) if m.get('ruleId')=='@typescript-eslint/no-unused-vars']\" to list all 69 violations",
+      "For each unused function parameter: prefix with _ (e.g., req → _req, next → _next)",
+      "For each unused local variable: remove the declaration if it has no side effects",
+      "For each unused import: should already be handled by E01 (sonarjs/unused-import); verify none remain",
+      "npm run build",
+      "npm run lint"
+    ],
+    "expectedReduction": "~69 violations (from ~3,494 to ~3,425)",
+    "verification": "npm run build && npm run lint"
+  },
+  {
+    "id": "E04",
+    "category": "manual-fix",
+    "title": "Fix @typescript-eslint/no-redundant-type-constituents (2 violations)",
+    "description": "Remove redundant type constituents in 2 files. The `any` type in a union makes other types redundant (e.g., `string | any` simplifies to `any`).",
+    "files": [
+      { "file": "src/services/catalog-store.ts", "line": 168, "description": "Union type contains `any` which overrides other members" },
+      { "file": "src/types/order.ts",            "line": 29,  "description": "Union type contains `any` which overrides other members" }
+    ],
+    "steps": [
+      "Open src/services/catalog-store.ts:168 — remove redundant union members alongside `any`, or replace `any` with a proper type",
+      "Open src/types/order.ts:29 — same fix: simplify the union or replace `any`",
+      "npm run build",
+      "npm run lint"
+    ],
+    "expectedReduction": "2 violations (from ~3,425 to ~3,423)",
+    "verification": "npm run build && npm run lint"
+  },
+  {
+    "id": "E05",
+    "category": "verification",
+    "title": "Final verification — full test suite, build, and lint",
+    "description": "Run the complete verification suite after all manual fixes (E03, E04) to confirm no regressions.",
+    "steps": [
+      "npm test",
+      "npm run build",
+      "npm run lint"
+    ],
+    "verification": "npm test && npm run build && npm run lint"
+  },
+  {
+    "id": "E06",
+    "category": "reporting",
+    "title": "Generate final lint report",
+    "description": "Generate a machine-readable lint report showing remaining violations for future planning. This documents the baseline after safe fixes are complete.",
+    "steps": [
+      "npm run lint:report",
+      "npm run build",
+      "npm run lint"
+    ],
+    "note": "If lint:report script doesn't exist, use: npx eslint --format json -o lint-report.json . || true",
+    "verification": "npm run build && npm run lint"
+  }
+]

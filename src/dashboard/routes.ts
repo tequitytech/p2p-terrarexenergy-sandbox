@@ -1,6 +1,9 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
+
 import { catalogStore } from "../services/catalog-store";
 import { settlementStore } from "../services/settlement-store";
+
+import type { Request, Response } from "express";
 
 export const dashboardRoutes = () => {
   const router = Router();

@@ -1,0 +1,24 @@
+== E01: Auto-fix safe lint violations ==
+Date: 2026-02-08
+Status: DONE
+
+What was done:
+- Ran `npx eslint --fix .` (2 passes needed to stabilize)
+- Auto-fixed 293 violations across 4 rules:
+  - import-x/order: import statement reordering
+  - @typescript-eslint/consistent-type-imports: value→type import conversion
+  - sonarjs/unused-import: removed unused imports
+  - prefer-const: let→const for never-reassigned variables
+
+Results:
+- Before: 3,771 problems (2,917 errors, 854 warnings)
+- After:  3,478 problems (2,630 errors, 848 warnings)
+- Reduction: 293 violations fixed (expected ~277, got slightly more)
+- Build: PASSES (npm run build)
+- Lint: runs without crashes (remaining violations are expected)
+
+Notes for next person:
+- There are 2 remaining sonarjs/unused-import fixable errors in src/webhook/routes.ts
+  (Request, Response imports). These can't auto-fix because @typescript-eslint/no-unused-vars
+  also flags them. They'll be resolved in E03 (unused vars manual fix).
+- Next task is E02 (verify tests pass) or E03 (manual unused-vars fixes).

@@ -1,5 +1,8 @@
-import { Request, Response } from "express";
 import axios from "axios";
+
+
+import { readDomainResponse } from "../utils";
+
 import {
   validateContext,
   getCallbackUrl,
@@ -10,7 +13,9 @@ import {
   onTrack,
   onCancel,
 } from "./controller";
-import { readDomainResponse } from "../utils";
+
+import type { Request, Response } from "express";
+
 
 // Mock axios
 jest.mock("axios");

@@ -5,12 +5,17 @@
  */
 
 import axios from 'axios';
-import { preview, confirm } from './hourly-optimizer';
-import * as forecastReader from './hourly-forecast-reader';
+
 import * as marketAnalyzer from '../../bidding/services/market-analyzer';
-import * as hourlyMarketAnalyzer from './hourly-market-analyzer';
-import { SellerBidRequest, DailyForecast, TOP_N_HOURS, FLOOR_PRICE } from '../types';
 import { createDailyForecast, createMarketAnalysis } from '../../test-utils';
+import { DailyForecast, TOP_N_HOURS, FLOOR_PRICE } from '../types';
+
+import * as forecastReader from './hourly-forecast-reader';
+import * as hourlyMarketAnalyzer from './hourly-market-analyzer';
+import { preview, confirm } from './hourly-optimizer';
+
+import type { SellerBidRequest} from '../types';
+
 
 // Mock dependencies
 jest.mock('axios');

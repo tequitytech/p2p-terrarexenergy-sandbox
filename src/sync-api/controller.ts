@@ -1,12 +1,15 @@
-import { Request, Response, NextFunction } from 'express';
 import axios from 'axios';
+import dotenv from "dotenv";
+import { ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
-import { ObjectId } from 'mongodb';
-import { createPendingTransaction, getPendingCount, cancelPendingTransaction } from '../services/transaction-store';
-import { extractBuyerDetails, BuyerDetails } from '../trade/routes';
+
 import { BECKN_CONTEXT_ROOT, ENERGY_TRADE_SCHEMA_CTX, PAYMENT_SETTLEMENT_SCHEMA_CTX } from '../constants/schemas';
-import dotenv from "dotenv";
+import { createPendingTransaction, getPendingCount, cancelPendingTransaction } from '../services/transaction-store';
+import { extractBuyerDetails } from '../trade/routes';
+
+import type { BuyerDetails } from '../trade/routes';
+import type { Request, Response, NextFunction } from 'express';
 dotenv.config();
 
 const ONIX_BAP_URL = process.env.ONIX_BAP_URL || 'http://onix-bap:8081';
@@ -468,7 +471,7 @@ function validateBody(schema: z.ZodSchema) {
 export function validateSelect(req: Request, res: Response, next: NextFunction) {
   // If catalog-based format, skip standard validation (handled in handler)
   if (req.body.catalogue && req.body.customAttributes) {
-    return next();
+    next(); return;
   }
   // Otherwise validate against standard beckn schema
   return validateBody(selectSchema)(req, res, next);
@@ -478,7 +481,7 @@ export function validateSelect(req: Request, res: Response, next: NextFunction) 
 export function validateInit(req: Request, res: Response, next: NextFunction) {
   // If select-based format, skip standard validation (handled in handler)
   if (req.body.select && req.body.customAttributes) {
-    return next();
+    next(); return;
   }
   // For raw beckn format, basic context validation only (full validation in BPP)
   if (!req.body.context?.transaction_id) {
@@ -490,14 +493,14 @@ export function validateInit(req: Request, res: Response, next: NextFunction) {
       },
     });
   }
-  return next();
+  next();
 }
 
 // Combined validation for confirm: accepts either init-based or full beckn format
 export function validateConfirm(req: Request, res: Response, next: NextFunction) {
   // If init-based format, skip standard validation (handled in handler)
   if (req.body.init && typeof req.body.init === 'object') {
-    return next();
+    next(); return;
   }
   // For raw beckn format, basic context validation only (full validation in BPP)
   if (!req.body.context?.transaction_id) {
@@ -509,7 +512,7 @@ export function validateConfirm(req: Request, res: Response, next: NextFunction)
       },
     });
   }
-  return next();
+  next();
 }
 
 /**

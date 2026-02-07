@@ -1,7 +1,10 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router } from 'express';
 import { z } from 'zod';
-import { classifyIntent } from './intent-service';
+
 import { ENTITY_TYPES } from './entities';
+import { classifyIntent } from './intent-service';
+
+import type { Request, Response, NextFunction } from 'express';
 
 const intentRequestSchema = z.object({
   text: z.string().min(1, 'Text is required').refine(

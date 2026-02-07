@@ -1,10 +1,13 @@
 import { v4 as uuidv4 } from 'uuid';
-import { HourlyBid, VALIDITY_BUFFER_HOURS } from '../types';
+
 import {
   BECKN_CONTEXT_ROOT,
   ENERGY_RESOURCE_SCHEMA_CTX,
   ENERGY_TRADE_OFFER_SCHEMA_CTX
 } from '../../constants/schemas';
+import { VALIDITY_BUFFER_HOURS } from '../types';
+
+import type { HourlyBid} from '../types';
 
 /**
  * Generate unique IDs for catalog elements (includes timestamp + hour for uniqueness)

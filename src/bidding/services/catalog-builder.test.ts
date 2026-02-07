@@ -4,8 +4,9 @@
  * Tests Beckn catalog construction, item/offer building, and schema compliance
  */
 
-import { buildItem, buildOffer, buildCatalog, buildPublishRequest, extractIds } from './catalog-builder';
 import { createCalculatedBid, createValidityWindow } from '../../test-utils';
+
+import { buildItem, buildOffer, buildCatalog, buildPublishRequest, extractIds } from './catalog-builder';
 
 describe('catalog-builder', () => {
   const mockParams = {

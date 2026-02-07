@@ -200,7 +200,7 @@ describe('transaction-store', () => {
         data: { index: i }
       }));
 
-      const promises = transactions.map(t =>
+      const promises = transactions.map(async t =>
         createPendingTransaction(t.id, 'select')
       );
 

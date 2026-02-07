@@ -2,9 +2,10 @@
  * Test Utilities - Mock factories and helpers for unit tests
  */
 
-import { Request, Response } from 'express';
-import { DailyForecast, HourlyExcess, ValidityWindow, CalculatedBid, CompetitorOffer, MarketAnalysis } from '../bidding/types';
-import { HourlyBid, SkippedHour } from '../seller-bidding/types';
+
+import type { DailyForecast, HourlyExcess, ValidityWindow, CalculatedBid, CompetitorOffer, MarketAnalysis } from '../bidding/types';
+import type { HourlyBid, SkippedHour } from '../seller-bidding/types';
+import type { Request, Response } from 'express';
 
 // ============================================
 // Express Request/Response Mocks
@@ -382,10 +383,10 @@ export function createBecknContext(action: string, transactionId?: string): any 
 // Async Test Helpers
 // ============================================
 
-export function waitMs(ms: number): Promise<void> {
+export async function waitMs(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export function flushPromises(): Promise<void> {
+export async function flushPromises(): Promise<void> {
   return new Promise(resolve => setImmediate(resolve));
 }

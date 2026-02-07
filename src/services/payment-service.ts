@@ -1,8 +1,11 @@
 import axios, { AxiosError } from "axios";
-import { getDB } from "../db";
-import { razorpay, rzp_key_secret } from "./razorpay";
-import { ObjectId } from "mongodb";
 import { validatePaymentVerification } from "razorpay/dist/utils/razorpay-utils";
+
+import { getDB } from "../db";
+
+import { razorpay, rzp_key_secret } from "./razorpay";
+
+import type { ObjectId } from "mongodb";
 
 export enum PaymentStatus {
   CREATED = "created",
@@ -58,7 +61,7 @@ export const paymentService = {
   async createPaymentLink(order: any) {
     console.log("Creating payment link for order>>>:", order);
     try {
-      let linkResp = await razorpay.paymentLink.create({
+      const linkResp = await razorpay.paymentLink.create({
         amount: order.amount,
         currency: order.currency,
         accept_partial: false,

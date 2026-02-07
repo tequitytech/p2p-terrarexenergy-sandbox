@@ -1,4 +1,4 @@
-import { CompetitorOffer, MarketAnalysis } from '../types';
+import type { CompetitorOffer, MarketAnalysis } from '../types';
 
 /**
  * Check if two time ranges overlap

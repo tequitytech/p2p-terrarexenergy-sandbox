@@ -1,6 +1,9 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Router, NextFunction } from "express";
+
 import { authMiddleware } from "../auth/routes";
 import { orderService } from "../services/order-service";
+
+import type { Request, Response} from "express";
 
 export const ordersRoutes = () => {
   const router = Router();

@@ -5,9 +5,15 @@
  */
 
 import * as fs from 'fs';
-import { getTomorrowDate, getTomorrowForecast, filterValidHours } from './hourly-forecast-reader';
-import { HOURLY_MIN_THRESHOLD, DailyForecast } from '../types';
+
 import { createDailyForecast } from '../../test-utils';
+import { HOURLY_MIN_THRESHOLD } from '../types';
+
+import { getTomorrowDate, getTomorrowForecast, filterValidHours } from './hourly-forecast-reader';
+
+import type { DailyForecast } from '../types';
+
+
 
 // Mock fs module
 jest.mock('fs');

@@ -1,9 +1,9 @@
-import { Request, Response } from 'express';
-import { getDB } from '../db';
-import { EnergyRequest, CreateEnergyRequestDTO } from './types';
-import { ObjectId } from 'mongodb';
-import { buildDiscoverRequest } from '../bidding/services/market-analyzer';
 import axios from 'axios';
+
+import type { Request, Response } from 'express';
+
+import { ObjectId } from 'mongodb';
+
 
 const ONIX_BAP_URL = process.env.ONIX_BAP_URL || "http://onix-bap:8081";
 
@@ -194,9 +194,16 @@ export async function findBestSeller(req: Request, res: Response) {
   }
 }
 
-import { executeDirectTransaction, discoverBestSeller } from './service';
+
 import z from 'zod';
+
+import { buildDiscoverRequest } from '../bidding/services/market-analyzer';
+import { getDB } from '../db';
 import { SourceType } from '../types';
+
+import { executeDirectTransaction, discoverBestSeller } from './service';
+
+import type { EnergyRequest, CreateEnergyRequestDTO } from './types';
 
 /**
  * giftEnergy

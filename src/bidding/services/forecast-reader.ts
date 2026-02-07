@@ -1,6 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { DailyForecast, ProcessedDay, ValidityWindow, BUFFER_RATE, MIN_THRESHOLD } from '../types';
+
+import { BUFFER_RATE, MIN_THRESHOLD } from '../types';
+
+import type { DailyForecast, ProcessedDay, ValidityWindow} from '../types';
 
 const EXCESS_DATA_PATH = process.env.EXCESS_DATA_PATH || 'data/excess_predicted_hourly.json';
 

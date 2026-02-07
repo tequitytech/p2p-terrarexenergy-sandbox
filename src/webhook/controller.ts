@@ -1,18 +1,21 @@
 import axios from "axios";
 import dotenv from "dotenv";
-import { Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
+
 import {
   BECKN_CONTEXT_ROOT,
   ENERGY_TRADE_DELIVERY_SCHEMA_CTX,
   ENERGY_TRADE_ORDER_SCHEMA_CTX,
   PAYMENT_SETTLEMENT_SCHEMA_CTX,
 } from "../constants/schemas";
-import { catalogStore } from "../services/catalog-store";
-import { SettlementDocument, settlementStore } from "../services/settlement-store";
-import { parseError, readDomainResponse } from "../utils";
 import { getDB } from "../db";
+import { catalogStore } from "../services/catalog-store";
 import { paymentService } from "../services/payment-service";
+import { settlementStore } from "../services/settlement-store";
+import { parseError, readDomainResponse } from "../utils";
+
+import type { SettlementDocument} from "../services/settlement-store";
+import type { Request, Response } from "express";
 dotenv.config();
 
 const WHEELING_RATE = parseFloat(process.env.WHEELING_RATE || "1.50"); // INR/kWh

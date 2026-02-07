@@ -1,28 +1,32 @@
 import axios from "axios";
+
 import {
-  SellerBidRequest,
-  HourlyBid,
+  fetchMarketData,
+  calculatePrice,
+} from "../../bidding/services/market-analyzer";
+import {
   SkippedHour,
-  SellerPreviewResponse,
-  SellerConfirmResponse,
-  PlacedHourlyBid,
   TOP_N_HOURS,
   FLOOR_PRICE,
 } from "../types";
-import {
-  getTomorrowDate,
-  getTomorrowForecast,
-  filterValidHours,
-} from "./hourly-forecast-reader";
+
 import {
   buildDeliveryWindow,
   buildValidityWindow,
 } from "./hourly-catalog-builder";
 import {
-  fetchMarketData,
-  calculatePrice,
-} from "../../bidding/services/market-analyzer";
+  getTomorrowDate,
+  getTomorrowForecast,
+  filterValidHours,
+} from "./hourly-forecast-reader";
 import { analyzeCompetitorsForHour } from "./hourly-market-analyzer";
+
+import type {
+  SellerBidRequest,
+  HourlyBid,
+  SellerPreviewResponse,
+  SellerConfirmResponse,
+  PlacedHourlyBid} from "../types";
 
 const PUBLISH_URL =
   process.env.PUBLISH_URL || "http://localhost:3002/api/publish";
