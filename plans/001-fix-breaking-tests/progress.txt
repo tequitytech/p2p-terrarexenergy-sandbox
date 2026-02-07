@@ -75,3 +75,20 @@
 - **Test renamed**: 'should include offers where delivery window contains validity' → 'should include offers whose validity window is fully contained within the delivery window'
 - **Verification**: T06 passes (17/18 in file). The 1 remaining failure is T07 ("should analyze mixed valid and invalid offers") which is a separate task. TypeScript compiles cleanly (tsc --noEmit).
 - **Note for next person**: T07 ("should analyze mixed valid and invalid offers") has three sub-issues: (1) offer #1 validity `06:00-08:00 UTC` doesn't overlap delivery `10:00-11:00 UTC`, (2) offer #3 is `createCompetitorOffer('unknown', 8.0)` with default invalid NaN date strings, (3) offer #4 labeled "non-overlapping" has validity `10:00-11:00 UTC` which actually matches the delivery window exactly (timeRangesOverlap returns true). Remaining tasks: T07-T09, T12-T25 (17 tasks).
+
+### 2026-02-07 — T07: Fix "should analyze mixed valid and invalid offers" in hourly-market-analyzer.test.ts
+- **Status**: DONE
+- **File changed**: src/seller-bidding/services/hourly-market-analyzer.test.ts
+- **Root cause**: Three sub-issues in the mixed scenario test:
+  1. Offer #1 (price 7.5): validity `06:00-08:00 UTC` doesn't overlap delivery `10:00-11:00 UTC`. `timeRangesOverlap(06:00, 08:00, 10:00, 11:00)` → `06:00 < 11:00 (true) && 10:00 < 08:00 (false)` → `false`. Labeled "Valid" but actually excluded.
+  2. Offer #3 (price 8.0, unknown date): `createCompetitorOffer('unknown', 8.0)` uses default `createValidityWindow('unknown')` which produces `unknownT08:00:00Z` / `unknownT17:00:00Z` — invalid dates → NaN in `timeRangesOverlap` → false. Labeled "Valid" but actually excluded.
+  3. Offer #4 (price 5.0): validity `10:00-11:00 UTC` exactly matches delivery window `10:00-11:00 UTC`. `timeRangesOverlap(10:00, 11:00, 10:00, 11:00)` → `10:00 < 11:00 (true) && 10:00 < 11:00 (true)` → `true`. Labeled "non-overlapping" but actually INCLUDED.
+  - Net result: only offer #4 passed (competitors_found=1, lowest=5.0) instead of expected (competitors_found=2, lowest=7.5).
+- **Fix**:
+  1. Offer #1: Changed validity to `09:30-11:30 UTC` which overlaps delivery `10:00-11:00 UTC`
+  2. Offer #3: Provided explicit valid overlapping validity_window `09:00-12:00 UTC` instead of relying on broken default
+  3. Offer #4: Changed validity to `04:00-05:00 UTC` which is truly before delivery (no overlap)
+  4. Added `// Expected: INCLUDED` and `// Expected: EXCLUDED` comments with reasoning on each offer
+- **Test renamed**: 'should analyze mixed valid and invalid offers' → 'should correctly filter mixed offers by date and time overlap, including only valid competitors'
+- **Verification**: All 18 tests pass. TypeScript compiles cleanly (tsc --noEmit).
+- **Note for next person**: All hourly-market-analyzer tests (T03-T07) are now fixed — 18/18 pass. Next up is T08 (notification/controller.test.ts). Remaining tasks: T08-T09, T12-T25 (16 tasks).

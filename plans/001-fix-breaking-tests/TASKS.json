@@ -112,7 +112,7 @@
       "Rename test to: 'should correctly filter mixed offers by date and time overlap, including only valid competitors'",
       "Run: npm test -- --testPathPattern=hourly-market-analyzer"
     ],
-    "passes": false,
+    "passes": true,
     "note": "Previously T07 only addressed issues #1 and #2, missing that offer #4 (validity 10:00-11:00 UTC = delivery window) is actually included by timeRangesOverlap, contradicting the 'non-overlapping' label."
   },
   {

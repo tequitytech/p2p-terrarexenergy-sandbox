@@ -269,26 +269,31 @@ describe('hourly-market-analyzer', () => {
   });
 
   describe('multiple competitor scenarios', () => {
-    it('should analyze mixed valid and invalid offers', () => {
+    it('should correctly filter mixed offers by date and time overlap, including only valid competitors', () => {
       const offers: CompetitorOffer[] = [
-        // Valid: same date, overlapping time
+        // Expected: INCLUDED — same date, validity 09:30-11:30 UTC overlaps delivery 10:00-11:00 UTC
         {
           ...createCompetitorOffer('2026-01-28', 7.5),
           validity_window: {
-            start: '2026-01-28T06:00:00.000Z',
-            end: '2026-01-28T08:00:00.000Z'
+            start: '2026-01-28T09:30:00.000Z',
+            end: '2026-01-28T11:30:00.000Z'
           }
         },
-        // Invalid: different date
+        // Expected: EXCLUDED — different date (2026-01-29 ≠ 2026-01-28)
         createCompetitorOffer('2026-01-29', 6.0),
-        // Valid: unknown date
-        createCompetitorOffer('unknown', 8.0),
-        // Invalid: same date but non-overlapping time
+        // Expected: INCLUDED — 'unknown' date passes date filter; valid overlapping window 09:00-12:00 UTC
+        createCompetitorOffer('unknown', 8.0, 10, {
+          validity_window: {
+            start: '2026-01-28T09:00:00.000Z',
+            end: '2026-01-28T12:00:00.000Z'
+          }
+        }),
+        // Expected: EXCLUDED — same date but validity 04:00-05:00 UTC is entirely before delivery 10:00-11:00 UTC
         {
           ...createCompetitorOffer('2026-01-28', 5.0),
           validity_window: {
-            start: '2026-01-28T10:00:00.000Z',
-            end: '2026-01-28T11:00:00.000Z'
+            start: '2026-01-28T04:00:00.000Z',
+            end: '2026-01-28T05:00:00.000Z'
           }
         }
       ];
@@ -300,7 +305,7 @@ describe('hourly-market-analyzer', () => {
         offers
       );
 
-      expect(result.competitors_found).toBe(2);  // 7.5 and 8.0 (unknown)
+      expect(result.competitors_found).toBe(2);  // offer #1 (7.5) + offer #3 (8.0 unknown)
       expect(result.lowest_competitor_price).toBe(7.5);
     });
 
