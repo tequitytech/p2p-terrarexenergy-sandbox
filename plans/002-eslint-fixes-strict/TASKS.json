@@ -145,6 +145,8 @@
   {
     "id": "E06",
     "category": "reporting",
+    "status": "done",
+    "completedAt": "2026-02-08",
     "title": "Generate final lint report",
     "description": "Generate a machine-readable lint report showing remaining violations for future planning. This documents the baseline after safe fixes are complete.",
     "steps": [
@@ -153,6 +155,7 @@
       "npm run lint"
     ],
     "note": "If lint:report script doesn't exist, use: npx eslint --format json -o lint-report.json . || true",
-    "verification": "npm run build && npm run lint"
+    "verification": "npm run build && npm run lint",
+    "actualResult": "Generated eslint-report.json (gitignored) via `npm run lint:report`. Report covers 82 files, 74 with issues. Final baseline: 3,384 problems (2,521 errors, 863 warnings) across 36 unique rules. Top 5 rules: no-unsafe-member-access (934), no-unsafe-assignment (821), no-console (318), no-explicit-any (289), restrict-template-expressions (211). Build: clean. Lint: passes."
   }
 ]

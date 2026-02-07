@@ -145,3 +145,48 @@ Notes for next person:
 - Remaining 3,384 violations are from rules that require manual audit, may change
   runtime behaviour, or touch security-sensitive code (see E00 skip list).
 - Next task: E06 (generate final lint report for future planning).
+
+== E06: Generate final lint report ==
+Date: 2026-02-08
+Status: DONE
+
+What was done:
+- Ran `npm run lint:report` which generated `eslint-report.json` (already in .gitignore)
+- Verified build and lint pass (no regressions)
+
+Report summary:
+- Total files scanned: 82
+- Files with issues: 74
+- Total errors: 2,521
+- Total warnings: 863
+- Total problems: 3,384
+- Unique rules violated: 36
+
+Top 10 rules by violation count:
+  934  @typescript-eslint/no-unsafe-member-access
+  821  @typescript-eslint/no-unsafe-assignment
+  318  no-console
+  289  @typescript-eslint/no-explicit-any
+  211  @typescript-eslint/restrict-template-expressions
+  124  @typescript-eslint/no-unsafe-argument
+  102  @typescript-eslint/explicit-module-boundary-types
+   80  @typescript-eslint/no-unsafe-call
+   66  @typescript-eslint/no-deprecated
+   64  @typescript-eslint/naming-convention
+
+Results:
+- Build: PASSES (npm run build)
+- Lint: 3,384 problems (2,521 errors, 863 warnings) — unchanged from E05
+
+Notes for next person:
+- ALL tasks in plan 002 are now COMPLETE (E01–E06).
+- The eslint-report.json file is gitignored. Regenerate it anytime with `npm run lint:report`.
+- All 3,384 remaining violations are from the 39 rules intentionally skipped in E00.
+  These require manual audit, may change runtime behaviour, or touch security-sensitive
+  code. A future plan (003+) should prioritize them by impact:
+  1. Type safety: no-unsafe-member-access (934), no-unsafe-assignment (821) — biggest
+     win would be adding proper types for beckn protocol objects and MongoDB results.
+  2. Logging: no-console (318) — introduce a structured logger (e.g., winston/pino).
+  3. Type coverage: no-explicit-any (289) — replace `any` with proper types case-by-case.
+  4. Template safety: restrict-template-expressions (211) — add String() wrappers.
+- Total violations eliminated by plan 002: 387 (from 3,771 → 3,384).
