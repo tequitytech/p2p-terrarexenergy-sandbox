@@ -49,10 +49,18 @@ describe('hourly-market-analyzer', () => {
       expect(result.lowest_competitor_price).toBe(7.0);
     });
 
-    it('should include offers with unknown date', () => {
+    it('should include unknown-date offers when their validity window overlaps the delivery window', () => {
+      // 'unknown' date offers pass the date filter but still need a valid
+      // validity_window to pass the timeRangesOverlap check. The default
+      // createValidityWindow('unknown') produces invalid date strings (NaN).
       const offers: CompetitorOffer[] = [
         createCompetitorOffer('2026-01-28', 8.0),
-        createCompetitorOffer('unknown', 6.5)  // Should be included
+        createCompetitorOffer('unknown', 6.5, 10, {
+          validity_window: {
+            start: '2026-01-28T09:00:00.000Z',  // Valid window that overlaps
+            end: '2026-01-28T12:00:00.000Z'      // delivery 10:00-11:00 UTC
+          }
+        })
       ];
 
       const result = analyzeCompetitorsForHour(

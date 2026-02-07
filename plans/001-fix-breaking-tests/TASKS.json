@@ -48,7 +48,7 @@
       "Rename test to: 'should include unknown-date offers when their validity window overlaps the delivery window'",
       "Run: npm test -- --testPathPattern=hourly-market-analyzer"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",

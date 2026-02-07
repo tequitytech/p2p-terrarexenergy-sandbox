@@ -39,3 +39,12 @@
 - **Test renamed**: 'should retry on connection errors' → 'should retry once and succeed after transient ECONNRESET connection error'
 - **Verification**: All 19 tests pass. TypeScript compiles cleanly (tsc --noEmit).
 - **Note for next person**: All ledger-client tests (T01, T02) are now fixed — 19/19 pass. Next up is T03 (hourly-market-analyzer.test.ts). Remaining tasks: T03-T09, T12-T25 (21 tasks).
+
+### 2026-02-07 — T03: Fix "should include offers with unknown date" in hourly-market-analyzer.test.ts
+- **Status**: DONE
+- **File changed**: src/seller-bidding/services/hourly-market-analyzer.test.ts
+- **Root cause**: `createCompetitorOffer('unknown', 6.5)` calls `createValidityWindow('unknown')` which produces `{ start: 'unknownT08:00:00Z', end: 'unknownT17:00:00Z' }` — invalid date strings. `new Date('unknownT08:00:00Z').getTime()` returns NaN, and NaN comparisons in `timeRangesOverlap()` always return false. The offer passes the date filter (`offer.date === 'unknown'` is accepted) but fails the time overlap check. Then `return offer.date === date` → `'unknown' === '2026-01-28'` → false. So the unknown-date offer is excluded entirely.
+- **Fix**: Overrode the validity_window on the 'unknown' date offer with a valid overlapping window (`09:00-12:00 UTC`) that properly overlaps the delivery window (`10:00-11:00 UTC`). Added a comment explaining that 'unknown' date offers need valid time windows to pass the overlap check.
+- **Test renamed**: 'should include offers with unknown date' → 'should include unknown-date offers when their validity window overlaps the delivery window'
+- **Verification**: T03 passes (14/18 in file). The 4 remaining failures are T04-T07 (separate tasks with same UTC time mismatch pattern). TypeScript compiles cleanly (tsc --noEmit).
+- **Note for next person**: T04-T07 all have the same root cause — validity_window times written with IST in mind but stored as UTC, resulting in windows that don't actually overlap the delivery window (10:00-11:00 UTC). Each needs its validity_window adjusted to proper UTC times. The "mixed" test (T07) also has an offer labeled "non-overlapping" whose 10:00-11:00 UTC window actually matches the delivery window exactly. Remaining tasks: T04-T09, T12-T25 (20 tasks).
