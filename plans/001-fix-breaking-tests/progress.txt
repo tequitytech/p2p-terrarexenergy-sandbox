@@ -1,0 +1,12 @@
+## Progress Log
+
+### 2026-02-07 — T10 & T11: Fix schema context assertions in catalog-builder.test.ts
+- **Status**: DONE
+- **File changed**: src/bidding/services/catalog-builder.test.ts
+- **Root cause**: ENERGY_RESOURCE_SCHEMA_CTX and ENERGY_TRADE_OFFER_SCHEMA_CTX were consolidated to point at the unified EnergyTrade/v0.3/context.jsonld URL. Tests were asserting .toContain('EnergyResource') and .toContain('EnergyTradeOffer') which no longer appear in the URL path.
+- **Fix**: Changed both assertions to .toContain('EnergyTrade'). Added @type assertions to verify the type names (EnergyResource, EnergyTradeOffer) are still correct — only the context URL changed, not the types. Added comments explaining the consolidation.
+- **Tests renamed**:
+  - 'should include EnergyResource context in items' → 'should reference the consolidated EnergyTrade schema context in item attributes'
+  - 'should include EnergyTradeOffer context in offers' → 'should reference the consolidated EnergyTrade schema context in offer attributes'
+- **Verification**: All 68 tests in catalog-builder pass. TypeScript compiles cleanly (tsc --noEmit).
+- **Note for next person**: No npm lint script exists in package.json. Use `npx tsc --noEmit` for type checking. The remaining 23 tasks (T01-T09, T12-T25) are still pending.
