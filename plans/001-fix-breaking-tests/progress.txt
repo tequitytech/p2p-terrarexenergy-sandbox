@@ -10,3 +10,19 @@
   - 'should include EnergyTradeOffer context in offers' → 'should reference the consolidated EnergyTrade schema context in offer attributes'
 - **Verification**: All 68 tests in catalog-builder pass. TypeScript compiles cleanly (tsc --noEmit).
 - **Note for next person**: No npm lint script exists in package.json. Use `npx tsc --noEmit` for type checking. The remaining 23 tasks (T01-T09, T12-T25) are still pending.
+
+### 2026-02-07 — T01: Fix "should retry on 5xx errors" in ledger-client.test.ts
+- **Status**: DONE
+- **File changed**: src/services/ledger-client.test.ts
+- **Root cause (primary)**: `setup.ts` sets `LEDGER_RETRY_COUNT=1`, which is read at module load time as a top-level const. With retries=1, `withRetry()` runs only 1 iteration — on failure, `attempt === retries` (1===1) causes immediate throw with no retry. The test expected 2 calls (1 failure + 1 success) but got only 1.
+- **Root cause (secondary)**: `jest.clearAllMocks()` in beforeEach does NOT clear mock implementation stacks (one-shot `mockResolvedValueOnce`). T01's unconsumed success mock leaked into the "should give up after max retries" test, causing it to receive a success instead of failure.
+- **Root cause (tertiary)**: `jest.advanceTimersByTime()` is synchronous and doesn't flush microtasks, so the async `sleep()` in withRetry never resolves.
+- **Fix**:
+  1. Changed `jest.clearAllMocks()` → `jest.resetAllMocks()` in beforeEach to prevent cross-test mock leakage
+  2. Used `jest.resetModules()` + dynamic `require('./ledger-client')` to get a fresh module instance with `LEDGER_RETRY_COUNT=3`
+  3. Used `jest.advanceTimersByTimeAsync(1000)` to properly flush async timers
+  4. Added AAA section comments and transactionId assertion
+- **Test renamed**: 'should retry on 5xx errors' → 'should retry once and succeed after transient 5xx server error'
+- **Side effect**: "should give up after max retries" now also passes (was failing due to mock leakage from T01)
+- **Verification**: 18 of 19 tests pass. The 1 remaining failure is T02 ("should retry on connection errors") which is a separate task. TypeScript compiles cleanly.
+- **Note for next person**: T02 needs the same `jest.resetModules()` + `jest.advanceTimersByTimeAsync` pattern as T01. The `resetAllMocks` change is already in place so mock leakage won't be an issue. Remaining tasks: T02-T09, T12-T25 (22 tasks).

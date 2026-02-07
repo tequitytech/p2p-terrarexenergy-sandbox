@@ -3,7 +3,7 @@
     "category": "test-fix",
     "id": "T01",
     "file": "src/services/ledger-client.test.ts",
-    "test": "should retry on 5xx errors",
+    "test": "should retry once and succeed after transient 5xx server error",
     "description": "Fix retry test: setup.ts sets LEDGER_RETRY_COUNT=1 so withRetry() only runs 1 attempt. Test expects 2 calls. Also fake timers don't flush microtasks before advancing time, preventing the async retry sleep from resolving.",
     "steps": [
       "Override LEDGER_RETRY_COUNT to 3 via process.env at the top of the retry describe block",
@@ -14,7 +14,7 @@
       "Add clear AAA (Arrange/Act/Assert) section comments",
       "Run: npm test -- --testPathPattern=ledger-client"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",
