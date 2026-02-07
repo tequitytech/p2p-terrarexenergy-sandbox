@@ -142,25 +142,44 @@ describe("Payment Routes", () => {
             expect(response.body.error.code).toBe("VALIDATION_ERROR");
         });
 
-        it("should use userPhone from body if not authenticated", async () => {
-            // Override auth middleware to NOT set user (simulate unauthenticated but middleware passed - or different middleware usage)
-            // Note: The actual route uses `authMiddleware`, so req.user SHOULD be present if it passes.
-            // However, the code allows fall back: `const phone = (req as any).user?.phone || userPhone;`
-            // We can test this fallback by mocking auth middleware to NOT attach user but call next()
+        it("should fall back to userPhone from request body when req.user is not set", async () => {
+            // Override auth middleware to NOT set req.user (simulating pass-through without auth context)
             mockAuthMiddleware.mockImplementation((req, res, next) => {
                 next();
                 return undefined as any;
             });
 
+            // When userId is absent, route looks up user by phone in the users collection
+            const { ObjectId } = require("mongodb");
+            mockCollection.findOne.mockResolvedValue({
+                _id: new ObjectId("bbbbbbbbbbbbbbbbbbbbbbbb"),
+                phone: "9876543210",
+            });
+
             mockPaymentService.createOrder.mockResolvedValue({ id: "order_123", amount: 10000 });
             mockPaymentService.createPaymentLink.mockResolvedValue({ short_url: "url" });
-            mockCollection.insertOne.mockResolvedValue({});
+            mockCollection.insertOne.mockResolvedValue({ insertedId: "db_id" });
+            mockOrderService.saveBuyerOrder.mockResolvedValue(undefined as any);
 
-            await request(app).post("/api/payment/order").send(validOrderData);
+            const response = await request(app).post("/api/payment/order").send(validOrderData);
 
+            expect(response.status).toBe(200);
+
+            // Phone should fall back to userPhone from request body
             expect(mockPaymentService.createPaymentLink).toHaveBeenCalledWith(expect.objectContaining({
-                contact: validOrderData.userPhone // Should fall back to body param
+                contact: validOrderData.userPhone,
             }));
+
+            // userId should come from the DB lookup
+            expect(mockOrderService.saveBuyerOrder).toHaveBeenCalledWith(
+                "test-transaction-id-uuid",
+                expect.objectContaining({
+                    userId: "bbbbbbbbbbbbbbbbbbbbbbbb",
+                    userPhone: validOrderData.userPhone,
+                    status: "INITIATED",
+                    type: "buyer",
+                })
+            );
         });
 
         it("should handle internal service errors", async () => {

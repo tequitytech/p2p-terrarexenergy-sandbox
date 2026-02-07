@@ -211,7 +211,7 @@
       "Rename test to: 'should fall back to userPhone from request body when req.user is not set'",
       "Run: npm test -- --testPathPattern=payment/routes"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",

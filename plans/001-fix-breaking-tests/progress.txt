@@ -109,6 +109,19 @@
 - **Verification**: All 4 tests pass. TypeScript compiles cleanly (tsc --noEmit).
 - **Note for next person**: T08 and T09 shared the same root cause so they were fixed together. The supertest pattern is the right approach for any handler that relies on Express middleware (error handlers, auth middleware, etc.). Remaining tasks: T12-T25 (14 tasks). Next up is T12 (payment/routes.test.ts).
 
+### 2026-02-07 — T13: Fix "should use userPhone from body if not authenticated" in payment/routes.test.ts
+- **Status**: DONE
+- **File changed**: src/payment/routes.test.ts
+- **Root cause**: When auth middleware passes through without setting `req.user`, the route falls back to `userPhone` from the request body. It then enters the `!userId` branch (line 122) which queries `db.collection("users").findOne({ phone })`. The test's `mockCollection.findOne` was not configured, so it returned `undefined` by default. This caused the route to return 404 `INVALID_USER` before ever reaching `createPaymentLink`. Additionally, `orderService.saveBuyerOrder` was not mocked for this test case.
+- **Fix**:
+  1. Mocked `mockCollection.findOne` to return `{ _id: new ObjectId("bbbbbbbbbbbbbbbbbbbbbbbb"), phone: "9876543210" }` — simulates a user found by phone number in the DB
+  2. Mocked `mockOrderService.saveBuyerOrder` to return `undefined` (void)
+  3. Mocked `mockCollection.insertOne` to return `{ insertedId: "db_id" }` for the payment transaction insert
+  4. Added assertions: response status 200, `createPaymentLink` called with `contact: validOrderData.userPhone`, `saveBuyerOrder` called with `userId: "bbbbbbbbbbbbbbbbbbbbbbbb"` (from DB lookup) and `userPhone: validOrderData.userPhone`
+- **Test renamed**: 'should use userPhone from body if not authenticated' → 'should fall back to userPhone from request body when req.user is not set'
+- **Verification**: All 10 tests pass in payment/routes.test.ts. TypeScript compiles cleanly (tsc --noEmit).
+- **Note for next person**: All payment/routes tests (T12, T13, T14) are now fixed — 10/10 pass. Next up is T15 (catalog-store.test.ts). Remaining tasks: T15-T25 (11 tasks).
+
 ### 2026-02-07 — T12 (+ T14 side-effect): Fix "should successfully create an order and return payment link" in payment/routes.test.ts
 - **Status**: DONE
 - **File changed**: src/payment/routes.test.ts
