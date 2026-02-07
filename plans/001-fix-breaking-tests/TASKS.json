@@ -277,7 +277,7 @@
       "Rename test to: 'should store auto-generated items and offers separately in their collections after publish'",
       "Run: npm test -- --testPathPattern='api/trade-api'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",

@@ -6,10 +6,8 @@
 
 import { Express } from 'express';
 import request from 'supertest';
-import express from 'express';
 import { ObjectId } from 'mongodb';
-import { setupTestDB, teardownTestDB, clearTestDB, getTestDB, seedItem, seedOffer, seedCatalog, seedSettlement } from '../../test-utils/db';
-import { createBecknCatalog, createBecknItem, createBecknOffer, createBecknContext } from '../../test-utils';
+import { setupTestDB, teardownTestDB, clearTestDB, getTestDB, seedItem, seedOffer, seedSettlement } from '../../test-utils/db';
 
 // Mock external dependencies
 jest.mock('axios');
@@ -150,25 +148,40 @@ describe('Trade API Integration Tests', () => {
       expect(response.body.error).toBeDefined();
     });
 
-    it('should store items and offers separately', async () => {
-      const item = createBecknItem('item-sep-001', 'test-provider', '100200300', 15);
-      const offer = createBecknOffer('offer-sep-001', 'item-sep-001', 'test-provider', 8.0, 15);
-      const catalog = createBecknCatalog('catalog-sep-001', [item], [offer]);
+    it('should store auto-generated items and offers separately in their collections after publish', async () => {
+      // Arrange: minimal input matching publishInputSchema
+      const publishInput = {
+        quantity: 15,
+        price: 8.0,
+        deliveryDate: '2026-01-28',
+        startHour: 10,
+        duration: 1,
+        sourceType: 'SOLAR',
+      };
 
-      await request(app)
+      // Act: publish via minimal input
+      const publishResponse = await request(app)
         .post('/api/publish')
-        .send({
-          context: createBecknContext('catalog_publish'),
-          message: { catalogs: [catalog] }
-        })
+        .send(publishInput)
         .expect(200);
 
-      // Verify via inventory endpoint
-      const inventoryResponse = await request(app)
-        .get('/api/inventory')
+      const { item_id, offer_id } = publishResponse.body;
+
+      // Assert: item stored separately in items collection
+      const itemsResponse = await request(app)
+        .get('/api/items')
         .expect(200);
 
-      expect(inventoryResponse.body.items.some((i: any) => i['beckn:id'] === 'item-sep-001')).toBe(true);
+      const storedItem = itemsResponse.body.items.find((i: any) => i['beckn:id'] === item_id);
+      expect(storedItem).toBeDefined();
+
+      // Assert: offer stored separately in offers collection
+      const offersResponse = await request(app)
+        .get('/api/offers')
+        .expect(200);
+
+      const storedOffer = offersResponse.body.offers.find((o: any) => o['beckn:id'] === offer_id);
+      expect(storedOffer).toBeDefined();
     });
   });
 

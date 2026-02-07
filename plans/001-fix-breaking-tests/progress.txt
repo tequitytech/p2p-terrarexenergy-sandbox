@@ -166,3 +166,17 @@
 - **Test renamed**: 'should store catalog and return success' → 'should accept minimal publish input, build catalog server-side, and return catalog IDs'
 - **Verification**: 16 of 17 tests pass in trade-api.test.ts. The 1 remaining failure is T17 ("should store items and offers separately") which needs the same minimal input treatment. Full suite: 417 pass, 9 fail (down from 12). TypeScript compiles cleanly (tsc --noEmit).
 - **Note for next person**: T17 needs the same pattern as T16 — replace full catalog payload with minimal input and verify items/offers are stored separately via `/api/offers` and `/api/items` endpoints. The `beforeEach` user seeding and axios mock are already shared within the `POST /api/publish` describe block. The auth mock `userId` change to a valid ObjectId is also in place. Remaining tasks: T17-T25 (9 tasks).
+
+### 2026-02-07 — T17: Fix "should store items and offers separately" in trade-api.test.ts
+- **Status**: DONE
+- **File changed**: src/__tests__/api/trade-api.test.ts
+- **Root cause**: Same as T16 — the `/api/publish` route was refactored from accepting full Beckn catalog payloads to minimal input validated by `publishInputSchema`. The test was sending full Beckn catalog structure (`context`, `message.catalogs[]` with `createBecknCatalog/Item/Offer`) which failed Zod validation → 400. Additionally, the test verified items via `/api/inventory` which now returns offers (not items), and asserted for `beckn:id === 'item-sep-001'` which wouldn't exist with the new auto-generated IDs.
+- **Fix**:
+  1. Replaced full Beckn catalog payload with minimal `publishInputSchema` data: `{ quantity: 15, price: 8.0, deliveryDate: '2026-01-28', startHour: 10, duration: 1, sourceType: 'SOLAR' }`
+  2. Used `publishResponse.body.item_id` and `publishResponse.body.offer_id` (server-generated IDs) to verify storage
+  3. Verified items via `GET /api/items` — finds stored item by `beckn:id` matching `item_id`
+  4. Verified offers via `GET /api/offers` — finds stored offer by `beckn:id` matching `offer_id`
+  5. Removed unused imports: `express`, `seedCatalog`, `createBecknCatalog`, `createBecknItem`, `createBecknOffer`, `createBecknContext` (no longer referenced after this change)
+- **Test renamed**: 'should store items and offers separately' → 'should store auto-generated items and offers separately in their collections after publish'
+- **Verification**: All 17 tests pass in trade-api.test.ts. TypeScript compiles cleanly (tsc --noEmit).
+- **Note for next person**: All trade-api tests (T16, T17) are now fixed — 17/17 pass. Next up is T18 (bidding-api.test.ts: bid preview test). T18-T24 are all in the same file and share a common issue: the `forecast-reader` mock is missing `getProcessedForecasts`. T22-T24 additionally need `authMiddleware` mocked for seller routes. T25 is the e2e lifecycle test. Remaining tasks: T18-T25 (8 tasks).
