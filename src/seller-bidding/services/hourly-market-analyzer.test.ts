@@ -148,12 +148,14 @@ describe('hourly-market-analyzer', () => {
       expect(result.competitors_found).toBe(1);
     });
 
-    it('should include offers that completely contain delivery window', () => {
+    it('should include offers whose validity window fully contains the delivery window', () => {
+      // Validity 09:00-12:00 UTC fully contains delivery 10:00-11:00 UTC
+      // timeRangesOverlap(09:00, 12:00, 10:00, 11:00) → 09:00 < 11:00 && 10:00 < 12:00 → true
       const containingOffer: CompetitorOffer = {
         ...createCompetitorOffer('2026-01-28', 7.0),
         validity_window: {
-          start: '2026-01-28T05:30:00.000Z',  // 11:00 IST
-          end: '2026-01-28T08:30:00.000Z'     // 14:00 IST
+          start: '2026-01-28T09:00:00.000Z',  // Starts before delivery (10:00 UTC)
+          end: '2026-01-28T12:00:00.000Z'     // Ends after delivery (11:00 UTC)
         }
       };
 

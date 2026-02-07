@@ -78,7 +78,7 @@
       "Rename test to: 'should include offers whose validity window fully contains the delivery window'",
       "Run: npm test -- --testPathPattern=hourly-market-analyzer"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",

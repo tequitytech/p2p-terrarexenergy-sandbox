@@ -49,6 +49,15 @@
 - **Verification**: T03 passes (14/18 in file). The 4 remaining failures are T04-T07 (separate tasks with same UTC time mismatch pattern). TypeScript compiles cleanly (tsc --noEmit).
 - **Note for next person**: T04-T07 all have the same root cause — validity_window times written with IST in mind but stored as UTC, resulting in windows that don't actually overlap the delivery window (10:00-11:00 UTC). Each needs its validity_window adjusted to proper UTC times. The "mixed" test (T07) also has an offer labeled "non-overlapping" whose 10:00-11:00 UTC window actually matches the delivery window exactly. Remaining tasks: T04-T09, T12-T25 (20 tasks).
 
+### 2026-02-07 — T05: Fix "should include offers that completely contain delivery window" in hourly-market-analyzer.test.ts
+- **Status**: DONE
+- **File changed**: src/seller-bidding/services/hourly-market-analyzer.test.ts
+- **Root cause**: The offer's validity window (`05:30-08:30 UTC`) did NOT contain the delivery window (`10:00-11:00 UTC`). There was zero overlap — `timeRangesOverlap(05:30, 08:30, 10:00, 11:00)` → `05:30 < 11:00 (true) && 10:00 < 08:30 (false)` → `false`. The times were likely written with IST offset in mind but stored as UTC.
+- **Fix**: Changed validity window from `05:30-08:30 UTC` to `09:00-12:00 UTC` which truly contains the delivery window `10:00-11:00 UTC`. `timeRangesOverlap(09:00, 12:00, 10:00, 11:00)` → `09:00 < 11:00 (true) && 10:00 < 12:00 (true)` → `true`. Updated inline comments to describe the containment relationship in UTC.
+- **Test renamed**: 'should include offers that completely contain delivery window' → 'should include offers whose validity window fully contains the delivery window'
+- **Verification**: T05 passes (16/18 in file). The 2 remaining failures are T06 and T07 (separate tasks). TypeScript compiles cleanly (tsc --noEmit).
+- **Note for next person**: T06 needs validity window changed from `06:45-07:15 UTC` to `10:15-10:45 UTC` (inside delivery 10:00-11:00 UTC). T07 has three sub-issues: offer #1 validity `06:00-08:00 UTC` doesn't overlap delivery, offer #3 (unknown date) has invalid NaN date strings from `createCompetitorOffer('unknown')`, and offer #4 labeled "non-overlapping" at `10:00-11:00 UTC` actually matches the delivery window exactly. Remaining tasks: T06-T09, T12-T25 (18 tasks).
+
 ### 2026-02-07 — T04: Fix "should include offers that overlap with delivery window" in hourly-market-analyzer.test.ts
 - **Status**: DONE
 - **File changed**: src/seller-bidding/services/hourly-market-analyzer.test.ts
