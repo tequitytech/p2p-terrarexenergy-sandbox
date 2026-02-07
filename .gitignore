@@ -118,3 +118,4 @@ Thumbs.db
 *.tmp
 *.temp
 temp/
+run*
