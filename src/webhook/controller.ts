@@ -141,8 +141,6 @@ export const onSelect = (req: Request, res: Response) => {
 
       console.log(`[Select] Processing ${selectedItems.length} items`);
 
-      let totalQuantity = 0;
-
       for (const selectedItem of selectedItems) {
         // Support both beckn:id and beckn:orderedItem for item ID
         const itemId =
@@ -153,8 +151,6 @@ export const onSelect = (req: Request, res: Response) => {
         // Get the accepted offer from the request
         const acceptedOfferFromRequest = selectedItem["beckn:acceptedOffer"];
         const offerId = acceptedOfferFromRequest?.["beckn:id"];
-
-        totalQuantity += requestedQty;
 
         // Fetch actual item from MongoDB
         const item = await catalogStore.getItem(itemId);
@@ -172,7 +168,7 @@ export const onSelect = (req: Request, res: Response) => {
           const offerFromDb = await catalogStore.getOffer(offerId);
           if (offerFromDb) {
             // Clean offer (remove MongoDB fields)
-            const { _id, catalogId, updatedAt, ...cleanOffer } = offerFromDb as any;
+            const { _id: _oid, catalogId: _cid, updatedAt: _uAt, ...cleanOffer } = offerFromDb as any;
             acceptedOffer = cleanOffer;
             console.log(`[Select] Found offer in DB: ${offerId}`);
           } else {
@@ -354,7 +350,7 @@ export const onInit = (req: Request, res: Response) => {
             if (offers && offers.length > 0) {
               const offer = offers[0];
               // Remove MongoDB internal fields
-              const { _id, catalogId, updatedAt, ...cleanOffer } = offer;
+              const { _id: _oid, catalogId: _cid, updatedAt: _uAt, ...cleanOffer } = offer;
               acceptedOffer = cleanOffer;
 
               pricePerUnit =
@@ -740,7 +736,7 @@ export const onConfirm = (req: Request, res: Response) => {
 };
 
 export const onStatus = (req: Request, res: Response) => {
-  const { context, message }: { context: any; message: any } = req.body;
+  const { context, message: _message }: { context: any; message: any } = req.body;
 
   (async () => {
     try {
@@ -904,7 +900,7 @@ function calculatePartialDelivery(
 }
 
 export const onUpdate = (req: Request, res: Response) => {
-  const { context, message }: { context: any; message: any } = req.body;
+  const { context, message: _message }: { context: any; message: any } = req.body;
 
   // Validate context early
   const validation = validateContext(context);
@@ -953,7 +949,7 @@ export const onUpdate = (req: Request, res: Response) => {
 };
 
 export const onRating = (req: Request, res: Response) => {
-  const { context, message }: { context: any; message: any } = req.body;
+  const { context, message: _message }: { context: any; message: any } = req.body;
 
   // Validate context early
   const validation = validateContext(context);
@@ -1002,7 +998,7 @@ export const onRating = (req: Request, res: Response) => {
 };
 
 export const onSupport = (req: Request, res: Response) => {
-  const { context, message }: { context: any; message: any } = req.body;
+  const { context, message: _message }: { context: any; message: any } = req.body;
 
   // Validate context early
   const validation = validateContext(context);
@@ -1053,7 +1049,7 @@ export const onSupport = (req: Request, res: Response) => {
 };
 
 export const onTrack = (req: Request, res: Response) => {
-  const { context, message }: { context: any; message: any } = req.body;
+  const { context, message: _message }: { context: any; message: any } = req.body;
 
   // Validate context early
   const validation = validateContext(context);
@@ -1102,7 +1098,7 @@ export const onTrack = (req: Request, res: Response) => {
 };
 
 export const onCancel = (req: Request, res: Response) => {
-  const { context, message }: { context: any; message: any } = req.body;
+  const { context, message: _message }: { context: any; message: any } = req.body;
 
   // Validate context early
   const validation = validateContext(context);

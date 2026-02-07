@@ -158,7 +158,7 @@ describe('hourly-forecast-reader', () => {
         { hour: '11:00', excess_kwh: 0.8 }   // Below threshold
       ]);
 
-      const { valid, skipped } = filterValidHours(forecast);
+      const { valid } = filterValidHours(forecast);
 
       expect(valid).toHaveLength(2);
       expect(valid.map(h => h.hour)).toEqual(['09:00', '10:00']);

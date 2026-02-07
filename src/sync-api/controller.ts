@@ -201,8 +201,6 @@ const selectBasedInitSchema = z.object({
   customAttributes: initCustomAttributesSchema,
 });
 
-type SelectBasedInitInput = z.infer<typeof selectBasedInitSchema>;
-
 // --- Init-Based Confirm Schema (Simplified Input) ---
 // Accepts init response (message.order from on_init) + customAttributes
 
@@ -235,8 +233,6 @@ const initBasedConfirmSchema = z.object({
   }).passthrough(),
   customAttributes: confirmCustomAttributesSchema,
 });
-
-type InitBasedConfirmInput = z.infer<typeof initBasedConfirmSchema>;
 
 // Platform settlement accounts (hardcoded - not user-provided)
 const PLATFORM_SETTLEMENT_ACCOUNTS = [
@@ -419,7 +415,7 @@ function transformSelectToInit(
 function transformInitToConfirm(
   context: any,
   init: any,
-  customAttributes?: any
+  _customAttributes?: any
 ): any {
   // Update payment status to AUTHORIZED for confirm request
   const payment = init['beckn:payment'] ? {

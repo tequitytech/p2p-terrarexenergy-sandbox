@@ -121,7 +121,7 @@ export async function preview(request: BidRequest): Promise<PreviewResponse> {
 
   try {
     competitorOffers = await fetchMarketData(startDate, endDate, request.source_type);
-  } catch (error) {
+  } catch (_error) {
     console.log(`[BidService] Market data fetch failed, proceeding with floor price`);
     cached = true;
   }

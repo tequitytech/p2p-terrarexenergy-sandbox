@@ -1,7 +1,6 @@
 import { Router } from "express";
 
 import { catalogStore } from "../services/catalog-store";
-import { settlementStore } from "../services/settlement-store";
 
 import type { Request, Response } from "express";
 

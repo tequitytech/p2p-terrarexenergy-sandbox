@@ -17,7 +17,7 @@ export function mockRequest(body: any = {}, params: any = {}, query: any = {}): 
     params,
     query,
     headers: {},
-    get: jest.fn((name: string) => undefined),
+    get: jest.fn((_name: string) => undefined),
   };
 }
 
@@ -167,7 +167,6 @@ export function createHourlyBid(
   date: string = '2026-01-28',
   options: Partial<HourlyBid> = {}
 ): HourlyBid {
-  const hourNum = parseInt(hour.split(':')[0]);
   const deliveryStart = new Date(`${date}T${hour.padStart(5, '0')}:00+05:30`);
   const deliveryEnd = new Date(deliveryStart.getTime() + 60 * 60 * 1000);
   const validityStart = new Date();

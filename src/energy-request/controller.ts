@@ -5,8 +5,6 @@ import type { Request, Response } from 'express';
 import { ObjectId } from 'mongodb';
 
 
-const ONIX_BAP_URL = process.env.ONIX_BAP_URL || "http://onix-bap:8081";
-
 const COLLECTION_NAME = 'energy_requests';
 
 /**
@@ -100,7 +98,7 @@ export async function findBestSeller(req: Request, res: Response) {
     let request: any;
     try {
         request = await db.collection(COLLECTION_NAME).findOne({ _id: new ObjectId(requestId as string) });
-    } catch(err) {
+    } catch(_err) {
         // Invalid object id
         return res.status(400).json({ success: false, error: 'Invalid Request ID format' });
     }
@@ -264,7 +262,7 @@ export async function giftEnergy(req: Request, res: Response) {
         );
 
         // 4. Update Request Status
-        const updateResult = await db.collection(COLLECTION_NAME).updateOne(
+        await db.collection(COLLECTION_NAME).updateOne(
             { _id: new ObjectId(requestId) },
             { 
                 $set: { 

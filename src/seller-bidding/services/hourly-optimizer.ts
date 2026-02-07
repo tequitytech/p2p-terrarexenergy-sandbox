@@ -5,9 +5,7 @@ import {
   calculatePrice,
 } from "../../bidding/services/market-analyzer";
 import {
-  SkippedHour,
   TOP_N_HOURS,
-  FLOOR_PRICE,
 } from "../types";
 
 import {

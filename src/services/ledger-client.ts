@@ -1,4 +1,4 @@
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
 
 const LEDGER_URL = process.env.LEDGER_URL || 'https://34.93.166.38.sslip.io';
 const LEDGER_TIMEOUT = parseInt(process.env.LEDGER_TIMEOUT || '10000', 10);

@@ -6,8 +6,8 @@
 
 import axios from 'axios';
 
-import { createCompetitorOffer, createValidityWindow, createCDSCatalogWithOffers, createCDSResponse } from '../../test-utils';
-import { FLOOR_PRICE, DEFAULT_UNDERCUT_PERCENT } from '../types';
+import { createCompetitorOffer, createCDSCatalogWithOffers, createCDSResponse } from '../../test-utils';
+import { FLOOR_PRICE } from '../types';
 
 import { analyzeCompetitors, calculatePrice, fetchMarketData } from './market-analyzer';
 

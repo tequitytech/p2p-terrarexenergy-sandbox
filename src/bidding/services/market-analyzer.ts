@@ -13,8 +13,6 @@ import type {
   MarketAnalysis,
   MarketSnapshot} from "../types";
 
-// Use ONIX BAP for discover (handles signing and routing to CDS)
-const ONIX_BAP_URL = process.env.ONIX_BAP_URL || "http://onix-bap:8081";
 const UNDERCUT_PERCENT = parseFloat(
   process.env.UNDERCUT_PERCENT || String(DEFAULT_UNDERCUT_PERCENT),
 );

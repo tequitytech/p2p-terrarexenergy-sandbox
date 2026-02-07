@@ -1,4 +1,4 @@
-import axios, { AxiosError } from "axios";
+import { AxiosError } from "axios";
 import { validatePaymentVerification } from "razorpay/dist/utils/razorpay-utils";
 
 import { getDB } from "../db";

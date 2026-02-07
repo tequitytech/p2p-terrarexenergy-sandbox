@@ -150,7 +150,7 @@ function authMiddleware(req: Request, res: Response, next: NextFunction) {
     const decoded = verifyToken(token);
     req.user = decoded;
     next();
-  } catch (err: any) {
+  } catch (_err: any) {
     return res.status(401).json({
       success: false,
       error: {

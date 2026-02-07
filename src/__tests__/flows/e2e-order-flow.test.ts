@@ -65,7 +65,6 @@ describe('E2E Order Flow', () => {
   const itemId = 'e2e-item-001';
   const offerId = 'e2e-offer-001';
   const catalogId = 'e2e-catalog-001';
-  const providerId = 'test-provider';
   const meterId = '100200300';
 
   beforeAll(async () => {

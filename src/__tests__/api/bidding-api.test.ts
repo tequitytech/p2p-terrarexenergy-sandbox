@@ -84,7 +84,6 @@ const mockedFilterValidHours = filterValidHours as jest.MockedFunction<typeof fi
 // Import app after mocking
 import { createApp } from '../../app';
 import { getProcessedForecasts } from '../../bidding/services/forecast-reader';
-import { createWeekForecast } from '../../test-utils';
 import { setupTestDB, teardownTestDB, clearTestDB, getTestDB } from '../../test-utils/db';
 
 import type { ProcessedDay } from '../../bidding/types';

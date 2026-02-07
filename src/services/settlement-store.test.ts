@@ -7,8 +7,7 @@
 import { createLedgerRecord } from '../test-utils';
 import { setupTestDB, teardownTestDB, clearTestDB, seedSettlement, getTestSettlement } from '../test-utils/db';
 
-import { LedgerRecord } from './ledger-client';
-import { settlementStore, deriveSettlementStatus, SettlementStatus } from './settlement-store';
+import { settlementStore, deriveSettlementStatus } from './settlement-store';
 
 // Mock getDB to use test database
 jest.mock('../db', () => {

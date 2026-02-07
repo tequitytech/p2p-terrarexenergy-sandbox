@@ -7,7 +7,7 @@
 import * as fs from 'fs';
 
 import { createDailyForecast, createWeekForecast } from '../../test-utils';
-import { BUFFER_RATE, MIN_THRESHOLD } from '../types';
+import { MIN_THRESHOLD } from '../types';
 
 import { readForecast, processDailyForecast, getProcessedForecasts } from './forecast-reader';
 

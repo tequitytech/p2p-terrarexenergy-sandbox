@@ -7,7 +7,7 @@
 import axios from 'axios';
 
 import { createCompetitorOffer, createValidityWindow } from '../../test-utils';
-import { CompetitorOffer, FLOOR_PRICE } from '../types';
+import { FLOOR_PRICE } from '../types';
 
 
 import { preview, confirm } from './bid-optimizer';

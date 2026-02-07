@@ -22,3 +22,42 @@ Notes for next person:
   (Request, Response imports). These can't auto-fix because @typescript-eslint/no-unused-vars
   also flags them. They'll be resolved in E03 (unused vars manual fix).
 - Next task is E02 (verify tests pass) or E03 (manual unused-vars fixes).
+
+== E03: Fix @typescript-eslint/no-unused-vars (manual) ==
+Date: 2026-02-08
+Status: DONE
+
+What was done:
+- Fixed 67 direct no-unused-vars violations across 28 files
+- Updated eslint config to add varsIgnorePattern:"^_", destructuredArrayIgnorePattern:"^_",
+  caughtErrorsIgnorePattern:"^_", and ignoreRestSiblings:true for rest-destructuring patterns
+- Total of 90 violations resolved (67 code fixes + ~23 from config improvements)
+
+Fix categories applied:
+- Unused imports removed: AxiosError, axios, Request, Response, NextFunction, settlementStore,
+  CompetitorOffer, DailyForecast, LedgerRecord, SettlementStatus, BUFFER_RATE, FLOOR_PRICE,
+  SkippedHour, DEFAULT_UNDERCUT_PERCENT, createValidityWindow, createWeekForecast, confirm,
+  seedItem, seedOffer, seedCatalog
+- Unused env vars removed: ONIX_BAP_URL (3 files), BPP_ID, BPP_URI
+- Unused local vars removed: providerId, totalQuantity, hourNum, updateResult, itemData,
+  SelectBasedInitInput type, InitBasedConfirmInput type
+- Catch vars renamed: err→_err (2 files), error→_error (1 file)
+- Params prefixed: name→_name, customAttributes→_customAttributes
+- Destructured vars prefixed: message→_message (6 places), _id→_oid, catalogId→_cid,
+  updatedAt→_uAt (2 places), catalogId→_catalogId, hourNum→_hourNum, skipped removed
+- Side-effect vars prefixed: promise→_promise, promise2→_promise2, mockedAxios→_mockedAxios
+
+Results:
+- Before: 3,478 problems (2,630 errors, 848 warnings)
+- After:  3,388 problems (2,525 errors, 863 warnings)
+- Reduction: 90 violations (expected ~69, got more due to config improvements)
+- Build: PASSES (npm run build)
+- @typescript-eslint/no-unused-vars: 0 remaining violations
+
+Notes for next person:
+- The eslint config now has comprehensive ignore patterns for _-prefixed variables.
+  This means future code can use `_` prefix convention for intentionally unused vars.
+- The webhook/routes.ts Request/Response imports (noted in E01) are now resolved.
+- The sonarjs/no-unused-vars (15 violations in E00 skip list) may have partially
+  resolved too, since many overlapped with @typescript-eslint/no-unused-vars.
+- Next task: E02 (verify tests) or E04 (fix no-redundant-type-constituents, 2 violations).

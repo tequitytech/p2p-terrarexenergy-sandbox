@@ -7,8 +7,6 @@ import { SourceType } from "../types";
 
 import type { Request, Response} from "express";
 
-const ONIX_BAP_URL = process.env.ONIX_BAP_URL || "http://onix-bap:8081";
-
 const discoverSchema = z.object({
   sourceType: z.enum(SourceType).default(SourceType.SOLAR),
   startDate: z.coerce.date().optional(),

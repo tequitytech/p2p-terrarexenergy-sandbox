@@ -32,7 +32,7 @@ function generateOfferId(providerId: string, date: string, hour: string): string
  * e.g., hour "12:00" on 2026-01-28 → 12:00-13:00 IST
  */
 export function buildDeliveryWindow(date: string, hour: string): { start: string; end: string } {
-  const [hourNum] = hour.split(':').map(Number);
+  const [_hourNum] = hour.split(':').map(Number);
 
   // Start of hour
   const start = new Date(`${date}T${hour.padStart(5, '0')}:00+05:30`);

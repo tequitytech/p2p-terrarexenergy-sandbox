@@ -1,4 +1,4 @@
-import { Router, NextFunction } from "express";
+import { Router } from "express";
 
 import { authMiddleware } from "../auth/routes";
 import { orderService } from "../services/order-service";

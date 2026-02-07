@@ -28,7 +28,7 @@ describe('transaction-store', () => {
       const transactionId = `txn-${Date.now()}`;
 
       // Don't await - just start the promise
-      const promise = createPendingTransaction(transactionId, 'select');
+      const _promise = createPendingTransaction(transactionId, 'select');
 
       expect(hasPendingTransaction(transactionId)).toBe(true);
 
@@ -226,7 +226,7 @@ describe('transaction-store', () => {
       const txn2 = `txn-isolate-2-${Date.now()}`;
 
       const promise1 = createPendingTransaction(txn1, 'select');
-      const promise2 = createPendingTransaction(txn2, 'init');
+      const _promise2 = createPendingTransaction(txn2, 'init');
 
       // Resolve only txn1
       resolvePendingTransaction(txn1, { id: 1 });
