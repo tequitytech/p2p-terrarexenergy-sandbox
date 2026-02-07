@@ -130,7 +130,7 @@
       "Rename test to: 'should return 400 with validation details when phone format is invalid'",
       "Run: npm test -- --testPathPattern=notification/controller"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",
@@ -146,7 +146,7 @@
       "Rename test to: 'should return 400 with validation details when message field is missing'",
       "Run: npm test -- --testPathPattern=notification/controller"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",

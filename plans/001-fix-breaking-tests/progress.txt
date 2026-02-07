@@ -92,3 +92,19 @@
 - **Test renamed**: 'should analyze mixed valid and invalid offers' → 'should correctly filter mixed offers by date and time overlap, including only valid competitors'
 - **Verification**: All 18 tests pass. TypeScript compiles cleanly (tsc --noEmit).
 - **Note for next person**: All hourly-market-analyzer tests (T03-T07) are now fixed — 18/18 pass. Next up is T08 (notification/controller.test.ts). Remaining tasks: T08-T09, T12-T25 (16 tasks).
+
+### 2026-02-07 — T08 & T09: Fix validation tests in notification/controller.test.ts
+- **Status**: DONE
+- **File changed**: src/notification/controller.test.ts
+- **Root cause**: `sendSmsHandler` calls `sendSmsSchema.parse(req.body)` OUTSIDE the try/catch block (controller.ts:12). When validation fails, `.parse()` throws a `ZodError` that propagates as an unhandled exception. In production, Express's global error handler (app.ts:69-82) catches `ZodError` and returns 400 with structured `{ success: false, error: { code: 'VALIDATION_ERROR', ... } }`. But the test called `sendSmsHandler` directly with mock req/res objects, bypassing Express entirely — so the ZodError was unhandled and the 400 response was never sent.
+- **Fix**: Replaced the direct handler invocation pattern with a mini Express app + supertest approach:
+  1. Created `createTestApp()` that mounts `sendSmsHandler` on a real Express router
+  2. Added the same ZodError error handler from `app.ts` (returns 400 with `VALIDATION_ERROR` code, field-level details)
+  3. Used `supertest(app).post('/notification/sms').send(...)` for all tests
+  4. Updated assertions to check the real response shape: `res.body.error.code === 'VALIDATION_ERROR'`, field-level error details
+  5. Existing passing tests (200 success, 500 service error) also migrated to supertest for consistency
+- **Tests renamed**:
+  - T08: 'should return 400 if validation fails (invalid phone)' → 'should return 400 with validation details when phone format is invalid'
+  - T09: 'should return 400 if validation fails (missing message)' → 'should return 400 with validation details when message field is missing'
+- **Verification**: All 4 tests pass. TypeScript compiles cleanly (tsc --noEmit).
+- **Note for next person**: T08 and T09 shared the same root cause so they were fixed together. The supertest pattern is the right approach for any handler that relies on Express middleware (error handlers, auth middleware, etc.). Remaining tasks: T12-T25 (14 tasks). Next up is T12 (payment/routes.test.ts).
