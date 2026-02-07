@@ -127,12 +127,14 @@ describe('hourly-market-analyzer', () => {
   });
 
   describe('time range overlap detection', () => {
-    it('should include offers that overlap with delivery window', () => {
+    it('should include offers whose validity window partially overlaps the start of the delivery window', () => {
+      // Validity 09:30-10:30 UTC partially overlaps delivery 10:00-11:00 UTC
+      // timeRangesOverlap(09:30, 10:30, 10:00, 11:00) → 09:30 < 11:00 && 10:00 < 10:30 → true
       const overlappingOffer: CompetitorOffer = {
         ...createCompetitorOffer('2026-01-28', 7.0),
         validity_window: {
-          start: '2026-01-28T06:00:00.000Z',  // 11:30 IST - starts before delivery
-          end: '2026-01-28T07:00:00.000Z'     // 12:30 IST - ends during delivery
+          start: '2026-01-28T09:30:00.000Z',  // Starts before delivery
+          end: '2026-01-28T10:30:00.000Z'     // Ends during delivery
         }
       };
 

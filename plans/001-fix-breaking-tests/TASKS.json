@@ -54,7 +54,7 @@
     "category": "test-fix",
     "id": "T04",
     "file": "src/seller-bidding/services/hourly-market-analyzer.test.ts",
-    "test": "should include offers that overlap with delivery window",
+    "test": "should include offers whose validity window partially overlaps the start of the delivery window",
     "description": "Fix overlap test: The offer's validity window (06:00-07:00 UTC) is ENTIRELY BEFORE the delivery window (10:00-11:00 UTC). Despite comments saying 'starts before delivery, ends during delivery', the times don't actually overlap.",
     "steps": [
       "Change the offer validity window to actually overlap with delivery (10:00-11:00 UTC). Use start: '2026-01-28T09:30:00.000Z', end: '2026-01-28T10:30:00.000Z' (starts before, ends during)",
@@ -63,7 +63,7 @@
       "Rename test to: 'should include offers whose validity window partially overlaps the start of the delivery window'",
       "Run: npm test -- --testPathPattern=hourly-market-analyzer"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",
