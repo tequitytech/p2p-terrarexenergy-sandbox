@@ -7,7 +7,8 @@
 import { Express } from 'express';
 import request from 'supertest';
 import express from 'express';
-import { setupTestDB, teardownTestDB, clearTestDB, seedItem, seedOffer, seedCatalog, seedSettlement } from '../../test-utils/db';
+import { ObjectId } from 'mongodb';
+import { setupTestDB, teardownTestDB, clearTestDB, getTestDB, seedItem, seedOffer, seedCatalog, seedSettlement } from '../../test-utils/db';
 import { createBecknCatalog, createBecknItem, createBecknOffer, createBecknContext } from '../../test-utils';
 
 // Mock external dependencies
@@ -42,11 +43,13 @@ jest.mock('../../services/ledger-client', () => ({
 }));
 
 // Mock authMiddleware to bypass auth for tests
+// userId must be a valid 24-char hex string (MongoDB ObjectId format)
+// because the publish route does new ObjectId(userId)
 jest.mock('../../auth/routes', () => {
   const { Router } = require('express');
   return {
     authMiddleware: (req: any, res: any, next: any) => {
-      req.user = { userId: 'test-user-id', phone: '1234567890' };
+      req.user = { userId: 'aaaaaaaaaaaaaaaaaaaaaaaa', phone: '1234567890' };
       next();
     },
     authRoutes: () => Router()
@@ -56,7 +59,9 @@ jest.mock('../../auth/routes', () => {
 // Import app after mocking
 import { createApp } from '../../app';
 import { ledgerClient } from '../../services/ledger-client';
+import axios from 'axios';
 
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 const mockedLedgerClient = ledgerClient as jest.Mocked<typeof ledgerClient>;
 
 describe('Trade API Integration Tests', () => {
@@ -76,23 +81,64 @@ describe('Trade API Integration Tests', () => {
   });
 
   describe('POST /api/publish', () => {
-    it('should store catalog and return success', async () => {
-      const item = createBecknItem('item-publish-001', 'test-provider', '100200300', 10);
-      const offer = createBecknOffer('offer-publish-001', 'item-publish-001', 'test-provider', 7.5, 10);
-      const catalog = createBecknCatalog('catalog-publish-001', [item], [offer]);
+    // Seed a user with generationProfile before each publish test.
+    // Direct insertOne is required because seedUser/seedUserWithProfiles
+    // helpers don't accept a custom _id.
+    beforeEach(async () => {
+      const db = getTestDB();
+      await db.collection('users').insertOne({
+        _id: new ObjectId('aaaaaaaaaaaaaaaaaaaaaaaa'),
+        phone: '1234567890',
+        name: 'Test Prosumer',
+        vcVerified: true,
+        profiles: {
+          generationProfile: {
+            meterNumber: '100200300',
+            utilityId: 'TPDDL',
+            consumerNumber: 'CONS-001',
+            did: 'did:example:test-provider',
+          },
+        },
+        meters: ['100200300'],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
 
-      const publishRequest = {
-        context: createBecknContext('catalog_publish'),
-        message: { catalogs: [catalog] }
+      // Mock ONIX forwarding (best-effort, non-blocking in the route)
+      mockedAxios.post.mockResolvedValue({
+        status: 200,
+        data: { success: true, message: 'Catalog published' },
+      });
+    });
+
+    it('should accept minimal publish input, build catalog server-side, and return catalog IDs', async () => {
+      // Arrange: minimal input matching publishInputSchema
+      const publishInput = {
+        quantity: 10,
+        price: 7.5,
+        deliveryDate: '2026-01-28',
+        startHour: 10,
+        duration: 1,
+        sourceType: 'SOLAR',
       };
 
+      // Act
       const response = await request(app)
         .post('/api/publish')
-        .send(publishRequest)
+        .send(publishInput)
         .expect('Content-Type', /json/)
         .expect(200);
 
+      // Assert: response contains server-generated catalog IDs and prosumer info
       expect(response.body.success).toBe(true);
+      expect(response.body.catalog_id).toBeDefined();
+      expect(response.body.item_id).toBeDefined();
+      expect(response.body.offer_id).toBeDefined();
+      expect(response.body.prosumer).toEqual({
+        name: 'Test Prosumer',
+        meterId: '100200300',
+        utilityId: 'TPDDL',
+      });
     });
 
     it('should return error for invalid catalog structure', async () => {

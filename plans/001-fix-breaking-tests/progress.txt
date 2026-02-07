@@ -151,3 +151,18 @@
 - **Test renamed**: 'should return items with quantity projection' → 'should return offers with inventory quantity projection from offers collection'
 - **Verification**: All 29 tests pass in catalog-store.test.ts. TypeScript compiles cleanly (tsc --noEmit). No npm lint script available.
 - **Note for next person**: Next up is T16 (trade-api.test.ts: publish integration test). T16-T17 are related — both deal with the refactored `/api/publish` route which now expects minimal input (quantity, price, deliveryDate, startHour, duration, sourceType) instead of full beckn catalogs, and requires auth with a valid ObjectId userId plus a user document with generationProfile. T18-T24 are bidding-api.test.ts tests needing getProcessedForecasts mock and auth middleware mocks. T25 is the e2e lifecycle test. Remaining tasks: T16-T25 (10 tasks).
+
+### 2026-02-07 — T16: Fix "should store catalog and return success" in trade-api.test.ts
+- **Status**: DONE
+- **File changed**: src/__tests__/api/trade-api.test.ts
+- **Root cause**: The `/api/publish` route was refactored from accepting full Beckn catalog payloads to minimal input validated by `publishInputSchema` (Zod). The test was sending full Beckn catalog structure (`{ context, message: { catalogs: [...] } }`) which failed Zod validation → 400. Additionally, the auth mock set `userId: 'test-user-id'` which is not a valid 24-char hex MongoDB ObjectId — the route does `new ObjectId(userId)` at line 340 which would throw. Finally, no user document existed in the test DB with a `generationProfile`, so even after validation passed, the route would return 404 `USER_NOT_FOUND` or 403 `NOT_PROSUMER`.
+- **Fix**:
+  1. Changed auth mock `userId` from `'test-user-id'` to `'aaaaaaaaaaaaaaaaaaaaaaaa'` (valid 24-char hex ObjectId)
+  2. Added `beforeEach` in the `POST /api/publish` describe block that seeds a user via direct `db.collection('users').insertOne()` with `_id: new ObjectId('aaaaaaaaaaaaaaaaaaaaaaaa')` and `generationProfile` containing `meterNumber`, `utilityId`, `consumerNumber`, `did`
+  3. Replaced full Beckn catalog request with minimal `publishInputSchema` data: `{ quantity: 10, price: 7.5, deliveryDate: '2026-01-28', startHour: 10, duration: 1, sourceType: 'SOLAR' }`
+  4. Added `mockedAxios.post` mock for ONIX forwarding (best-effort call in the route)
+  5. Updated assertions to match new response shape: `success`, `catalog_id`, `item_id`, `offer_id`, `prosumer` with `name`, `meterId`, `utilityId`
+  6. Added `ObjectId` and `axios` imports, `getTestDB` import
+- **Test renamed**: 'should store catalog and return success' → 'should accept minimal publish input, build catalog server-side, and return catalog IDs'
+- **Verification**: 16 of 17 tests pass in trade-api.test.ts. The 1 remaining failure is T17 ("should store items and offers separately") which needs the same minimal input treatment. Full suite: 417 pass, 9 fail (down from 12). TypeScript compiles cleanly (tsc --noEmit).
+- **Note for next person**: T17 needs the same pattern as T16 — replace full catalog payload with minimal input and verify items/offers are stored separately via `/api/offers` and `/api/items` endpoints. The `beforeEach` user seeding and axios mock are already shared within the `POST /api/publish` describe block. The auth mock `userId` change to a valid ObjectId is also in place. Remaining tasks: T17-T25 (9 tasks).

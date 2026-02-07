@@ -261,7 +261,7 @@
       "Rename test to: 'should accept minimal publish input, build catalog server-side, and return catalog IDs'",
       "Run: npm test -- --testPathPattern='api/trade-api'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",
