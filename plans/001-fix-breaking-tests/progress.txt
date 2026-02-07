@@ -26,3 +26,16 @@
 - **Side effect**: "should give up after max retries" now also passes (was failing due to mock leakage from T01)
 - **Verification**: 18 of 19 tests pass. The 1 remaining failure is T02 ("should retry on connection errors") which is a separate task. TypeScript compiles cleanly.
 - **Note for next person**: T02 needs the same `jest.resetModules()` + `jest.advanceTimersByTimeAsync` pattern as T01. The `resetAllMocks` change is already in place so mock leakage won't be an issue. Remaining tasks: T02-T09, T12-T25 (22 tasks).
+
+### 2026-02-07 — T02: Fix "should retry on connection errors" in ledger-client.test.ts
+- **Status**: DONE
+- **File changed**: src/services/ledger-client.test.ts
+- **Root cause**: Same as T01 — `LEDGER_RETRY_COUNT=1` (from setup.ts) means `withRetry()` runs only 1 iteration. On ECONNRESET, `isRetryable=true` but `attempt === retries` (1===1) causes immediate throw. The outer `catch` returns `null`. Test expected non-null → FAILED. Also used synchronous `jest.advanceTimersByTime` which doesn't flush the async `sleep()` promise.
+- **Fix**:
+  1. Used `jest.resetModules()` + dynamic `require('./ledger-client')` to get a fresh module with `LEDGER_RETRY_COUNT=3`
+  2. Used `jest.advanceTimersByTimeAsync(1000)` to properly flush async timers
+  3. Added proper assertions: `freshAxios.post` called exactly 2 times (1 ECONNRESET + 1 success), result is non-null, transactionId matches
+  4. Added AAA section comments and cleanup restoring `LEDGER_RETRY_COUNT=1`
+- **Test renamed**: 'should retry on connection errors' → 'should retry once and succeed after transient ECONNRESET connection error'
+- **Verification**: All 19 tests pass. TypeScript compiles cleanly (tsc --noEmit).
+- **Note for next person**: All ledger-client tests (T01, T02) are now fixed — 19/19 pass. Next up is T03 (hourly-market-analyzer.test.ts). Remaining tasks: T03-T09, T12-T25 (21 tasks).

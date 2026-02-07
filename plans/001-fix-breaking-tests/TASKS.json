@@ -31,7 +31,7 @@
       "Rename test to: 'should retry once and succeed after transient ECONNRESET connection error'",
       "Run: npm test -- --testPathPattern=ledger-client"
     ],
-    "passes": false,
+    "passes": true,
     "note": "T02 previously referenced 'should give up after max retries' which actually PASSES with LEDGER_RETRY_COUNT=1 (the 503 throws immediately on attempt===retries, outer catch returns null as expected). This test is the real failure."
   },
   {
