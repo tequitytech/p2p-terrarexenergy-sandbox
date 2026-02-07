@@ -208,3 +208,24 @@
   - T24: 'should publish hourly bids' → 'should publish hourly bids to ONIX and return placed_bids with status'
 - **Verification**: All 8 tests pass in bidding-api.test.ts. Full suite: 425 pass, 1 fail (T25 e2e-order-flow only). TypeScript compiles cleanly (tsc --noEmit).
 - **Note for next person**: Only T25 (e2e-order-flow.test.ts) remains. It needs: (1) auth mock with pass-through middleware + valid ObjectId userId, (2) user seeding with generationProfile, (3) minimal publish input instead of full Beckn catalog, (4) updated response assertions for the new publish shape, (5) inventory verification via /api/offers. The patterns from T16-T17 (trade-api) and T18-T24 (bidding-api) apply directly. Remaining tasks: T25 (1 task).
+
+### 2026-02-07 — T25: Fix "should complete full order lifecycle" in e2e-order-flow.test.ts
+- **Status**: DONE
+- **File changed**: src/__tests__/flows/e2e-order-flow.test.ts
+- **Root cause**: Three issues preventing the test from passing:
+  1. No `authMiddleware` mock — the `/api/publish` route requires JWT authentication via `authMiddleware` (from `auth/routes.ts`). Without a mock, the request got 401 `UNAUTHORIZED`.
+  2. The test sent a full Beckn catalog payload (`context`, `message.catalogs[]` with `createBecknCatalog/Item/Offer`) but the publish route was refactored to accept minimal input validated by `publishInputSchema` (Zod). The old payload failed Zod validation → 400.
+  3. The test verified item storage via `storedItem['beckn:itemAttributes'].availableQuantity` but the new auto-generated items no longer have `availableQuantity` in `beckn:itemAttributes` — quantity is now stored on the **offer** at `beckn:price.applicableQuantity.unitQuantity`. Similarly, the inventory endpoint returns offers (not items), so the old `inventoryItem['beckn:itemAttributes'].availableQuantity` assertion was invalid.
+- **Fix**:
+  1. Added `jest.mock('../../auth/routes')` with pass-through `authMiddleware` that sets `req.user = { userId: 'aaaaaaaaaaaaaaaaaaaaaaaa', phone: '1234567890' }` and `authRoutes` returning an empty Router
+  2. Added `beforeEach` in the "Complete Order Lifecycle" describe that seeds a user via `db.collection('users').insertOne()` with `_id: new ObjectId('aaaaaaaaaaaaaaaaaaaaaaaa')` and `generationProfile` (meterNumber, utilityId, consumerNumber, did)
+  3. Mocked `axios.post` for ONIX forwarding (best-effort call in the publish route)
+  4. Replaced full Beckn catalog payload with minimal `publishInputSchema` data: `{ quantity: 10, price: 7.5, deliveryDate: '2026-01-28', startHour: 10, duration: 1, sourceType: 'SOLAR' }`
+  5. Used server-generated `item_id` and `offer_id` from the publish response to verify storage
+  6. Changed item assertions from `availableQuantity` to `sourceType` and `meterId` (the fields actually present in `beckn:itemAttributes`)
+  7. Changed inventory assertion to find the offer by `beckn:id` matching `serverOfferId` (since getInventory reads offers)
+  8. Removed unused imports: `createBecknCatalog`, `createBecknItem`, `createBecknOffer`, `createBecknContext`, `waitMs` from test-utils
+  9. Added `ObjectId` import from mongodb and `getTestDB` import from test-utils/db
+- **Test renamed**: 'should complete full order lifecycle' → 'should publish minimal input, auto-build catalog, store items/offers, and appear in inventory'
+- **Verification**: All 10 tests pass in e2e-order-flow.test.ts. Full suite: **426 pass, 0 fail**. TypeScript compiles cleanly (tsc --noEmit). No npm lint script available.
+- **ALL TASKS COMPLETE**: T01-T25 all pass. The entire test suite is green (426/426).

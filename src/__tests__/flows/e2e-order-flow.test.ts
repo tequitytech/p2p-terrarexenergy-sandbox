@@ -7,8 +7,20 @@
 import { Express } from 'express';
 import request from 'supertest';
 import axios from 'axios';
-import { setupTestDB, teardownTestDB, clearTestDB, seedItem, seedOffer, seedCatalog } from '../../test-utils/db';
-import { createBecknCatalog, createBecknItem, createBecknOffer, createBecknContext, waitMs } from '../../test-utils';
+import { ObjectId } from 'mongodb';
+import { setupTestDB, teardownTestDB, clearTestDB, getTestDB, seedItem, seedOffer, seedCatalog } from '../../test-utils/db';
+
+// Mock authMiddleware to bypass JWT auth for tests
+jest.mock('../../auth/routes', () => {
+  const { Router } = require('express');
+  return {
+    authMiddleware: (req: any, res: any, next: any) => {
+      req.user = { userId: 'aaaaaaaaaaaaaaaaaaaaaaaa', phone: '1234567890' };
+      next();
+    },
+    authRoutes: () => Router()
+  };
+});
 
 // Mock axios for ONIX calls
 jest.mock('axios');
@@ -68,36 +80,77 @@ describe('E2E Order Flow', () => {
   });
 
   describe('Complete Order Lifecycle', () => {
-    it('should complete full order lifecycle', async () => {
-      // ============ Step 1: Publish Catalog ============
-      const item = createBecknItem(itemId, providerId, meterId, 10, 'SOLAR');
-      const offer = createBecknOffer(offerId, itemId, providerId, 7.5, 10);
-      const catalog = createBecknCatalog(catalogId, [item], [offer]);
+    beforeEach(async () => {
+      // Seed a user with generationProfile so the publish route recognizes a prosumer
+      const db = getTestDB();
+      await db.collection('users').insertOne({
+        _id: new ObjectId('aaaaaaaaaaaaaaaaaaaaaaaa'),
+        phone: '1234567890',
+        name: 'Test Prosumer',
+        vcVerified: true,
+        profiles: {
+          generationProfile: {
+            meterNumber: meterId,
+            utilityId: 'TPDDL',
+            consumerNumber: 'CONS-001',
+            did: 'did:example:test-provider',
+          },
+        },
+        meters: [meterId],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
 
+      // Mock ONIX forwarding (best-effort, non-blocking in the publish route)
+      mockedAxios.post.mockResolvedValue({
+        status: 200,
+        data: { success: true, message: 'Catalog published' },
+      });
+    });
+
+    it('should publish minimal input, auto-build catalog, store items/offers, and appear in inventory', async () => {
+      // ============ Step 1: Publish via minimal input ============
       const publishResponse = await request(app)
         .post('/api/publish')
         .send({
-          context: createBecknContext('catalog_publish'),
-          message: { catalogs: [catalog] }
+          quantity: 10,
+          price: 7.5,
+          deliveryDate: '2026-01-28',
+          startHour: 10,
+          duration: 1,
+          sourceType: 'SOLAR',
         })
         .expect(200);
 
       expect(publishResponse.body.success).toBe(true);
+      expect(publishResponse.body.catalog_id).toBeDefined();
+      expect(publishResponse.body.item_id).toBeDefined();
+      expect(publishResponse.body.offer_id).toBeDefined();
+      expect(publishResponse.body.prosumer).toMatchObject({
+        name: 'Test Prosumer',
+        meterId,
+        utilityId: 'TPDDL',
+      });
 
-      // Verify item is stored
-      const storedItem = await catalogStore.getItem(itemId);
+      const serverItemId = publishResponse.body.item_id;
+      const serverOfferId = publishResponse.body.offer_id;
+
+      // ============ Step 2: Verify item is stored ============
+      const storedItem = await catalogStore.getItem(serverItemId);
       expect(storedItem).not.toBeNull();
-      expect(storedItem?.['beckn:itemAttributes'].availableQuantity).toBe(10);
+      expect(storedItem?.['beckn:itemAttributes'].sourceType).toBe('SOLAR');
+      expect(storedItem?.['beckn:itemAttributes'].meterId).toBe(meterId);
 
-      // ============ Step 2: Get Inventory ============
+      // ============ Step 3: Verify offer appears in inventory ============
       const inventoryResponse = await request(app)
         .get('/api/inventory')
         .expect(200);
 
       expect(inventoryResponse.body.items.length).toBeGreaterThan(0);
-      const inventoryItem = inventoryResponse.body.items.find((i: any) => i['beckn:id'] === itemId);
-      expect(inventoryItem).toBeDefined();
-      expect(inventoryItem['beckn:itemAttributes'].availableQuantity).toBe(10);
+      const inventoryOffer = inventoryResponse.body.items.find(
+        (i: any) => i['beckn:id'] === serverOfferId
+      );
+      expect(inventoryOffer).toBeDefined();
     });
 
     it('should reduce inventory on confirm', async () => {

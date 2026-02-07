@@ -408,6 +408,6 @@
       "Rename test to: 'should publish minimal input, auto-build catalog, store items/offers, and appear in inventory'",
       "Run: npm test -- --testPathPattern='e2e-order-flow'"
     ],
-    "passes": false
+    "passes": true
   }
 ]
