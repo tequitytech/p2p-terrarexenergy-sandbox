@@ -244,7 +244,7 @@
       "Rename test to: 'should return offers with inventory quantity projection from offers collection'",
       "Run: npm test -- --testPathPattern=catalog-store"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test-fix",

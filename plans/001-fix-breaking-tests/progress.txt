@@ -139,3 +139,15 @@
 - **Side-effect fix (T14)**: The "should handle internal service errors" test also started passing because the shared `validOrderData` now passes Zod validation and the auth mock provides `userId`, allowing the request to reach the `createOrder` call which is mocked to reject.
 - **Verification**: 9 of 10 tests pass in payment/routes.test.ts. The 1 remaining failure is T13 ("should use userPhone from body if not authenticated") which needs its own specific fix (mocking `findOne` on users collection to return a user with `_id`, mocking `saveBuyerOrder`). TypeScript compiles cleanly (tsc --noEmit). Full test suite: 414 pass, 12 fail (down from 14).
 - **Note for next person**: T13 needs: (1) `mockCollection.findOne` to return `{ _id: new ObjectId('bbbbbbbbbbbbbbbbbbbbbbbb'), phone: '9876543210' }` when auth middleware doesn't set req.user, (2) `mockOrderService.saveBuyerOrder` mocked, (3) the test name renamed. The `validOrderData` and `orderService` mock are already in place from this commit. Remaining tasks: T13, T15-T25 (12 tasks).
+
+### 2026-02-07 — T15: Fix "should return items with quantity projection" in catalog-store.test.ts
+- **Status**: DONE
+- **File changed**: src/services/catalog-store.test.ts
+- **Root cause**: `getInventory()` was refactored to read from the **offers** collection (not items), projecting `beckn:id`, `beckn:items`, `beckn:price.applicableQuantity`, and `catalogId`. But the test seeded **items** via `seedItem()` and asserted for `beckn:itemAttributes` — a property that only exists on item documents, not offer documents. Since the offers collection was empty, `getInventory()` returned an empty array (length 0) vs the expected `>= 2`.
+- **Fix**:
+  1. Changed `seedItem('item-inv-001', 10)` / `seedItem('item-inv-002', 20)` to `seedOffer('offer-inv-001', 'item-inv-001', 7.5, 10)` / `seedOffer('offer-inv-002', 'item-inv-002', 8.0, 20)` — seeds offers in the correct collection
+  2. Updated assertions: changed `expect(item).toHaveProperty('beckn:itemAttributes')` to `expect(entry).toHaveProperty('beckn:items')` — matches the actual projected shape from the offers collection
+  3. Renamed variable from `item` to `entry` in the forEach for clarity
+- **Test renamed**: 'should return items with quantity projection' → 'should return offers with inventory quantity projection from offers collection'
+- **Verification**: All 29 tests pass in catalog-store.test.ts. TypeScript compiles cleanly (tsc --noEmit). No npm lint script available.
+- **Note for next person**: Next up is T16 (trade-api.test.ts: publish integration test). T16-T17 are related — both deal with the refactored `/api/publish` route which now expects minimal input (quantity, price, deliveryDate, startHour, duration, sourceType) instead of full beckn catalogs, and requires auth with a valid ObjectId userId plus a user document with generationProfile. T18-T24 are bidding-api.test.ts tests needing getProcessedForecasts mock and auth middleware mocks. T25 is the e2e lifecycle test. Remaining tasks: T16-T25 (10 tasks).
