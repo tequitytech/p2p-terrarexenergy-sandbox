@@ -36,12 +36,28 @@ jest.mock('../../services/ledger-client', () => ({
   ledgerClient: {
     LEDGER_URL: 'http://test-ledger',
     getLedgerHealth: jest.fn().mockResolvedValue({ status: 'OK' }),
-    fetchTradeRecords: jest.fn().mockResolvedValue([])
+    fetchTradeRecords: jest.fn().mockResolvedValue([]),
+    queryTrades: jest.fn().mockResolvedValue([])
   }
 }));
 
+// Mock authMiddleware to bypass auth for tests
+jest.mock('../../auth/routes', () => {
+  const { Router } = require('express');
+  return {
+    authMiddleware: (req: any, res: any, next: any) => {
+      req.user = { userId: 'test-user-id', phone: '1234567890' };
+      next();
+    },
+    authRoutes: () => Router()
+  };
+});
+
 // Import app after mocking
 import { createApp } from '../../app';
+import { ledgerClient } from '../../services/ledger-client';
+
+const mockedLedgerClient = ledgerClient as jest.Mocked<typeof ledgerClient>;
 
 describe('Trade API Integration Tests', () => {
   let app: Express;
@@ -208,6 +224,126 @@ describe('Trade API Integration Tests', () => {
       expect(response.body.stats).toHaveProperty('total');
       expect(response.body.stats).toHaveProperty('pending');
       expect(response.body.stats).toHaveProperty('settled');
+    });
+  });
+
+  describe('POST /api/ledger/get', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should return ledger records for valid request', async () => {
+      const mockRecords = [
+        {
+          transactionId: 'txn-001',
+          orderItemId: 'order-001',
+          platformIdBuyer: 'p2p.terrarexenergy.com',
+          platformIdSeller: 'p2p.terrarexenergy.com',
+          discomIdBuyer: 'TPDDL',
+          discomIdSeller: 'BESCOM',
+          buyerId: 'buyer-001',
+          sellerId: 'seller-001',
+          tradeTime: '2026-01-15T10:00:00Z',
+          deliveryStartTime: '2026-01-16T10:00:00Z',
+          deliveryEndTime: '2026-01-16T11:00:00Z',
+          tradeDetails: [{ tradeQty: 10, tradeType: 'ENERGY', tradeUnit: 'kWh' }]
+        }
+      ];
+      mockedLedgerClient.queryTrades.mockResolvedValue(mockRecords);
+
+      const response = await request(app)
+        .post('/api/ledger/get')
+        .send({ transactionId: 'txn-001' })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.records).toEqual(mockRecords);
+      expect(response.body.count).toBe(1);
+    });
+
+    it('should accept empty body with defaults', async () => {
+      mockedLedgerClient.queryTrades.mockResolvedValue([]);
+
+      const response = await request(app)
+        .post('/api/ledger/get')
+        .send({})
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.records).toEqual([]);
+      expect(response.body.count).toBe(0);
+    });
+
+    it('should validate limit parameter', async () => {
+      const response = await request(app)
+        .post('/api/ledger/get')
+        .send({ limit: 200 }) // exceeds max of 100
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('should validate offset parameter', async () => {
+      const response = await request(app)
+        .post('/api/ledger/get')
+        .send({ offset: -1 }) // negative not allowed
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('should validate sortOrder enum', async () => {
+      const response = await request(app)
+        .post('/api/ledger/get')
+        .send({ sortOrder: 'invalid' })
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('should pass all filter parameters to ledgerClient', async () => {
+      mockedLedgerClient.queryTrades.mockResolvedValue([]);
+
+      await request(app)
+        .post('/api/ledger/get')
+        .send({
+          transactionId: 'txn-123',
+          orderItemId: 'order-456',
+          discomIdBuyer: 'TPDDL',
+          discomIdSeller: 'BESCOM',
+          limit: 50,
+          offset: 10,
+          sort: 'createdAt',
+          sortOrder: 'desc'
+        })
+        .expect(200);
+
+      expect(mockedLedgerClient.queryTrades).toHaveBeenCalledWith({
+        transactionId: 'txn-123',
+        orderItemId: 'order-456',
+        discomIdBuyer: 'TPDDL',
+        discomIdSeller: 'BESCOM',
+        limit: 50,
+        offset: 10,
+        sort: 'createdAt',
+        sortOrder: 'desc'
+      });
+    });
+
+    it('should return 500 on ledger client error', async () => {
+      mockedLedgerClient.queryTrades.mockRejectedValue(new Error('Ledger unavailable'));
+
+      const response = await request(app)
+        .post('/api/ledger/get')
+        .send({})
+        .expect(500);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('LEDGER_ERROR');
+      expect(response.body.error.details).toBe('Ledger unavailable');
     });
   });
 });

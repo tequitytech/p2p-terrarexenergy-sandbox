@@ -54,6 +54,17 @@ const publishInputSchema = z.object({
 
 type PublishInput = z.infer<typeof publishInputSchema>;
 
+const ledgerGetSchema = z.object({
+  transactionId: z.string().optional(),
+  orderItemId: z.string().optional(),
+  discomIdBuyer: z.string().optional(),
+  discomIdSeller: z.string().optional(),
+  limit: z.number().int().min(1).max(100).default(10),
+  offset: z.number().int().min(0).default(0),
+  sort: z.string().optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
+});
+
 interface ProsumerDetails {
   fullName: string;
   meterId: string;
@@ -649,6 +660,44 @@ export const tradeRoutes = () => {
       }
     },
   );
+
+  // POST /api/ledger/get - Query DEG ledger records (authenticated)
+  router.post("/ledger/get", authMiddleware, async (req: Request, res: Response) => {
+    try {
+      const parseResult = ledgerGetSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Request validation failed",
+            details: parseResult.error.flatten(),
+          },
+        });
+      }
+
+      const input = parseResult.data;
+      console.log(`[API] POST /ledger/get`, JSON.stringify(input));
+
+      const records = await ledgerClient.queryTrades(input);
+
+      return res.json({
+        success: true,
+        records,
+        count: records.length,
+      });
+    } catch (error: any) {
+      console.error(`[API] Ledger get error:`, error.message);
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: "LEDGER_ERROR",
+          message: "Failed to query ledger",
+          details: error.message,
+        },
+      });
+    }
+  });
 
   return router;
 };
