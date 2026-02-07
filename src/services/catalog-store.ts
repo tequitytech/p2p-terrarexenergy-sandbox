@@ -165,7 +165,7 @@ export const catalogStore = {
     console.log(`[DB] Order saved: ${transactionId}`);
   },
 
-  async getOrderByTransactionId(transactionId: string): Promise<any | null> {
+  async getOrderByTransactionId(transactionId: string): Promise<any> {
     const db = getDB();
     return db.collection('orders').findOne({ transactionId });
   },

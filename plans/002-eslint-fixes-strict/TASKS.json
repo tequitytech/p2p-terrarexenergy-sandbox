@@ -106,6 +106,8 @@
   {
     "id": "E04",
     "category": "manual-fix",
+    "status": "done",
+    "completedAt": "2026-02-08",
     "title": "Fix @typescript-eslint/no-redundant-type-constituents (2 violations)",
     "description": "Remove redundant type constituents in 2 files. The `any` type in a union makes other types redundant (e.g., `string | any` simplifies to `any`).",
     "files": [
@@ -119,6 +121,7 @@
       "npm run lint"
     ],
     "expectedReduction": "2 violations (from ~3,425 to ~3,423)",
+    "actualReduction": "2 violations (from 3,388 to 3,386). Fixed `Promise<any | null>` → `Promise<any>` in catalog-store.ts and `string | any` → `any` in order.ts.",
     "verification": "npm run build && npm run lint"
   },
   {

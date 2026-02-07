@@ -61,3 +61,27 @@ Notes for next person:
 - The sonarjs/no-unused-vars (15 violations in E00 skip list) may have partially
   resolved too, since many overlapped with @typescript-eslint/no-unused-vars.
 - Next task: E02 (verify tests) or E04 (fix no-redundant-type-constituents, 2 violations).
+
+== E04: Fix @typescript-eslint/no-redundant-type-constituents (manual) ==
+Date: 2026-02-08
+Status: DONE
+
+What was done:
+- Fixed 2 redundant type constituent violations in 2 files:
+  1. src/services/catalog-store.ts:168 — `Promise<any | null>` → `Promise<any>`
+     (any already includes null, so `| null` is redundant)
+  2. src/types/order.ts:29 — `string | any` → `any`
+     (any already includes string, so `string |` is redundant)
+
+Results:
+- Before: 3,388 problems (2,525 errors, 863 warnings)
+- After:  3,386 problems (2,523 errors, 863 warnings)
+- Reduction: 2 violations (exactly as expected)
+- Build: PASSES (npm run build)
+- @typescript-eslint/no-redundant-type-constituents: 0 remaining violations
+
+Notes for next person:
+- Both fixes are semantically safe — removing the redundant union member doesn't
+  change runtime behaviour since `any` already subsumes all other types.
+- Next tasks: E02 (verify tests), E05 (final verification), E06 (generate lint report).
+- E02 and E05 could potentially be combined since they're both verification steps.
