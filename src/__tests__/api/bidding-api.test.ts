@@ -71,22 +71,19 @@ jest.mock('../../services/ledger-client', () => ({
   }
 }));
 
-const mockedAxios = axios as jest.Mocked<typeof axios>;
-
-// Import mocked modules
+// Import app and mocked modules after mocking
+import { createApp } from '../../app';
+import { getProcessedForecasts } from '../../bidding/services/forecast-reader';
 import { getTomorrowDate, getTomorrowForecast, filterValidHours } from '../../seller-bidding/services/hourly-forecast-reader';
+import { setupTestDB, teardownTestDB, clearTestDB, getTestDB } from '../../test-utils/db';
 
+import type { ProcessedDay } from '../../bidding/types';
+
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 const mockedGetProcessedForecasts = getProcessedForecasts as jest.MockedFunction<typeof getProcessedForecasts>;
 const mockedGetTomorrowDate = getTomorrowDate as jest.MockedFunction<typeof getTomorrowDate>;
 const mockedGetTomorrowForecast = getTomorrowForecast as jest.MockedFunction<typeof getTomorrowForecast>;
 const mockedFilterValidHours = filterValidHours as jest.MockedFunction<typeof filterValidHours>;
-
-// Import app after mocking
-import { createApp } from '../../app';
-import { getProcessedForecasts } from '../../bidding/services/forecast-reader';
-import { setupTestDB, teardownTestDB, clearTestDB, getTestDB } from '../../test-utils/db';
-
-import type { ProcessedDay } from '../../bidding/types';
 
 /**
  * Helper: build 7 ProcessedDay objects from createWeekForecast dates

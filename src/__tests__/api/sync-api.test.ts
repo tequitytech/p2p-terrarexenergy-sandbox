@@ -40,14 +40,14 @@ jest.mock('../../services/ledger-client', () => ({
   }
 }));
 
-const mockedAxios = axios as jest.Mocked<typeof axios>;
-const mockedTransactionStore = transactionStore as jest.Mocked<typeof transactionStore>;
-
 // Import app after mocking
 import { createApp } from '../../app';
 import * as transactionStore from '../../services/transaction-store';
 import { createBecknContext } from '../../test-utils';
 import { setupTestDB, teardownTestDB, clearTestDB } from '../../test-utils/db';
+
+const mockedAxios = axios as jest.Mocked<typeof axios>;
+const mockedTransactionStore = transactionStore as jest.Mocked<typeof transactionStore>;
 
 // Helper function to create spec-compliant select order
 function createSpecCompliantSelectOrder() {

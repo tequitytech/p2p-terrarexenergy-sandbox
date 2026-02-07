@@ -72,6 +72,8 @@
   {
     "id": "E02",
     "category": "verification",
+    "status": "done",
+    "completedAt": "2026-02-08",
     "title": "Verify auto-fix did not break tests or build",
     "description": "Run the full test suite and build after E01 auto-fixes to confirm no regressions were introduced by import reordering, type import conversion, or unused import removal.",
     "steps": [
@@ -79,7 +81,8 @@
       "npm run build",
       "npm run lint"
     ],
-    "verification": "npm test && npm run build && npm run lint"
+    "verification": "npm test && npm run build && npm run lint",
+    "actualResult": "Found and fixed 2 test regressions from E01 import reordering: sync-api.test.ts and bidding-api.test.ts had `const mockedX = X as jest.Mocked<typeof X>` before import statements. Moved imports before cast assignments. Tests: 23/23 suites, 426/426 tests pass. Build: clean. Lint: 3,384 problems (2,521 errors, 863 warnings) — 2 fewer than E04 baseline due to import fixes in test files."
   },
   {
     "id": "E03",

@@ -85,3 +85,33 @@ Notes for next person:
   change runtime behaviour since `any` already subsumes all other types.
 - Next tasks: E02 (verify tests), E05 (final verification), E06 (generate lint report).
 - E02 and E05 could potentially be combined since they're both verification steps.
+
+== E02: Verify auto-fix did not break tests or build ==
+Date: 2026-02-08
+Status: DONE
+
+What was done:
+- Ran `npm test` — discovered 2 test suite failures caused by E01 import reordering:
+  1. src/__tests__/api/sync-api.test.ts:44 — `transactionStore` used before import (line 48)
+     ReferenceError: Cannot access 'transactionStore' before initialization
+  2. src/__tests__/api/bidding-api.test.ts:79 — `getProcessedForecasts` used before import (line 86)
+     ReferenceError: Cannot access 'forecast_reader_1' before initialization
+- Root cause: E01's import-x/order auto-fix reordered imports alphabetically, pushing
+  module imports below `const mockedX = X as jest.Mocked<typeof X>` cast assignments.
+  In Jest test files, `jest.mock()` calls are hoisted but the import order still matters
+  for the `const` cast statements that reference imported values.
+- Fix: Moved import statements before the mocked variable cast assignments in both files.
+
+Results:
+- Tests: 23/23 suites pass, 426/426 tests pass (previously 21/23 suites, 2 failing)
+- Build: PASSES (npm run build)
+- Lint: 3,384 problems (2,521 errors, 863 warnings)
+  - 2 fewer than E04 baseline (3,386) due to import reordering in test files resolving
+    minor lint issues
+
+Notes for next person:
+- The import-x/order rule can cause issues in Jest test files where `jest.mock()` is
+  hoisted but typed mock casts (`const mockedX = X as jest.Mocked<...>`) must follow imports.
+  Consider adding eslint-disable comments or configuring import-x/order exceptions for
+  test files if this recurs.
+- Next tasks: E05 (final verification), E06 (generate lint report).
