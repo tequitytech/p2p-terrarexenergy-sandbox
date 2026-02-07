@@ -4,10 +4,15 @@
  * Tests /api/publish, /api/inventory, /api/settlements
  */
 
-import { Express } from 'express';
-import request from 'supertest';
 import { ObjectId } from 'mongodb';
+import request from 'supertest';
+
+import { createApp } from '../../app';
+import { ledgerClient } from '../../services/ledger-client';
 import { setupTestDB, teardownTestDB, clearTestDB, getTestDB, seedItem, seedOffer, seedSettlement } from '../../test-utils/db';
+
+import type { Express } from 'express';
+
 
 // Mock external dependencies
 jest.mock('axios');
@@ -55,8 +60,7 @@ jest.mock('../../auth/routes', () => {
 });
 
 // Import app after mocking
-import { createApp } from '../../app';
-import { ledgerClient } from '../../services/ledger-client';
+
 import axios from 'axios';
 
 const mockedAxios = axios as jest.Mocked<typeof axios>;

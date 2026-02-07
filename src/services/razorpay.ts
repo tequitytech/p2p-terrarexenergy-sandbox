@@ -1,5 +1,5 @@
-import Razorpay from 'razorpay';
 import dotenv from 'dotenv';
+import Razorpay from 'razorpay';
 dotenv.config();
 
 export const rzp_key_id = process.env.RAZORPAY_KEY_ID || "rzp_test_lFV7rQfvogqH9V";

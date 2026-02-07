@@ -1,4 +1,5 @@
 import { Router } from 'express';
+
 import { previewBid, confirmBid } from './controller';
 
 export function biddingRoutes(): Router {

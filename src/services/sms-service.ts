@@ -1,6 +1,8 @@
-import { PublishCommand, PublishCommandInput } from "@aws-sdk/client-sns";
+import { PublishCommand } from "@aws-sdk/client-sns";
 import { SNSClient } from "@aws-sdk/client-sns";
 import dotenv from "dotenv";
+
+import type { PublishCommandInput } from "@aws-sdk/client-sns";
 
 dotenv.config();
 

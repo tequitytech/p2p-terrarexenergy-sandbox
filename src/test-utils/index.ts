@@ -2,9 +2,10 @@
  * Test Utilities - Mock factories and helpers for unit tests
  */
 
-import { Request, Response } from 'express';
-import { DailyForecast, HourlyExcess, ValidityWindow, CalculatedBid, CompetitorOffer, MarketAnalysis } from '../bidding/types';
-import { HourlyBid, SkippedHour } from '../seller-bidding/types';
+
+import type { DailyForecast, HourlyExcess, ValidityWindow, CalculatedBid, CompetitorOffer, MarketAnalysis } from '../bidding/types';
+import type { HourlyBid, SkippedHour } from '../seller-bidding/types';
+import type { Request, Response } from 'express';
 
 // ============================================
 // Express Request/Response Mocks
@@ -16,7 +17,7 @@ export function mockRequest(body: any = {}, params: any = {}, query: any = {}): 
     params,
     query,
     headers: {},
-    get: jest.fn((name: string) => undefined),
+    get: jest.fn((_name: string) => undefined),
   };
 }
 
@@ -166,7 +167,6 @@ export function createHourlyBid(
   date: string = '2026-01-28',
   options: Partial<HourlyBid> = {}
 ): HourlyBid {
-  const hourNum = parseInt(hour.split(':')[0]);
   const deliveryStart = new Date(`${date}T${hour.padStart(5, '0')}:00+05:30`);
   const deliveryEnd = new Date(deliveryStart.getTime() + 60 * 60 * 1000);
   const validityStart = new Date();
@@ -382,10 +382,10 @@ export function createBecknContext(action: string, transactionId?: string): any 
 // Async Test Helpers
 // ============================================
 
-export function waitMs(ms: number): Promise<void> {
+export async function waitMs(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export function flushPromises(): Promise<void> {
+export async function flushPromises(): Promise<void> {
   return new Promise(resolve => setImmediate(resolve));
 }

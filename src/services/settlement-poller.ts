@@ -1,9 +1,13 @@
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
-import { ledgerClient } from './ledger-client';
-import { settlementStore, SettlementDocument } from './settlement-store';
+
 import { catalogStore } from './catalog-store';
+import { ledgerClient } from './ledger-client';
 import { orderService } from './order-service';
+import { settlementStore } from './settlement-store';
+
+import type { SettlementDocument } from './settlement-store';
+
 
 const ENABLE_POLLING = process.env.ENABLE_SETTLEMENT_POLLING !== 'false';
 const POLL_INTERVAL_MS = parseInt(process.env.SETTLEMENT_POLL_INTERVAL_MS || '300000', 10); // 5 minutes
@@ -191,12 +195,12 @@ export function startPolling(): void {
 
   // Run first poll after a short delay (let app initialize)
   setTimeout(() => {
-    pollOnce().catch(err => console.error(`[SettlementPoller] Initial poll failed:`, err));
+    pollOnce().catch(err => { console.error(`[SettlementPoller] Initial poll failed:`, err); });
   }, 5000);
 
   // Start interval polling
   pollInterval = setInterval(() => {
-    pollOnce().catch(err => console.error(`[SettlementPoller] Poll failed:`, err));
+    pollOnce().catch(err => { console.error(`[SettlementPoller] Poll failed:`, err); });
   }, POLL_INTERVAL_MS);
 }
 

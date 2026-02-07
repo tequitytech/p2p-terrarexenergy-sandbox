@@ -1,7 +1,9 @@
-import { Request, Response } from "express";
 import { z } from "zod";
-import { smsService } from "../services/sms-service";
+
 import { emailService } from "../services/email-service";
+import { smsService } from "../services/sms-service";
+
+import type { Request, Response } from "express";
 
 const sendSmsSchema = z.object({
   phone: z.string().min(10, "Phone number is too short").regex(/^\+?[1-9]\d{1,14}$/, "Invalid phone format"),

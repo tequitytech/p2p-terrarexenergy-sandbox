@@ -1,8 +1,10 @@
 import express from "express";
 import request from "supertest";
-import { sendSmsHandler } from "./controller";
-import { smsService } from "../services/sms-service";
 import { ZodError } from "zod";
+
+import { smsService } from "../services/sms-service";
+
+import { sendSmsHandler } from "./controller";
 
 // Mock the smsService
 jest.mock("../services/sms-service", () => ({

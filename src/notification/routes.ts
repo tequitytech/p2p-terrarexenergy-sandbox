@@ -1,4 +1,5 @@
 import { Router } from "express";
+
 import { sendSmsHandler, sendEmailHandler } from "./controller";
 
 export const notificationRoutes = () => {

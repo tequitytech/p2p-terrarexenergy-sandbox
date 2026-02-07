@@ -6,12 +6,15 @@
  * GET /api/auth/me - Get user profile (requires JWT)
  */
 
-import { Router, Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { z } from 'zod';
 import axios from 'axios';
-import { getDB } from '../db';
+import { Router } from 'express';
+import jwt from 'jsonwebtoken';
 import { ObjectId } from 'mongodb';
+import { z } from 'zod';
+
+import { getDB } from '../db';
+
+import type { Request, Response, NextFunction } from 'express';
 
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'p2p-trading-pilot-secret';
@@ -147,7 +150,7 @@ function authMiddleware(req: Request, res: Response, next: NextFunction) {
     const decoded = verifyToken(token);
     req.user = decoded;
     next();
-  } catch (err: any) {
+  } catch (_err: any) {
     return res.status(401).json({
       success: false,
       error: {

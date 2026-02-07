@@ -1,6 +1,8 @@
 import { Router } from 'express';
-import { previewSellerBid, confirmSellerBid } from './controller';
+
 import { authMiddleware } from '../auth/routes';
+
+import { previewSellerBid, confirmSellerBid } from './controller';
 
 export function sellerBiddingRoutes(): Router {
   const router = Router();

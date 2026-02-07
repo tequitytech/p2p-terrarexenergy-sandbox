@@ -1,6 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { DailyForecast, HourlyExcess, SkippedHour, HOURLY_MIN_THRESHOLD } from '../types';
+
+import { HOURLY_MIN_THRESHOLD } from '../types';
+
+import type { DailyForecast, HourlyExcess, SkippedHour} from '../types';
 
 const FORECAST_FILE = path.join(__dirname, '../../../data/excess_predicted_hourly.json');
 

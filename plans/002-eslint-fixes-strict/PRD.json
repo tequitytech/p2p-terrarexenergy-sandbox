@@ -1,0 +1,135 @@
+[
+  {
+    "category": "functional",
+    "description": "All ESLint dev dependencies are installed and resolvable. The following packages must exist in devDependencies and be importable: eslint, @typescript-eslint/eslint-plugin, @typescript-eslint/parser, typescript-eslint, eslint-plugin-security, eslint-plugin-import-x, eslint-plugin-promise, eslint-plugin-sonarjs, eslint-plugin-no-secrets, eslint-config-prettier. eslint-plugin-pii must NOT be installed.",
+    "steps": [
+      "Run `npm ls eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser typescript-eslint eslint-plugin-security eslint-plugin-import-x eslint-plugin-promise eslint-plugin-sonarjs eslint-plugin-no-secrets eslint-config-prettier` and confirm all resolve without errors",
+      "Verify each package appears under devDependencies in package.json",
+      "Confirm eslint-plugin-pii is NOT present in package.json or node_modules",
+      "Confirm the original eslint-plugin-import is NOT installed (import-x is used instead)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "eslint.config.mjs exists as an ESLint v9 flat config file. It must use the flat config array-of-objects format (not legacy .eslintrc). It must set parserOptions.project to true for type-aware linting via the strict-type-checked preset from typescript-eslint. The global ignores array must include dist/**, node_modules/**, src/generated/**, and scripts/**.",
+    "steps": [
+      "Verify eslint.config.mjs exists at the project root",
+      "Confirm the file exports a default array (flat config format), not an object with 'rules' at root level",
+      "Confirm typescript-eslint strict-type-checked config is spread into the config array",
+      "Confirm parserOptions.project is set to true (or to the tsconfig.json path)",
+      "Confirm the ignores array contains exactly: dist/**, node_modules/**, src/generated/**, scripts/**",
+      "Verify no .eslintrc, .eslintrc.js, .eslintrc.json, or .eslintrc.yml files exist"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Banned patterns and security rules are configured at the correct severity. Deprecated patterns (no-var, prefer-const, no-new-object, no-array-constructor) are errors. Debug code (no-console, no-debugger, no-alert) are errors. Security anti-patterns (no-eval, no-implied-eval, no-new-func) are errors. eslint-plugin-security recommended rules are enabled, with detect-object-injection explicitly set to off and detect-possible-timing-attacks set to warn.",
+    "steps": [
+      "Run `npx eslint --print-config src/index.ts` and verify no-var is 'error'",
+      "Verify prefer-const is 'error'",
+      "Verify no-console is 'error' with no entries in the allow list",
+      "Verify no-debugger and no-alert are both 'error'",
+      "Verify no-eval, no-implied-eval, and no-new-func are all 'error'",
+      "Verify security/detect-object-injection is 'off'",
+      "Verify security/detect-possible-timing-attacks is 'warn'",
+      "Verify security/detect-eval-with-expression is 'error'",
+      "Verify security/detect-no-csrf-before-method-override is 'error'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Async and promise rules are configured. @typescript-eslint/no-floating-promises is error. @typescript-eslint/require-await is error. @typescript-eslint/promise-function-async is warn. promise/always-return is warn. promise/catch-or-return is warn (downgraded from error for catchError wrapper compatibility). promise/no-nesting is warn. The void keyword is accepted as an escape hatch for fire-and-forget promises.",
+    "steps": [
+      "Run `npx eslint --print-config src/controller/agents.controller.ts` and verify @typescript-eslint/no-floating-promises is 'error'",
+      "Verify @typescript-eslint/require-await is 'error'",
+      "Verify @typescript-eslint/promise-function-async is 'warn'",
+      "Verify promise/always-return is 'warn'",
+      "Verify promise/catch-or-return is 'warn' (NOT 'error')",
+      "Verify promise/no-nesting is 'warn'",
+      "Create a temp file with `void somePromise()` and confirm it does NOT trigger no-floating-promises"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Import ordering and circular dependency detection via eslint-plugin-import-x. Import order groups are: builtin, external, internal, parent, sibling, index, type — with newlines between groups and alphabetical sorting within groups. Type-only imports (import type) are grouped separately at the bottom. import-x/no-cycle is error. import-x/no-unused-modules is warn. Import order violations must be auto-fixable.",
+    "steps": [
+      "Run `npx eslint --print-config src/index.ts` and verify import-x/order is 'error' with groups ['builtin','external','internal','parent','sibling','index','type']",
+      "Verify the order rule has newlines-between set to 'always'",
+      "Verify the order rule has alphabetize.order set to 'asc'",
+      "Verify import-x/no-cycle is 'error'",
+      "Verify import-x/no-unused-modules is 'warn'",
+      "Create a temp file with misordered imports, run `npx eslint --fix` on it, and confirm imports are reordered automatically"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Naming conventions enforce Google TypeScript style with a Prisma snake_case exception. Variables must be camelCase or UPPER_CASE. Functions must be camelCase. Types/interfaces/classes must be PascalCase. Enum members must be UPPER_CASE. Object properties allow camelCase, snake_case, and UPPER_CASE (snake_case accommodates Prisma-generated fields like first_name, deleted_at, is_admin). All naming rules are set to warn severity.",
+    "steps": [
+      "Run `npx eslint --print-config src/services/agents.services.ts` and verify @typescript-eslint/naming-convention is 'warn'",
+      "Verify the variable selector allows formats ['camelCase', 'UPPER_CASE']",
+      "Verify the function selector allows format ['camelCase']",
+      "Verify the typeLike selector allows format ['PascalCase']",
+      "Verify the enumMember selector allows format ['UPPER_CASE']",
+      "Verify the property selector allows formats ['camelCase', 'snake_case', 'UPPER_CASE']",
+      "Confirm that referencing Prisma fields like `data.first_name` or `agent.deleted_at` does NOT produce a naming warning"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Complexity and code smell detection. sonarjs/cognitive-complexity is warn at threshold 15 (industry standard, NOT 25). max-depth is warn at 4. max-nested-callbacks is warn at 3. The full SonarJS recommended rule set is enabled (not just cognitive-complexity) — this includes rules like no-duplicate-string, no-identical-functions, no-redundant-boolean, no-collapsible-if, etc. Secrets detection via no-secrets/no-secrets is error with tolerance 5.",
+    "steps": [
+      "Run `npx eslint --print-config src/services/agents.services.ts` and verify sonarjs/cognitive-complexity is ['warn', 15]",
+      "Verify max-depth is ['warn', 4]",
+      "Verify max-nested-callbacks is ['warn', 3]",
+      "Verify no-secrets/no-secrets is 'error' with tolerance option set to 5",
+      "Verify at least 5 other SonarJS recommended rules are active (e.g., sonarjs/no-duplicate-string, sonarjs/no-identical-functions, sonarjs/no-collapsible-if)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Unused variables rule with full ignore patterns. @typescript-eslint/no-unused-vars is error with three ignore patterns: argsIgnorePattern '^_' (unused function args), destructuredArrayIgnorePattern '^_' (unused array destructuring), and caughtErrorsIgnorePattern '^_' (unused catch parameters). @typescript-eslint/explicit-function-return-type is off. @typescript-eslint/explicit-module-boundary-types is error. eslint-config-prettier is applied last to disable all formatting-related rules.",
+    "steps": [
+      "Run `npx eslint --print-config src/controller/agents.controller.ts` and verify @typescript-eslint/no-unused-vars is 'error'",
+      "Verify argsIgnorePattern is '^_'",
+      "Verify destructuredArrayIgnorePattern is '^_'",
+      "Verify caughtErrorsIgnorePattern is '^_'",
+      "Verify @typescript-eslint/explicit-function-return-type is 'off'",
+      "Verify @typescript-eslint/explicit-module-boundary-types is 'error'",
+      "Verify no Prettier-conflicting rules are active (e.g., semi, quotes, indent should be 'off' or absent)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "File-specific overrides are configured. Test files (**/*.spec.ts, **/*.test.ts, **/__tests__/**) have relaxed rules: no-explicit-any off, explicit-function-return-type off, explicit-module-boundary-types off, no-non-null-assertion off, no-console off. Logger files (**/logger.ts, **/logger.config.ts) have no-console off. These overrides must be separate config objects in the flat config array, not inline suppressions.",
+    "steps": [
+      "Verify the eslint.config.mjs contains a separate config block matching test file patterns (**/*.spec.ts, **/*.test.ts, **/__tests__/**)",
+      "Create a temporary test file at src/__tests__/temp.test.ts with `const x: any = 1; console.log(x);` and verify `npx eslint` reports zero errors on it",
+      "Verify the eslint.config.mjs contains a separate config block matching logger file patterns (**/logger.ts, **/logger.config.ts)",
+      "Verify a file at src/utils/logger.ts (if created) would have no-console off by running --print-config against that path",
+      "Delete any temporary test files created during verification"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "NPM scripts are added to package.json and execute correctly. 'lint' runs `eslint .` for checking violations. 'lint:fix' runs `eslint . --fix` for auto-fixing. 'lint:report' runs `eslint . --format json --output-file eslint-report.json` to produce a machine-parseable JSON report. All three scripts must execute without crashing (they may report lint violations, but must not fail due to config errors).",
+    "steps": [
+      "Verify package.json contains script 'lint' with value 'eslint .'",
+      "Verify package.json contains script 'lint:fix' with value 'eslint . --fix'",
+      "Verify package.json contains script 'lint:report' with value 'eslint . --format json --output-file eslint-report.json'",
+      "Run `npm run lint` and confirm it executes (exit code may be 1 due to existing violations, but must not crash with config errors)",
+      "Run `npm run lint:fix` and confirm it executes without config errors",
+      "Run `npm run lint:report` and confirm eslint-report.json is created as valid JSON",
+      "Verify eslint-report.json contains an array of objects with filePath and messages fields"
+    ],
+    "passes": true
+  }
+]

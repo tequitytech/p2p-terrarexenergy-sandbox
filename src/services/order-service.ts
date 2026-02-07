@@ -1,5 +1,7 @@
 import { getDB } from '../db';
-import { BuyerOrder, SellerOrder, OrderStatus, OrderType } from '../types/order';
+import { OrderStatus, OrderType } from '../types/order';
+
+import type { BuyerOrder, SellerOrder} from '../types/order';
 
 export const orderService = {
   // --- Buyer Order Management ---

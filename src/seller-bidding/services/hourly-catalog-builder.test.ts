@@ -4,6 +4,9 @@
  * Tests hourly Beckn catalog construction with delivery/validity windows
  */
 
+import { createHourlyBid } from '../../test-utils';
+import { VALIDITY_BUFFER_HOURS } from '../types';
+
 import {
   buildDeliveryWindow,
   buildValidityWindow,
@@ -13,8 +16,6 @@ import {
   buildHourlyPublishRequest,
   extractHourlyIds
 } from './hourly-catalog-builder';
-import { createHourlyBid } from '../../test-utils';
-import { VALIDITY_BUFFER_HOURS } from '../types';
 
 describe('hourly-catalog-builder', () => {
   describe('buildDeliveryWindow', () => {

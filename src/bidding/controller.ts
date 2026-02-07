@@ -1,6 +1,8 @@
-import { Request, Response } from 'express';
-import { BidRequest } from './types';
+
 import { preview, confirm } from './services/bid-optimizer';
+
+import type { BidRequest } from './types';
+import type { Request, Response } from 'express';
 
 /**
  * Validate bid request parameters

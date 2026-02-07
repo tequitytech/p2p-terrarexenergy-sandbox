@@ -5,9 +5,11 @@
  */
 
 import * as fs from 'fs';
-import { readForecast, processDailyForecast, getProcessedForecasts } from './forecast-reader';
-import { BUFFER_RATE, MIN_THRESHOLD } from '../types';
+
 import { createDailyForecast, createWeekForecast } from '../../test-utils';
+import { MIN_THRESHOLD } from '../types';
+
+import { readForecast, processDailyForecast, getProcessedForecasts } from './forecast-reader';
 
 // Mock fs module
 jest.mock('fs');

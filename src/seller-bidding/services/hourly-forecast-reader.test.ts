@@ -5,9 +5,15 @@
  */
 
 import * as fs from 'fs';
-import { getTomorrowDate, getTomorrowForecast, filterValidHours } from './hourly-forecast-reader';
-import { HOURLY_MIN_THRESHOLD, DailyForecast } from '../types';
+
 import { createDailyForecast } from '../../test-utils';
+import { HOURLY_MIN_THRESHOLD } from '../types';
+
+import { getTomorrowDate, getTomorrowForecast, filterValidHours } from './hourly-forecast-reader';
+
+import type { DailyForecast } from '../types';
+
+
 
 // Mock fs module
 jest.mock('fs');
@@ -152,7 +158,7 @@ describe('hourly-forecast-reader', () => {
         { hour: '11:00', excess_kwh: 0.8 }   // Below threshold
       ]);
 
-      const { valid, skipped } = filterValidHours(forecast);
+      const { valid } = filterValidHours(forecast);
 
       expect(valid).toHaveLength(2);
       expect(valid.map(h => h.hour)).toEqual(['09:00', '10:00']);

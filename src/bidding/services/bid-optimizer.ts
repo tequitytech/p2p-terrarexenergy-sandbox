@@ -1,5 +1,14 @@
 import axios from 'axios';
+
 import {
+  FLOOR_PRICE
+} from '../types';
+
+import { buildPublishRequest, extractIds } from './catalog-builder';
+import { getProcessedForecasts } from './forecast-reader';
+import { fetchMarketData, analyzeCompetitors, calculatePrice } from './market-analyzer';
+
+import type {
   BidRequest,
   CalculatedBid,
   PreviewResponse,
@@ -7,12 +16,7 @@ import {
   PlacedBid,
   ProcessedDay,
   CompetitorOffer,
-  SellerInfo,
-  FLOOR_PRICE
-} from '../types';
-import { getProcessedForecasts } from './forecast-reader';
-import { fetchMarketData, analyzeCompetitors, calculatePrice } from './market-analyzer';
-import { buildPublishRequest, extractIds } from './catalog-builder';
+  SellerInfo} from '../types';
 
 // Internal publish API URL - calls our own /api/publish endpoint
 const SANDBOX_API_URL = process.env.SANDBOX_API_URL || 'http://sandbox-bpp:3002';
@@ -117,7 +121,7 @@ export async function preview(request: BidRequest): Promise<PreviewResponse> {
 
   try {
     competitorOffers = await fetchMarketData(startDate, endDate, request.source_type);
-  } catch (error) {
+  } catch (_error) {
     console.log(`[BidService] Market data fetch failed, proceeding with floor price`);
     cached = true;
   }

@@ -5,10 +5,14 @@
  */
 
 import axios from 'axios';
-import { Request, Response } from 'express';
-import { syncSelect, syncInit, syncConfirm, syncStatus, syncHealth } from './controller';
+
+
 import * as transactionStore from '../services/transaction-store';
 import { mockRequest, mockResponse, createBecknContext } from '../test-utils';
+
+import { syncSelect, syncInit, syncConfirm, syncStatus, syncHealth } from './controller';
+
+import type { Request, Response } from 'express';
 
 // Mock dependencies
 jest.mock('axios');
@@ -26,7 +30,7 @@ describe('sync-api/controller', () => {
 
     // Default mock implementations
     mockedTransactionStore.createPendingTransaction.mockImplementation(
-      () => Promise.resolve({ context: {}, message: {} })
+      async () => Promise.resolve({ context: {}, message: {} })
     );
     mockedTransactionStore.cancelPendingTransaction.mockReturnValue(true);
     mockedTransactionStore.getPendingCount.mockReturnValue(0);

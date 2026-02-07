@@ -1,8 +1,10 @@
-import { Request, Response } from "express";
-import { orderService } from "../services/order-service";
-import { resolvePendingTransaction, hasPendingTransaction } from "../services/transaction-store";
-import { settlementStore } from "../services/settlement-store";
+
 import { notificationService } from "../services/notification-service";
+import { orderService } from "../services/order-service";
+import { settlementStore } from "../services/settlement-store";
+import { resolvePendingTransaction, hasPendingTransaction } from "../services/transaction-store";
+
+import type { Request, Response } from "express";
 
 export const onSelect = (req: Request, res: Response) => {
   const { context, message, error }: { context: any; message: any; error?: any } = req.body;

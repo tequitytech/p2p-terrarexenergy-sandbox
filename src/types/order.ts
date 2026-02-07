@@ -26,7 +26,7 @@ export interface IOrder {
     razorpayOrderId?: string;
     razorpayPaymentId?: string;
     razorpaySignature?: string;
-    txnPayId?: string | any; // MongoDB ObjectId string
+    txnPayId?: any; // MongoDB ObjectId string
     meterId?: string;
     sourceMeterId?: string;
     messageId?: string;

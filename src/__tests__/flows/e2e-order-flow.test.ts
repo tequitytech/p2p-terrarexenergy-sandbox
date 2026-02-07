@@ -4,11 +4,13 @@
  * Tests the complete order lifecycle: publish → select → init → confirm → status
  */
 
-import { Express } from 'express';
-import request from 'supertest';
 import axios from 'axios';
+
+import type { Express } from 'express';
+
 import { ObjectId } from 'mongodb';
-import { setupTestDB, teardownTestDB, clearTestDB, getTestDB, seedItem, seedOffer, seedCatalog } from '../../test-utils/db';
+import request from 'supertest';
+
 
 // Mock authMiddleware to bypass JWT auth for tests
 jest.mock('../../auth/routes', () => {
@@ -55,6 +57,7 @@ jest.mock('../../services/ledger-client', () => ({
 import { createApp } from '../../app';
 import { catalogStore } from '../../services/catalog-store';
 import { settlementStore } from '../../services/settlement-store';
+import { setupTestDB, teardownTestDB, clearTestDB, getTestDB, seedItem, seedOffer, seedCatalog } from '../../test-utils/db';
 
 describe('E2E Order Flow', () => {
   let app: Express;
@@ -62,7 +65,6 @@ describe('E2E Order Flow', () => {
   const itemId = 'e2e-item-001';
   const offerId = 'e2e-offer-001';
   const catalogId = 'e2e-catalog-001';
-  const providerId = 'test-provider';
   const meterId = '100200300';
 
   beforeAll(async () => {

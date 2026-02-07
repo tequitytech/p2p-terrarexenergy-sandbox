@@ -4,12 +4,12 @@
  * Tests /api/select, /api/init, /api/confirm, /api/status
  */
 
-import { Express } from 'express';
-import request from 'supertest';
 import axios from 'axios';
-import { setupTestDB, teardownTestDB, clearTestDB, seedItem, seedOffer, seedCatalog } from '../../test-utils/db';
-import { createBecknContext } from '../../test-utils';
-import * as transactionStore from '../../services/transaction-store';
+
+import type { Express } from 'express';
+
+import request from 'supertest';
+
 
 // Mock axios and transaction store
 jest.mock('axios');
@@ -40,11 +40,14 @@ jest.mock('../../services/ledger-client', () => ({
   }
 }));
 
-const mockedAxios = axios as jest.Mocked<typeof axios>;
-const mockedTransactionStore = transactionStore as jest.Mocked<typeof transactionStore>;
-
 // Import app after mocking
 import { createApp } from '../../app';
+import * as transactionStore from '../../services/transaction-store';
+import { createBecknContext } from '../../test-utils';
+import { setupTestDB, teardownTestDB, clearTestDB } from '../../test-utils/db';
+
+const mockedAxios = axios as jest.Mocked<typeof axios>;
+const mockedTransactionStore = transactionStore as jest.Mocked<typeof transactionStore>;
 
 // Helper function to create spec-compliant select order
 function createSpecCompliantSelectOrder() {
@@ -132,7 +135,7 @@ describe('Sync API Integration Tests', () => {
 
     // Default mock implementations
     mockedTransactionStore.createPendingTransaction.mockImplementation(
-      () => Promise.resolve({ context: {}, message: { order: {} } })
+      async () => Promise.resolve({ context: {}, message: { order: {} } })
     );
     mockedTransactionStore.cancelPendingTransaction.mockReturnValue(true);
     mockedTransactionStore.getPendingCount.mockReturnValue(0);

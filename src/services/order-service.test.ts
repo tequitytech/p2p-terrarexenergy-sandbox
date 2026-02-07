@@ -1,6 +1,7 @@
-import { orderService } from './order-service';
 import { setupTestDB, teardownTestDB, clearTestDB, getTestDB } from '../test-utils/db';
 import { OrderStatus, OrderType } from '../types/order';
+
+import { orderService } from './order-service';
 
 // Mock DB connection
 jest.mock('../db', () => ({

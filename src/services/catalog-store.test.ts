@@ -4,9 +4,10 @@
  * Tests MongoDB catalog persistence and inventory management
  */
 
-import { catalogStore } from './catalog-store';
 import { createBecknCatalog, createBecknItem, createBecknOffer } from '../test-utils';
 import { setupTestDB, teardownTestDB, clearTestDB, seedItem, seedOffer, seedCatalog, seedOrder, getTestItem } from '../test-utils/db';
+
+import { catalogStore } from './catalog-store';
 
 // Mock getDB to use test database
 jest.mock('../db', () => {
