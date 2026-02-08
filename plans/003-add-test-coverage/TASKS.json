@@ -320,6 +320,7 @@
   },
   {
     "id": "T09",
+    "status": "done",
     "priority": "P1",
     "category": "expand-tests",
     "title": "Expand webhook controller — onSelect inventory check, onConfirm settlement + republish",

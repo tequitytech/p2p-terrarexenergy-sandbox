@@ -159,3 +159,22 @@ Notes for next person:
 - For the "no email" test, insert user with `email: null` — the source checks `!user.email` which covers both null and undefined.
 - For the error handling test, `mockSendEmail.mockRejectedValue(new Error(...))` triggers the catch block. The test verifies the function resolves without throwing (try/catch in source swallows the error).
 - `restoreMocks: true` in jest.config resets mock implementations between tests, so `mockSendEmail.mockResolvedValue(true)` is set in beforeEach.
+
+## 2026-02-08 — T09: Expand webhook controller tests (done)
+
+Expanded `src/webhook/controller.test.ts` from 42 to 49 tests (+7), adding in-memory MongoDB tests for `onSelect` and `onConfirm` business logic:
+
+- **onSelect — inventory check** (3 tests): ACK immediate response, INSUFFICIENT_INVENTORY error callback when requested > available qty, successful on_select with CREATED status when qty is sufficient
+- **onConfirm — settlement + inventory + republish** (4 tests): ACK immediate response, settlement record creation with totalQuantity sum from multiple orderItems, INSUFFICIENT_INVENTORY error callback when pre-check fails (no settlement created), inventory reduction on offer + catalog republish to ONIX + seller order saved with SCHEDULED status
+
+All 49 tests pass. Full suite: 619 tests, 29 suites, all green.
+
+Notes for next person:
+- **Uses in-memory MongoDB** (setupTestDB pattern) — DB is required because `onSelect` and `onConfirm` use real `catalogStore` (getItem, getOffer, reduceOfferInventory, buildCatalogForPublish, saveOrder) and `settlementStore.createSettlement`.
+- **DB mock approach differs from existing tests**: the original tests only mocked `readDomainResponse` for template handlers (onUpdate, onRating, etc.). The new tests mock `../db` module to point at `getTestDB()`, enabling real MongoDB operations for onSelect/onConfirm.
+- **`parseError` must NOT be mocked** — it's used by onConfirm's catch block. The utils mock now uses `jest.requireActual('../utils')` to keep parseError working while mocking readDomainResponse.
+- **payment-service is mocked** since onInit (called internally) creates Razorpay orders. Mock returns dummy `{ id, amount, currency }` and `{ short_url }`.
+- Offers must have `beckn:price.applicableQuantity.unitQuantity` field for both onSelect availability check and onConfirm pre-check + `reduceOfferInventory`.
+- Async handler tests need `setTimeout(200-500ms)` because onSelect/onConfirm run their business logic in detached `(async () => { ... })()` IIFEs that fire-and-forget.
+- Each test uses unique item/offer/transaction IDs and `clearTestDB()` in beforeEach to prevent cross-test interference.
+- The republish test verifies both the `/bpp/caller/publish` POST and the `on_confirm` callback POST by searching `mockedAxios.post.mock.calls` for matching URLs.
