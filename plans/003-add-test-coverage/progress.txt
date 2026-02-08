@@ -237,3 +237,18 @@ Notes for next person:
 - The `mockCollection.findOne` mock is shared across both the payment/order route (users lookup) and payment-callback route (buyer_orders lookup). In callback tests, `mockDb.collection` returns the same mockCollection regardless of collection name — this works because callback only uses `findOne`.
 - The `console.warn` spy test for "buyer order not found" uses `jest.spyOn(console, 'warn').mockImplementation()` and calls `mockRestore()` after assertion — don't forget cleanup or it suppresses warnings in later tests.
 - `jest.clearAllMocks()` in `beforeEach` resets call counts but not implementations (since `restoreMocks: true` handles that). The `mockGetDB.mockReturnValue(mockDb)` in beforeEach ensures DB mock is always available.
+
+## 2026-02-08 — T13: Dashboard routes tests (done)
+
+Created `src/dashboard/routes.test.ts` with 5 tests covering the GET /api/dashboard/stats endpoint:
+
+- **GET /api/dashboard/stats** (5 tests): 400 when sellerId missing, aggregated stats for valid sellerId (verifies all 4 catalogStore methods called with correct sellerId), 2 decimal place rounding (100.456→100.46, 50.789→50.79, 25.1234→25.12, 10.999→11), zeros when seller has no data, 500 when catalogStore throws
+
+All 5 tests pass. Full suite: 671 tests, 30 suites, all green.
+
+Notes for next person:
+- **catalogStore is fully mocked** (`jest.mock('../services/catalog-store')`) — no DB needed. Each of the 4 methods (`getSellerEarnings`, `getSellerTotalSold`, `getSellerAvailableInventory`, `getBeneficiaryDonations`) is mocked with `mockResolvedValue`.
+- Uses **supertest** with Express app mounting `dashboardRoutes()` at `/api` prefix.
+- The rounding test verifies the `Number(value.toFixed(2))` behavior — note that `10.999.toFixed(2)` = `"11.00"` which `Number()` converts to `11` (not `11.00`).
+- For the error test, only `getSellerEarnings` needs to reject — since `Promise.all` fails fast, the other 3 methods don't need error setup.
+- `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must set its own `mockResolvedValue` calls.
