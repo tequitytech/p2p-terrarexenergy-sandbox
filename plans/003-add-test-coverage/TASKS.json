@@ -384,6 +384,7 @@
   },
   {
     "id": "T11",
+    "status": "done",
     "priority": "P1",
     "category": "expand-tests",
     "title": "Expand notification controller — sendEmailHandler coverage",
@@ -391,12 +392,20 @@
     "testFile": "src/notification/controller.test.ts",
     "sourceFile": "src/notification/controller.ts",
     "testCases": [
-      "sendSmsHandler — should handle phone with spaces (e.g., '+1 234 567 890')",
-      "sendSmsHandler — should handle very long message (boundary test)",
-      "sendSmsHandler — should handle empty string phone (return 400)",
-      "sendSmsHandler — should handle null body gracefully",
-      "sendSmsHandler — should handle international phone formats",
-      "sendSmsHandler — should return specific validation error for each invalid field"
+      "sendSmsHandler — should return 400 when phone is empty string",
+      "sendSmsHandler — should return 400 when request body has no fields",
+      "sendSmsHandler — should accept valid international phone formats",
+      "sendSmsHandler — should return specific validation errors for each invalid field",
+      "sendEmailHandler — should return 200 on successful email send",
+      "sendEmailHandler — should return 500 when emailService.sendEmail returns false",
+      "sendEmailHandler — should return 500 when emailService throws an error",
+      "sendEmailHandler — should return 400 when 'to' field is missing",
+      "sendEmailHandler — should return 400 when 'to' is not a valid email",
+      "sendEmailHandler — should return 400 when subject is empty string",
+      "sendEmailHandler — should return 400 when body is empty string",
+      "sendEmailHandler — should return 400 when all fields are missing",
+      "sendEmailHandler — should return 400 when subject field is missing",
+      "sendEmailHandler — should return 400 when body field is missing"
     ],
     "mocksNeeded": [
       "Uses existing mock pattern from the file (jest.mock smsService)",

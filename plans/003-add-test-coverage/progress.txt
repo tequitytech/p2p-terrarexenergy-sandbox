@@ -207,3 +207,18 @@ Notes for next person:
 - Async handler tests need `setTimeout(200-500ms)` because onSelect/onConfirm run their business logic in detached `(async () => { ... })()` IIFEs that fire-and-forget.
 - Each test uses unique item/offer/transaction IDs and `clearTestDB()` in beforeEach to prevent cross-test interference.
 - The republish test verifies both the `/bpp/caller/publish` POST and the `on_confirm` callback POST by searching `mockedAxios.post.mock.calls` for matching URLs.
+
+## 2026-02-08 — T11: Expand notification controller tests (done)
+
+Expanded `src/notification/controller.test.ts` from 4 to 18 tests, adding full `sendEmailHandler` coverage and SMS edge cases:
+
+- **sendSmsHandler** (8 tests, +4 new): empty phone string → 400, empty body → 400, international phone formats (+91...) accepted, specific validation errors per field when body is empty object
+- **sendEmailHandler** (10 tests, all new): successful send → 200, sendEmail returns false → 500, SMTP error → 500 Internal Server Error, missing 'to' → 400, invalid email format → 400, empty subject → 400, empty body → 400, all fields missing → 400, missing subject only → 400, missing body only → 400
+
+All 18 tests pass. Full suite: 661 tests, 29 suites, all green.
+
+Notes for next person:
+- Both `sendSmsHandler` and `sendEmailHandler` call `schema.parse()` OUTSIDE their try/catch block, so ZodError propagates to the Express error handler. The `createTestApp()` function replicates the global ZodError handler from app.ts.
+- **emailService is mocked** (`jest.mock('../services/email-service')`) — `sendEmail` is a jest.fn(). For the "returns false" test, use `mockResolvedValue(false)` to hit the else branch. For the error test, use `mockRejectedValue(new Error(...))` to hit the catch block.
+- The source distinguishes between `sendEmail` returning false (→ "Failed to send email") vs throwing (→ "Internal Server Error") — these are separate 500 responses with different error messages.
+- `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must set its own mock return values.
