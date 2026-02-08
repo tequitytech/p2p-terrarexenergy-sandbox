@@ -83,6 +83,15 @@ describe('Trade API Integration Tests', () => {
   });
 
   describe('POST /api/publish', () => {
+    const validPublishInput = {
+      quantity: 10,
+      price: 7.5,
+      deliveryDate: '2026-01-28',
+      startHour: 10,
+      duration: 1,
+      sourceType: 'SOLAR',
+    };
+
     // Seed a user with generationProfile before each publish test.
     // Direct insertOne is required because seedUser/seedUserWithProfiles
     // helpers don't accept a custom _id.
@@ -114,24 +123,12 @@ describe('Trade API Integration Tests', () => {
     });
 
     it('should accept minimal publish input, build catalog server-side, and return catalog IDs', async () => {
-      // Arrange: minimal input matching publishInputSchema
-      const publishInput = {
-        quantity: 10,
-        price: 7.5,
-        deliveryDate: '2026-01-28',
-        startHour: 10,
-        duration: 1,
-        sourceType: 'SOLAR',
-      };
-
-      // Act
       const response = await request(app)
         .post('/api/publish')
-        .send(publishInput)
+        .send(validPublishInput)
         .expect('Content-Type', /json/)
         .expect(200);
 
-      // Assert: response contains server-generated catalog IDs and prosumer info
       expect(response.body.success).toBe(true);
       expect(response.body.catalog_id).toBeDefined();
       expect(response.body.item_id).toBeDefined();
@@ -153,7 +150,6 @@ describe('Trade API Integration Tests', () => {
     });
 
     it('should store auto-generated items and offers separately in their collections after publish', async () => {
-      // Arrange: minimal input matching publishInputSchema
       const publishInput = {
         quantity: 15,
         price: 8.0,
@@ -163,7 +159,6 @@ describe('Trade API Integration Tests', () => {
         sourceType: 'SOLAR',
       };
 
-      // Act: publish via minimal input
       const publishResponse = await request(app)
         .post('/api/publish')
         .send(publishInput)
@@ -171,7 +166,6 @@ describe('Trade API Integration Tests', () => {
 
       const { item_id, offer_id } = publishResponse.body;
 
-      // Assert: item stored separately in items collection
       const itemsResponse = await request(app)
         .get('/api/items')
         .expect(200);
@@ -179,13 +173,157 @@ describe('Trade API Integration Tests', () => {
       const storedItem = itemsResponse.body.items.find((i: any) => i['beckn:id'] === item_id);
       expect(storedItem).toBeDefined();
 
-      // Assert: offer stored separately in offers collection
       const offersResponse = await request(app)
         .get('/api/offers')
         .expect(200);
 
       const storedOffer = offersResponse.body.offers.find((o: any) => o['beckn:id'] === offer_id);
       expect(storedOffer).toBeDefined();
+    });
+
+    it('should return 403 when user has no generationProfile', async () => {
+      // Replace the seeded prosumer with a consumer (no generationProfile)
+      const db = getTestDB();
+      await db.collection('users').deleteMany({});
+      await db.collection('users').insertOne({
+        _id: new ObjectId('aaaaaaaaaaaaaaaaaaaaaaaa'),
+        phone: '1234567890',
+        name: 'Test Consumer',
+        vcVerified: true,
+        profiles: {
+          consumptionProfile: { did: 'did:example:consumer', meterNumber: '999' },
+        },
+        meters: ['999'],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const response = await request(app)
+        .post('/api/publish')
+        .send(validPublishInput)
+        .expect(403);
+
+      expect(response.body.error).toBe('NOT_PROSUMER');
+      expect(response.body.message).toContain('generationProfile');
+    });
+
+    it('should return 400 when quantity is missing', async () => {
+      const { quantity, ...noQuantity } = validPublishInput;
+
+      const response = await request(app)
+        .post('/api/publish')
+        .send(noQuantity)
+        .expect(400);
+
+      expect(response.body.error).toBe('VALIDATION_ERROR');
+    });
+
+    it('should return 400 when price is missing', async () => {
+      const { price, ...noPrice } = validPublishInput;
+
+      const response = await request(app)
+        .post('/api/publish')
+        .send(noPrice)
+        .expect(400);
+
+      expect(response.body.error).toBe('VALIDATION_ERROR');
+    });
+
+    it('should return 400 when deliveryDate format is invalid', async () => {
+      const response = await request(app)
+        .post('/api/publish')
+        .send({ ...validPublishInput, deliveryDate: '28-01-2026' })
+        .expect(400);
+
+      expect(response.body.error).toBe('VALIDATION_ERROR');
+    });
+
+    it('should store catalog, item, and offer in DB with correct beckn structure', async () => {
+      const response = await request(app)
+        .post('/api/publish')
+        .send(validPublishInput)
+        .expect(200);
+
+      const db = getTestDB();
+
+      // Verify catalog in DB
+      const catalog = await db.collection('catalogs').findOne({ 'beckn:id': response.body.catalog_id });
+      expect(catalog).toBeDefined();
+      expect(catalog!['@type']).toBe('beckn:Catalog');
+      expect(catalog!['beckn:bppId']).toBeDefined();
+
+      // Verify item has correct EnergyResource attributes
+      const item = await db.collection('items').findOne({ 'beckn:id': response.body.item_id });
+      expect(item).toBeDefined();
+      expect(item!['beckn:itemAttributes']).toEqual(
+        expect.objectContaining({
+          '@type': 'EnergyResource',
+          sourceType: 'SOLAR',
+          meterId: '100200300',
+        })
+      );
+      expect(item!['beckn:provider']['beckn:id']).toBe('did:example:test-provider');
+
+      // Verify offer has correct price structure
+      const offer = await db.collection('offers').findOne({ 'beckn:id': response.body.offer_id });
+      expect(offer).toBeDefined();
+      expect(offer!['beckn:price']['schema:price']).toBe(7.5);
+      expect(offer!['beckn:price'].applicableQuantity.unitQuantity).toBe(10);
+      expect(offer!['beckn:offerAttributes'].pricingModel).toBe('PER_KWH');
+    });
+
+    it('should return prosumer details from generationProfile', async () => {
+      const response = await request(app)
+        .post('/api/publish')
+        .send(validPublishInput)
+        .expect(200);
+
+      expect(response.body.prosumer).toEqual({
+        name: 'Test Prosumer',
+        meterId: '100200300',
+        utilityId: 'TPDDL',
+      });
+      expect(response.body.onix_forwarded).toBe(true);
+    });
+
+    it('should forward catalog to ONIX /bpp/caller/publish', async () => {
+      await request(app)
+        .post('/api/publish')
+        .send(validPublishInput)
+        .expect(200);
+
+      // Verify ONIX publish was called
+      expect(mockedAxios.post).toHaveBeenCalled();
+      const publishCall = mockedAxios.post.mock.calls.find(
+        (call: any[]) => typeof call[0] === 'string' && call[0].includes('/bpp/caller/publish')
+      );
+      expect(publishCall).toBeDefined();
+
+      // Verify the request body has correct structure
+      const publishBody = publishCall![1] as any;
+      expect(publishBody.context.action).toBe('catalog_publish');
+      expect(publishBody.context.bpp_id).toBeDefined();
+      expect(publishBody.message.catalogs).toHaveLength(1);
+      expect(publishBody.message.catalogs[0]['beckn:id']).toBeDefined();
+    });
+
+    it('should handle ONIX publish failure gracefully', async () => {
+      // Make ONIX forwarding fail
+      mockedAxios.post.mockRejectedValue(new Error('ONIX connection refused'));
+
+      const response = await request(app)
+        .post('/api/publish')
+        .send(validPublishInput)
+        .expect(200);
+
+      // Publish should still succeed (catalog saved locally)
+      expect(response.body.success).toBe(true);
+      expect(response.body.onix_forwarded).toBe(false);
+
+      // Verify catalog was still saved in DB despite ONIX failure
+      const db = getTestDB();
+      const catalog = await db.collection('catalogs').findOne({ 'beckn:id': response.body.catalog_id });
+      expect(catalog).toBeDefined();
     });
   });
 
@@ -244,6 +382,98 @@ describe('Trade API Integration Tests', () => {
       response.body.items.forEach((item: any) => {
         expect(item['beckn:itemAttributes'].availableQuantity).toBeDefined();
       });
+    });
+  });
+
+  describe('GET /api/published-items', () => {
+    it('should return active items with matching offers for authenticated user', async () => {
+      const db = getTestDB();
+      const userId = 'aaaaaaaaaaaaaaaaaaaaaaaa';
+
+      // Seed an active item owned by the authenticated user
+      await db.collection('items').insertOne({
+        'beckn:id': 'item-pub-001',
+        'beckn:isActive': true,
+        'beckn:itemAttributes': {
+          '@type': 'EnergyResource',
+          sourceType: 'SOLAR',
+          meterId: '100200300',
+        },
+        userId,
+        catalogId: 'catalog-pub',
+        updatedAt: new Date(),
+      });
+
+      // Seed a matching offer with quantity > 0
+      await db.collection('offers').insertOne({
+        'beckn:id': 'offer-pub-001',
+        'beckn:items': ['item-pub-001'],
+        'beckn:price': {
+          '@type': 'schema:PriceSpecification',
+          'schema:price': 7.5,
+          applicableQuantity: { unitQuantity: 10, unitText: 'kWh' },
+        },
+        catalogId: 'catalog-pub',
+        updatedAt: new Date(),
+      });
+
+      const response = await request(app)
+        .get('/api/published-items')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0]['beckn:id']).toBe('item-pub-001');
+      expect(response.body.data[0]['beckn:offers']).toHaveLength(1);
+      expect(response.body.data[0]['beckn:offers'][0]['beckn:id']).toBe('offer-pub-001');
+    });
+
+    it('should return empty array when user has no published items', async () => {
+      const response = await request(app)
+        .get('/api/published-items')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toEqual([]);
+    });
+
+    it('should exclude inactive items and items with zero-quantity offers', async () => {
+      const db = getTestDB();
+      const userId = 'aaaaaaaaaaaaaaaaaaaaaaaa';
+
+      // Inactive item (should be excluded)
+      await db.collection('items').insertOne({
+        'beckn:id': 'item-inactive',
+        'beckn:isActive': false,
+        userId,
+        catalogId: 'catalog-pub',
+        updatedAt: new Date(),
+      });
+
+      // Active item but offer has zero quantity (should be excluded)
+      await db.collection('items').insertOne({
+        'beckn:id': 'item-zero-qty',
+        'beckn:isActive': true,
+        userId,
+        catalogId: 'catalog-pub',
+        updatedAt: new Date(),
+      });
+      await db.collection('offers').insertOne({
+        'beckn:id': 'offer-zero-qty',
+        'beckn:items': ['item-zero-qty'],
+        'beckn:price': {
+          applicableQuantity: { unitQuantity: 0 },
+        },
+        catalogId: 'catalog-pub',
+        updatedAt: new Date(),
+      });
+
+      const response = await request(app)
+        .get('/api/published-items')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toEqual([]);
     });
   });
 

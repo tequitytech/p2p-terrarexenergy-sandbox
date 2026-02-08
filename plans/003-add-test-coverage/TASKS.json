@@ -595,6 +595,7 @@
   },
   {
     "id": "T19",
+    "status": "done",
     "priority": "P2",
     "category": "expand-tests",
     "title": "Expand trade-api — publish flow with generationProfile, forecast endpoint, published-items",

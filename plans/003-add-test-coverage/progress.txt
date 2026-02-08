@@ -341,3 +341,21 @@ Notes for next person:
 - `req.headers.authorization` must also be set manually — `confirmSellerBid` reads it directly via `req.headers.authorization!`.
 - All errors go to 500 (no 400 differentiation for "not found" or "malformed" like the regular bidding controller).
 - `restoreMocks: true` in jest.config resets mock implementations between tests.
+
+## 2026-02-08 — T19: Expand trade-api tests (done)
+
+Expanded `src/__tests__/api/trade-api.test.ts` from 21 to 28 tests (+7), adding publish validation, DB structure verification, ONIX forwarding, and published-items endpoint coverage:
+
+- **POST /api/publish** (+5 tests): 403 NOT_PROSUMER when user has no generationProfile, 400 VALIDATION_ERROR when quantity missing, 400 when price missing, 400 when deliveryDate format invalid (non-YYYY-MM-DD), catalog/item/offer stored with correct beckn structure (EnergyResource type, provider DID, PER_KWH pricing model), prosumer details from generationProfile in response, forward catalog to ONIX /bpp/caller/publish with catalog_publish action, handle ONIX failure gracefully (onix_forwarded=false, catalog still saved locally)
+- **GET /api/published-items** (+3 tests, all new): active items with matching offers returned via $lookup aggregation, empty array when no items, exclude inactive items and zero-quantity offers
+
+All 28 tests pass. Full suite: 730 tests, 35 suites, all green.
+
+Notes for next person:
+- **authMiddleware is statically mocked** at module level (not a jest.fn()), so it always sets `req.user = { userId: 'aaaaaaaaaaaaaaaaaaaaaaaa', phone: '1234567890' }`. Cannot test 401 directly — auth middleware itself is tested in auth/routes.test.ts (T01).
+- For the 403 test, replace the seeded prosumer user with a consumer (only `consumptionProfile`, no `generationProfile`) via `deleteMany` + `insertOne` in the test itself.
+- `validPublishInput` is extracted as a shared constant at describe-level for DRY test setup.
+- The ONIX forwarding test finds the publish call via `mockedAxios.post.mock.calls.find(call => call[0].includes('/bpp/caller/publish'))` since axios may be called for other purposes.
+- For ONIX failure test, `mockedAxios.post.mockRejectedValue(...)` causes the try/catch in the route to set `onixError`, resulting in `onix_forwarded: false` in the response but still 200 (catalog saved locally).
+- Published-items uses real MongoDB `$lookup` aggregation — items need `userId` matching the authMiddleware mock userId, `beckn:isActive: true`, and offers with `beckn:items` containing the item's `beckn:id` and `beckn:price.applicableQuantity.unitQuantity > 0`.
+- `restoreMocks: true` in jest.config resets mock implementations between tests.
