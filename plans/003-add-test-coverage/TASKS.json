@@ -567,6 +567,7 @@
   },
   {
     "id": "T18",
+    "status": "done",
     "priority": "P2",
     "category": "new-tests",
     "title": "Seller-bidding controller — previewSellerBid and confirmSellerBid",

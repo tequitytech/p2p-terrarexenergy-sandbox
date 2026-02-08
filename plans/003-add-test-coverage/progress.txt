@@ -322,3 +322,22 @@ Notes for next person:
 - `max_bids` is passed as string in request body (`"3"`), parsed with `parseInt` in controller — test verifies confirm() receives integer `3`.
 - `console.log` and `console.error` are spied/suppressed in beforeEach to keep test output clean.
 - `restoreMocks: true` in jest.config resets mock implementations between tests.
+
+## 2026-02-08 — T18: Seller-bidding controller tests (done)
+
+Created `src/seller-bidding/controller.test.ts` with 12 tests covering both `previewSellerBid` and `confirmSellerBid` handlers:
+
+- **previewSellerBid** (7 tests): missing source_type → 400, invalid source_type (HYDRO) → 400, user profile not found → 500, no generationProfile → 500, valid request → 200 with profile-derived provider_id/meter_id, preview() error → 500, meters[0] fallback when meterNumber missing
+- **confirmSellerBid** (5 tests): invalid source_type → 400, no generationProfile → 500, authorization token passed to confirm(), valid request → 200 with placed_bids (WIND source_type), unexpected error → 500
+
+All 12 tests pass. Full suite: 719 tests, 35 suites, all green.
+
+Notes for next person:
+- **DB module is mocked** (`jest.mock('../db')`) with a `__mockFindOne` jest.fn() exposed for per-test control. Default in `beforeEach` returns `SELLER_USER` with full generationProfile.
+- **hourly-optimizer is fully mocked** (`jest.mock('./services/hourly-optimizer')`) — `preview` and `confirm` are jest.fn() wrappers. No real forecast or publish calls.
+- Uses `mockRequest`/`mockResponse` from `test-utils/index.ts` for direct handler invocation (not supertest, since these are raw handler functions exported from controller.ts).
+- Key difference from the regular bidding controller (T17): `provider_id` and `meter_id` are NOT in the request body. They're derived from the user's `generationProfile` via DB lookup (`generationProfile.did` → provider_id, `generationProfile.meterNumber` → meter_id, fallback to `meters[0]`).
+- `req.user` must be set manually on the mock request (e.g., `(req as any).user = { phone: '...' }`) since the controller reads `(req as any).user`.
+- `req.headers.authorization` must also be set manually — `confirmSellerBid` reads it directly via `req.headers.authorization!`.
+- All errors go to 500 (no 400 differentiation for "not found" or "malformed" like the regular bidding controller).
+- `restoreMocks: true` in jest.config resets mock implementations between tests.
