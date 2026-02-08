@@ -98,6 +98,7 @@
   },
   {
     "id": "T03",
+    "status": "done",
     "priority": "P0",
     "category": "new-tests",
     "title": "Payment service — Razorpay createOrder, createPaymentLink, verifyPayment, getPayment",

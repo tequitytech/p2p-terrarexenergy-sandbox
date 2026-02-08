@@ -35,3 +35,22 @@ Notes for next person:
 - `seedUser` and `seedUserWithProfiles` from test-utils/db are the main seeding helpers. `seedUserWithProfiles` accepts optional vcVerified, profiles, and meters.
 - The `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must set its own `mockAxios.get.mockResolvedValue(...)`.
 - Error mocks for axios: use plain Error with extra properties (`.code`, `.response.status`) rather than AxiosError constructor — the handler checks these properties directly.
+
+## 2026-02-08 — T03: Payment service tests (done)
+
+Created `src/services/payment-service.test.ts` with 15 tests covering all 4 exported methods:
+
+- **createOrder** (4 tests): amount→paise conversion (×100), Math.floor for fractional amounts, currency/receipt/notes passthrough, error propagation
+- **createPaymentLink** (4 tests): correct params with accept_partial=false and callback_url, AxiosError returns response.data instead of throwing, non-Axios errors propagate
+- **verifyPayment** (5 tests): valid signature updates DB (status, paymentId, razorpaySignature), maps known status strings to PaymentStatus enum, unknown status → FAILED, invalid signature returns false, missing RAZORPAY_KEY_SECRET throws
+- **getPayment** (2 tests): retrieves by orderId, returns null for missing orderId
+
+All 15 tests pass. Full suite: 502 tests, 26 suites, all green.
+
+Notes for next person:
+- Uses **in-memory MongoDB** (setupTestDB pattern) for verifyPayment and getPayment tests that hit the `payments` collection.
+- `razorpay` module is fully mocked — `razorpay.orders.create` and `razorpay.paymentLink.create` are jest.fn() wrappers. `rzp_key_secret` is set to `'test-secret-key'`.
+- `validatePaymentVerification` from `razorpay/dist/utils/razorpay-utils` is also mocked — returns true/false to control signature validation flow.
+- For the AxiosError test, use `jest.requireActual('axios')` to get the real `AxiosError` constructor so `instanceof AxiosError` check works in the source code.
+- To test missing `rzp_key_secret`, require the mocked module and temporarily set it to empty string, then restore after assertion.
+- `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must re-configure its mock return values.
