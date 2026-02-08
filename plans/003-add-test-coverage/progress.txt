@@ -121,3 +121,25 @@ Notes for next person:
 - `console.warn` spy tests need `mockRestore()` to clean up — use `jest.spyOn(console, 'warn').mockImplementation()` and restore after assertion.
 - The upsert test verifies that calling `saveBuyerOrder` twice with the same transactionId results in only 1 document (second call updates rather than inserts).
 - Combined orders sort test uses 3 orders across 2 collections (1 buyer at middle date, 2 sellers at oldest/newest) to verify cross-collection descending sort.
+
+## 2026-02-08 — T06: Expand catalog-store tests (done)
+
+Expanded `src/services/catalog-store.test.ts` from 29 to 59 tests, covering all remaining methods in catalog-store.ts:
+
+- **getSellerEarnings** (6 tests): total from confirmed/scheduled orders, 0 for no orders, date range filtering via from/to, 2 decimal place rounding, excluding non-confirmed/scheduled statuses, multi-item sum within single order
+- **getSellerTotalSold** (4 tests): sum unitQuantity from confirmed/scheduled, 0 for no orders, multi-item sum, excludes cancelled orders
+- **getSellerAvailableInventory** (3 tests): sum availableQuantity from items, 0 when no items, excludes other sellers' items
+- **getBeneficiaryDonations** (3 tests): donations only from verified beneficiaries (vcVerified+isVerifiedBeneficiary), 0 for no donations, sum across multiple orders (CONFIRMED, COMPLETED, SCHEDULED)
+- **getSellerUserIdForItem** (5 tests): direct item.userId, catalog.userId fallback, meterId→user lookup fallback, null for not found, null when all fallbacks fail
+- **getPublishedItems** (5 tests): active items with matching offers qty>0, excludes items with no offers, excludes zero-qty offers, $lookup joins items↔offers by beckn:id, excludes inactive items
+- **reduceOfferInventory** (4 tests): decrement unitQuantity, throw on insufficient inventory, reduce to zero, throw for non-existent offer
+
+All 59 tests pass. Full suite: 601 tests, 28 suites, all green.
+
+Notes for next person:
+- Uses **in-memory MongoDB** (setupTestDB pattern) — same as the existing tests.
+- For `getSellerEarnings`/`getSellerTotalSold` tests, seed orders directly via `getTestDB().collection('orders').insertOne()` with the full nested beckn order structure (`order.beckn:seller`, `order.beckn:orderStatus`, `order.beckn:orderItems`).
+- The aggregation pipeline tests require exact field path matching: `order.beckn:orderItems.beckn:quantity.unitQuantity` for quantities, `order.beckn:orderItems.beckn:acceptedOffer.beckn:offerAttributes.beckn:price.value` for prices.
+- For `getBeneficiaryDonations`, seed users with `vcVerified: true` AND `isVerifiedBeneficiary: true` plus `profiles.consumptionProfile.id` — the function builds a Set from these IDs to filter orders by `beckn:buyer.beckn:id`.
+- `reduceOfferInventory` uses `beckn:price.applicableQuantity.unitQuantity` path (different from old `reduceInventory` which uses `beckn:itemAttributes.availableQuantity` on items).
+- `getPublishedItems` uses MongoDB `$lookup` with `$expr` — the test verifies offers are joined by checking `beckn:items` array contains the item's `beckn:id`.

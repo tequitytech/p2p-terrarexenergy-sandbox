@@ -5,7 +5,7 @@
  */
 
 import { createBecknCatalog, createBecknItem, createBecknOffer } from '../test-utils';
-import { setupTestDB, teardownTestDB, clearTestDB, seedItem, seedOffer, seedCatalog, seedOrder, getTestItem } from '../test-utils/db';
+import { setupTestDB, teardownTestDB, clearTestDB, seedItem, seedOffer, seedCatalog, seedOrder, getTestItem, getTestDB } from '../test-utils/db';
 
 import { catalogStore } from './catalog-store';
 
@@ -351,6 +351,522 @@ describe('catalog-store', () => {
 
         expect(order).toBeNull();
       });
+    });
+  });
+
+  describe('getSellerEarnings', () => {
+    async function seedSellerOrder(
+      sellerId: string,
+      status: string,
+      orderItems: Array<{ quantity: number; price: number }>,
+      confirmedAt?: Date
+    ) {
+      const db = getTestDB();
+      await db.collection('orders').insertOne({
+        transactionId: `txn-earn-${Math.random().toString(36).slice(2)}`,
+        order: {
+          'beckn:seller': sellerId,
+          'beckn:orderStatus': status,
+          'beckn:orderItems': orderItems.map((oi, idx) => ({
+            'beckn:id': `item-${idx}`,
+            'beckn:quantity': { unitQuantity: oi.quantity },
+            'beckn:acceptedOffer': {
+              'beckn:offerAttributes': {
+                'beckn:price': { value: oi.price }
+              }
+            }
+          }))
+        },
+        confirmedAt: confirmedAt || new Date(),
+        updatedAt: new Date()
+      });
+    }
+
+    it('should calculate total earnings from confirmed/scheduled orders', async () => {
+      await seedSellerOrder('seller-A', 'CONFIRMED', [{ quantity: 10, price: 7.5 }]);
+      await seedSellerOrder('seller-A', 'SCHEDULED', [{ quantity: 5, price: 8.0 }]);
+
+      const earnings = await catalogStore.getSellerEarnings('seller-A');
+
+      // 10*7.5 + 5*8.0 = 75 + 40 = 115
+      expect(earnings).toBe(115);
+    });
+
+    it('should return 0 when no matching orders exist', async () => {
+      const earnings = await catalogStore.getSellerEarnings('no-orders-seller');
+
+      expect(earnings).toBe(0);
+    });
+
+    it('should filter by confirmedAt date range when from/to provided', async () => {
+      const jan1 = new Date('2026-01-01');
+      const jan15 = new Date('2026-01-15');
+      const feb1 = new Date('2026-02-01');
+
+      await seedSellerOrder('seller-B', 'CONFIRMED', [{ quantity: 10, price: 5 }], jan1);
+      await seedSellerOrder('seller-B', 'CONFIRMED', [{ quantity: 10, price: 5 }], feb1);
+
+      const earnings = await catalogStore.getSellerEarnings('seller-B', jan15, new Date('2026-02-28'));
+
+      // Only the feb1 order matches (confirmedAt >= jan15 && <= feb28)
+      expect(earnings).toBe(50);
+    });
+
+    it('should round to 2 decimal places', async () => {
+      await seedSellerOrder('seller-C', 'CONFIRMED', [{ quantity: 3, price: 7.333 }]);
+
+      const earnings = await catalogStore.getSellerEarnings('seller-C');
+
+      // 3 * 7.333 = 21.999
+      expect(earnings).toBe(22);
+    });
+
+    it('should exclude non-confirmed/scheduled orders', async () => {
+      await seedSellerOrder('seller-D', 'CONFIRMED', [{ quantity: 10, price: 5 }]);
+      await seedSellerOrder('seller-D', 'CANCELLED', [{ quantity: 10, price: 5 }]);
+      await seedSellerOrder('seller-D', 'PENDING', [{ quantity: 10, price: 5 }]);
+
+      const earnings = await catalogStore.getSellerEarnings('seller-D');
+
+      expect(earnings).toBe(50);
+    });
+
+    it('should sum across multiple orderItems in a single order', async () => {
+      await seedSellerOrder('seller-E', 'CONFIRMED', [
+        { quantity: 5, price: 10 },
+        { quantity: 3, price: 8 }
+      ]);
+
+      const earnings = await catalogStore.getSellerEarnings('seller-E');
+
+      // 5*10 + 3*8 = 50 + 24 = 74
+      expect(earnings).toBe(74);
+    });
+  });
+
+  describe('getSellerTotalSold', () => {
+    async function seedSellerOrder(
+      sellerId: string,
+      status: string,
+      quantities: number[],
+      confirmedAt?: Date
+    ) {
+      const db = getTestDB();
+      await db.collection('orders').insertOne({
+        transactionId: `txn-sold-${Math.random().toString(36).slice(2)}`,
+        order: {
+          'beckn:seller': sellerId,
+          'beckn:orderStatus': status,
+          'beckn:orderItems': quantities.map((q, idx) => ({
+            'beckn:id': `item-${idx}`,
+            'beckn:quantity': { unitQuantity: q }
+          }))
+        },
+        confirmedAt: confirmedAt || new Date(),
+        updatedAt: new Date()
+      });
+    }
+
+    it('should sum unitQuantity across confirmed/scheduled orders', async () => {
+      await seedSellerOrder('seller-sold-A', 'CONFIRMED', [10]);
+      await seedSellerOrder('seller-sold-A', 'SCHEDULED', [5]);
+
+      const totalSold = await catalogStore.getSellerTotalSold('seller-sold-A');
+
+      expect(totalSold).toBe(15);
+    });
+
+    it('should return 0 when no matching orders exist', async () => {
+      const totalSold = await catalogStore.getSellerTotalSold('no-orders-seller');
+
+      expect(totalSold).toBe(0);
+    });
+
+    it('should sum across multiple orderItems', async () => {
+      await seedSellerOrder('seller-sold-B', 'CONFIRMED', [5, 3, 7]);
+
+      const totalSold = await catalogStore.getSellerTotalSold('seller-sold-B');
+
+      expect(totalSold).toBe(15);
+    });
+
+    it('should exclude non-confirmed/scheduled orders', async () => {
+      await seedSellerOrder('seller-sold-C', 'CONFIRMED', [10]);
+      await seedSellerOrder('seller-sold-C', 'CANCELLED', [20]);
+
+      const totalSold = await catalogStore.getSellerTotalSold('seller-sold-C');
+
+      expect(totalSold).toBe(10);
+    });
+  });
+
+  describe('getSellerAvailableInventory', () => {
+    it('should sum availableQuantity from items collection', async () => {
+      const db = getTestDB();
+      await db.collection('items').insertMany([
+        {
+          'beckn:id': 'inv-item-1',
+          'beckn:provider': { 'beckn:id': 'seller-inv-A' },
+          'beckn:itemAttributes': { availableQuantity: 10 }
+        },
+        {
+          'beckn:id': 'inv-item-2',
+          'beckn:provider': { 'beckn:id': 'seller-inv-A' },
+          'beckn:itemAttributes': { availableQuantity: 25 }
+        }
+      ]);
+
+      const inventory = await catalogStore.getSellerAvailableInventory('seller-inv-A');
+
+      expect(inventory).toBe(35);
+    });
+
+    it('should return 0 when no items for seller', async () => {
+      const inventory = await catalogStore.getSellerAvailableInventory('no-items-seller');
+
+      expect(inventory).toBe(0);
+    });
+
+    it('should not include items from other sellers', async () => {
+      const db = getTestDB();
+      await db.collection('items').insertMany([
+        {
+          'beckn:id': 'inv-item-3',
+          'beckn:provider': { 'beckn:id': 'seller-inv-B' },
+          'beckn:itemAttributes': { availableQuantity: 10 }
+        },
+        {
+          'beckn:id': 'inv-item-4',
+          'beckn:provider': { 'beckn:id': 'seller-inv-C' },
+          'beckn:itemAttributes': { availableQuantity: 50 }
+        }
+      ]);
+
+      const inventory = await catalogStore.getSellerAvailableInventory('seller-inv-B');
+
+      expect(inventory).toBe(10);
+    });
+  });
+
+  describe('getBeneficiaryDonations', () => {
+    it('should calculate donations to verified beneficiaries only', async () => {
+      const db = getTestDB();
+
+      // Seed verified beneficiary user
+      await db.collection('users').insertOne({
+        phone: '1111111111',
+        vcVerified: true,
+        isVerifiedBeneficiary: true,
+        profiles: { consumptionProfile: { id: 'beneficiary-001' } }
+      });
+
+      // Seed non-verified user
+      await db.collection('users').insertOne({
+        phone: '2222222222',
+        vcVerified: false,
+        isVerifiedBeneficiary: false,
+        profiles: { consumptionProfile: { id: 'non-beneficiary-001' } }
+      });
+
+      // Order from verified beneficiary
+      await db.collection('orders').insertOne({
+        transactionId: 'txn-donate-1',
+        order: {
+          'beckn:seller': 'seller-donate-A',
+          'beckn:orderStatus': 'CONFIRMED',
+          'beckn:buyer': { 'beckn:id': 'beneficiary-001' },
+          'beckn:orderAttributes': { total_quantity: 15 }
+        },
+        confirmedAt: new Date()
+      });
+
+      // Order from non-beneficiary (should not count)
+      await db.collection('orders').insertOne({
+        transactionId: 'txn-donate-2',
+        order: {
+          'beckn:seller': 'seller-donate-A',
+          'beckn:orderStatus': 'CONFIRMED',
+          'beckn:buyer': { 'beckn:id': 'non-beneficiary-001' },
+          'beckn:orderAttributes': { total_quantity: 20 }
+        },
+        confirmedAt: new Date()
+      });
+
+      const donations = await catalogStore.getBeneficiaryDonations('seller-donate-A');
+
+      expect(donations).toBe(15);
+    });
+
+    it('should return 0 when no beneficiary orders exist', async () => {
+      const donations = await catalogStore.getBeneficiaryDonations('seller-no-donations');
+
+      expect(donations).toBe(0);
+    });
+
+    it('should sum donations across multiple orders', async () => {
+      const db = getTestDB();
+
+      await db.collection('users').insertOne({
+        phone: '3333333333',
+        vcVerified: true,
+        isVerifiedBeneficiary: true,
+        profiles: { consumptionProfile: { id: 'beneficiary-002' } }
+      });
+
+      await db.collection('orders').insertMany([
+        {
+          transactionId: 'txn-donate-3',
+          order: {
+            'beckn:seller': 'seller-donate-B',
+            'beckn:orderStatus': 'CONFIRMED',
+            'beckn:buyer': { 'beckn:id': 'beneficiary-002' },
+            'beckn:orderAttributes': { total_quantity: 10 }
+          },
+          confirmedAt: new Date()
+        },
+        {
+          transactionId: 'txn-donate-4',
+          order: {
+            'beckn:seller': 'seller-donate-B',
+            'beckn:orderStatus': 'COMPLETED',
+            'beckn:buyer': { 'beckn:id': 'beneficiary-002' },
+            'beckn:orderAttributes': { total_quantity: 5 }
+          },
+          confirmedAt: new Date()
+        }
+      ]);
+
+      const donations = await catalogStore.getBeneficiaryDonations('seller-donate-B');
+
+      expect(donations).toBe(15);
+    });
+  });
+
+  describe('getSellerUserIdForItem', () => {
+    it('should return item.userId when present', async () => {
+      const db = getTestDB();
+      await db.collection('items').insertOne({
+        'beckn:id': 'item-uid-1',
+        userId: 'user-direct',
+        catalogId: 'cat-uid-1'
+      });
+
+      const userId = await catalogStore.getSellerUserIdForItem('item-uid-1');
+
+      expect(userId).toBe('user-direct');
+    });
+
+    it('should fall back to catalog.userId when item.userId is null', async () => {
+      const db = getTestDB();
+      await db.collection('catalogs').insertOne({
+        'beckn:id': 'cat-uid-2',
+        userId: 'user-from-catalog'
+      });
+      await db.collection('items').insertOne({
+        'beckn:id': 'item-uid-2',
+        userId: null,
+        catalogId: 'cat-uid-2'
+      });
+
+      const userId = await catalogStore.getSellerUserIdForItem('item-uid-2');
+
+      expect(userId).toBe('user-from-catalog');
+    });
+
+    it('should fall back to meterId user lookup when catalog.userId is null', async () => {
+      const db = getTestDB();
+      const insertResult = await db.collection('users').insertOne({
+        phone: '5555555555',
+        meters: ['meter-fallback-001']
+      });
+      await db.collection('catalogs').insertOne({
+        'beckn:id': 'cat-uid-3',
+        userId: null,
+        'beckn:items': [{
+          'beckn:itemAttributes': { meterId: 'meter-fallback-001' }
+        }]
+      });
+      await db.collection('items').insertOne({
+        'beckn:id': 'item-uid-3',
+        userId: null,
+        catalogId: 'cat-uid-3'
+      });
+
+      const userId = await catalogStore.getSellerUserIdForItem('item-uid-3');
+
+      expect(userId).toBe(insertResult.insertedId.toString());
+    });
+
+    it('should return null when item not found', async () => {
+      const userId = await catalogStore.getSellerUserIdForItem('non-existent-item');
+
+      expect(userId).toBeNull();
+    });
+
+    it('should return null when all fallbacks fail', async () => {
+      const db = getTestDB();
+      await db.collection('catalogs').insertOne({
+        'beckn:id': 'cat-uid-4',
+        userId: null,
+        'beckn:items': [{ 'beckn:itemAttributes': {} }]
+      });
+      await db.collection('items').insertOne({
+        'beckn:id': 'item-uid-4',
+        userId: null,
+        catalogId: 'cat-uid-4'
+      });
+
+      const userId = await catalogStore.getSellerUserIdForItem('item-uid-4');
+
+      expect(userId).toBeNull();
+    });
+  });
+
+  describe('getPublishedItems', () => {
+    it('should return active items with matching offers that have quantity > 0', async () => {
+      const db = getTestDB();
+      await db.collection('items').insertOne({
+        'beckn:id': 'pub-item-A',
+        'beckn:isActive': true,
+        userId: 'user-pub-1'
+      });
+      await db.collection('offers').insertOne({
+        'beckn:id': 'pub-offer-A',
+        'beckn:items': ['pub-item-A'],
+        'beckn:price': { applicableQuantity: { unitQuantity: 10 } }
+      });
+
+      const items = await catalogStore.getPublishedItems('user-pub-1');
+
+      expect(items).toHaveLength(1);
+      expect(items[0]['beckn:id']).toBe('pub-item-A');
+      expect(items[0]['beckn:offers']).toHaveLength(1);
+    });
+
+    it('should exclude items with no matching offers', async () => {
+      const db = getTestDB();
+      await db.collection('items').insertOne({
+        'beckn:id': 'pub-item-B',
+        'beckn:isActive': true,
+        userId: 'user-pub-2'
+      });
+      // No offers reference pub-item-B
+
+      const items = await catalogStore.getPublishedItems('user-pub-2');
+
+      expect(items).toHaveLength(0);
+    });
+
+    it('should exclude items where all offers have unitQuantity = 0', async () => {
+      const db = getTestDB();
+      await db.collection('items').insertOne({
+        'beckn:id': 'pub-item-C',
+        'beckn:isActive': true,
+        userId: 'user-pub-3'
+      });
+      await db.collection('offers').insertOne({
+        'beckn:id': 'pub-offer-C',
+        'beckn:items': ['pub-item-C'],
+        'beckn:price': { applicableQuantity: { unitQuantity: 0 } }
+      });
+
+      const items = await catalogStore.getPublishedItems('user-pub-3');
+
+      expect(items).toHaveLength(0);
+    });
+
+    it('should use $lookup to join items with offers by beckn:id', async () => {
+      const db = getTestDB();
+      await db.collection('items').insertOne({
+        'beckn:id': 'pub-item-D',
+        'beckn:isActive': true,
+        userId: 'user-pub-4'
+      });
+      await db.collection('offers').insertMany([
+        {
+          'beckn:id': 'pub-offer-D1',
+          'beckn:items': ['pub-item-D'],
+          'beckn:price': { applicableQuantity: { unitQuantity: 5 } }
+        },
+        {
+          'beckn:id': 'pub-offer-D2',
+          'beckn:items': ['pub-item-D'],
+          'beckn:price': { applicableQuantity: { unitQuantity: 10 } }
+        },
+        {
+          'beckn:id': 'pub-offer-D3',
+          'beckn:items': ['other-item'],
+          'beckn:price': { applicableQuantity: { unitQuantity: 20 } }
+        }
+      ]);
+
+      const items = await catalogStore.getPublishedItems('user-pub-4');
+
+      expect(items).toHaveLength(1);
+      // Should only include the two offers that reference pub-item-D
+      expect(items[0]['beckn:offers']).toHaveLength(2);
+    });
+
+    it('should exclude inactive items', async () => {
+      const db = getTestDB();
+      await db.collection('items').insertOne({
+        'beckn:id': 'pub-item-E',
+        'beckn:isActive': false,
+        userId: 'user-pub-5'
+      });
+      await db.collection('offers').insertOne({
+        'beckn:id': 'pub-offer-E',
+        'beckn:items': ['pub-item-E'],
+        'beckn:price': { applicableQuantity: { unitQuantity: 10 } }
+      });
+
+      const items = await catalogStore.getPublishedItems('user-pub-5');
+
+      expect(items).toHaveLength(0);
+    });
+  });
+
+  describe('reduceOfferInventory', () => {
+    async function seedOfferWithInventory(offerId: string, unitQuantity: number) {
+      const db = getTestDB();
+      await db.collection('offers').insertOne({
+        'beckn:id': offerId,
+        'beckn:items': ['item-for-offer'],
+        'beckn:price': {
+          'schema:price': 7.5,
+          applicableQuantity: { unitQuantity }
+        }
+      });
+    }
+
+    it('should decrement unitQuantity by amount', async () => {
+      await seedOfferWithInventory('offer-reduce-1', 20);
+
+      const remaining = await catalogStore.reduceOfferInventory('offer-reduce-1', 5);
+
+      expect(remaining).toBe(15);
+    });
+
+    it('should throw when insufficient inventory', async () => {
+      await seedOfferWithInventory('offer-reduce-2', 5);
+
+      await expect(
+        catalogStore.reduceOfferInventory('offer-reduce-2', 10)
+      ).rejects.toThrow(/Insufficient inventory/);
+    });
+
+    it('should reduce to exactly zero', async () => {
+      await seedOfferWithInventory('offer-reduce-3', 10);
+
+      const remaining = await catalogStore.reduceOfferInventory('offer-reduce-3', 10);
+
+      expect(remaining).toBe(0);
+    });
+
+    it('should throw when offer not found', async () => {
+      await expect(
+        catalogStore.reduceOfferInventory('non-existent-offer', 5)
+      ).rejects.toThrow(/Insufficient inventory/);
     });
   });
 });

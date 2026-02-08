@@ -204,6 +204,7 @@
   },
   {
     "id": "T06",
+    "status": "done",
     "priority": "P0",
     "category": "expand-tests",
     "title": "Expand catalog-store — earnings, totalSold, availableInventory, beneficiaryDonations, publishedItems, getSellerUserIdForItem",
