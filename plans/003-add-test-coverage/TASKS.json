@@ -652,6 +652,7 @@
   },
   {
     "id": "T21",
+    "status": "done",
     "priority": "P3",
     "category": "new-tests",
     "title": "Energy-request controller — createEnergyRequest, getEnergyRequests, findBestSeller, giftEnergy, donateEnergy",

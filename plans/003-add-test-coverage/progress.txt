@@ -377,3 +377,29 @@ Notes for next person:
 - `console.log` for successful requests (voice/intent logging) is NOT suppressed — it's non-intrusive. Only `console.error` is spied/suppressed in the 503 error test.
 - `restoreMocks: true` in jest.config resets mock implementations between tests.
 - **Remaining tasks**: T21 (energy-request controller, 24 tests) and T22 (energy-request service, 12 tests) — both P3.
+
+## 2026-02-08 — T21: Energy-request controller tests (done)
+
+Created `src/energy-request/controller.test.ts` with 33 tests covering all 5 exported handler functions:
+
+- **createEnergyRequest** (6 tests): 401 unauthorized, 400 missing requiredEnergy, 400 missing purpose, 404 user profile not found, 201 insert with PENDING status, isVerifiedBeneficiary + beneficiaryType from user profile
+- **getEnergyRequests** (2 tests): PENDING requests sorted by createdAt desc (excludes FULFILLED), empty array when no pending requests
+- **findBestSeller** (7 tests): 400 missing requestId, 400 invalid ObjectId format, 404 request not found, 404 no catalogs from CDS, cheapest offer sorted by price ascending, item matched via beckn:items reference, 500 when CDS fails, 404 when catalogs have no offers
+- **giftEnergy** (8 tests): 401 unauthorized, 400 missing requestId, 404 request not found, 400 already FULFILLED, 404 no suitable seller (discoverBestSeller returns null), executeDirectTransaction called with autoConfirm=false, request status updated to PAYMENT_PENDING in DB, 200 with transaction details
+- **donateEnergy** (10 tests): 401 unauthorized, 404 seller profile not found, 400 no valid seller ID (all profile IDs null), 404 request not found, executeDirectTransaction called with price=0, request status updated to FULFILLED in DB, 200 with transaction details, sellerId fallback chain (generationProfile.id → consumptionProfile.id → utilityCustomer.did), 500 when Zod parse fails (missing requestId)
+
+All 33 tests pass. Full suite: 770 tests, 37 suites, all green.
+
+Notes for next person:
+- Uses **in-memory MongoDB** (setupTestDB pattern) with `jest.mock('../db')` pointing at `getTestDB()`. Real DB operations for users and energy_requests collections.
+- **axios is mocked** (`jest.mock('axios')`) for `findBestSeller` CDS discover calls. `giftEnergy` and `donateEnergy` use mocked `discoverBestSeller` and `executeDirectTransaction` from `./service` instead.
+- **`./service` is mocked** (`jest.mock('./service')`) — `executeDirectTransaction` and `discoverBestSeller` are jest.fn() wrappers. This avoids needing to mock the full beckn transaction flow (publish→select→init→confirm).
+- **`buildDiscoverRequest` is mocked** (`jest.mock('../bidding/services/market-analyzer')`) — returns a simple mock payload for CDS calls.
+- Uses `mockRequest`/`mockResponse` from `test-utils/index.ts` for direct handler invocation (not supertest since these are raw handler functions, not routes).
+- `(req as any).user` must be set manually for authenticated endpoints. `req.headers.authorization` must be set for gift/donate flows.
+- `donateEnergy` uses Zod `.parse()` outside try/catch scope — actually inside the try/catch in controller.ts, so ZodError is caught and returns 500.
+- `giftEnergy` derives `gifterId` from `profiles.consumptionProfile.id` with fallback to `user.userId` then `"unknown-gifter"`.
+- `donateEnergy` derives `sellerId` from `generationProfile.id → consumptionProfile.id → utilityCustomer.did` fallback chain.
+- `console.error` and `console.log` are spied/suppressed in beforeEach to keep test output clean.
+- `restoreMocks: true` in jest.config resets mock implementations between tests.
+- **Remaining task**: T22 (energy-request service, 12 tests) — P3.
