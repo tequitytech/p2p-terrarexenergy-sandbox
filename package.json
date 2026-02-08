@@ -50,6 +50,7 @@
     "ai": "^6.0.62",
     "axios": "^1.13.1",
     "cors": "^2.8.5",
+    "crypto": "^1.0.1",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
@@ -57,6 +58,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^6.3.0",
     "nodemailer": "^7.0.13",
+    "rate-limiter-flexible": "^9.1.1",
     "razorpay": "^2.9.6",
     "uuid": "^13.0.0",
     "zod": "^4.3.6"

@@ -92,9 +92,8 @@ export async function connectDB(): Promise<Db> {
   // OTPs collection for authentication
   await db.collection("otps").createIndex({ phone: 1 }, { unique: true });
   await db.collection("otps").createIndex({ userId: 1 });
-  // Automatic expiry is handled by logic for rate limiting preservation, 
-  // but we can add a TTL for clean up of very old records if we want (e.g., 24h).
-  // For now, relying on logic-based validation as per plan.
+  // TTL index: automatically delete expired OTPs
+  await db.collection("otps").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 120 });
 
   return db;
 }

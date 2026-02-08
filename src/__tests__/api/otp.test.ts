@@ -3,6 +3,11 @@ import { createApp } from '../../app';
 import { setupTestDB, teardownTestDB, clearTestDB, getTestDB } from '../../test-utils/db';
 import { Application } from 'express';
 import { ObjectId } from 'mongodb';
+import { otpSendLimiter } from '../../auth/rate-limiter';
+import crypto from 'crypto';
+
+// Helper to hash OTP like the auth code does
+const hashOtp = (otp: string) => crypto.createHash('sha256').update(otp).digest('hex');
 
 // Mock the real DB connection to usage the test DB
 jest.mock('../../db', () => ({
@@ -34,6 +39,9 @@ describe('OTP Auth Flow', () => {
 
     afterEach(async () => {
         await clearTestDB();
+        // Reset in-memory rate limiter between tests
+        await otpSendLimiter.delete(validPhone);
+        await otpSendLimiter.delete(otherPhone);
     });
 
     const validPhone = '9876543210';
@@ -56,20 +64,19 @@ describe('OTP Auth Flow', () => {
             expect(user).toBeTruthy();
             expect(user?.phone).toBe(validPhone);
             expect(otp).toBeTruthy();
-            expect(otp?.otp).toHaveLength(6);
+            expect(otp?.otp).toHaveLength(64); // SHA256 hash length
             expect(otp?.userId.toString()).toBe(user?._id.toString());
-            expect(otp?.sendAttempts).toBe(1);
+            // Rate limiting is now in-memory, no sendAttempts in DB
         });
 
-        it('should increment sendAttempts on subsequent requests', async () => {
+        it('should allow subsequent OTP requests within limit', async () => {
             // First request
-            await request(app).post('/api/auth/send-otp').send({ phone: validPhone });
+            const res1 = await request(app).post('/api/auth/send-otp').send({ phone: validPhone });
+            expect(res1.status).toBe(200);
             // Second request
-            await request(app).post('/api/auth/send-otp').send({ phone: validPhone });
-
-            const db = getTestDB();
-            const otp = await db.collection('otps').findOne({ phone: validPhone });
-            expect(otp?.sendAttempts).toBe(2);
+            const res2 = await request(app).post('/api/auth/send-otp').send({ phone: validPhone });
+            expect(res2.status).toBe(200);
+            // Rate limiting is now in-memory, no sendAttempts to check in DB
         });
 
         it('should block request if rate limit (5) exceeded', async () => {
@@ -85,24 +92,22 @@ describe('OTP Auth Flow', () => {
             expect(res.body.error.code).toBe('RATE_LIMIT_EXCEEDED');
         });
 
-        it('should reset rate limit after 10 minutes', async () => {
-            const db = getTestDB();
-            // Setup: 5 attempts, last request > 10 mins ago
-            await db.collection('otps').insertOne({
-                phone: validPhone,
-                otp: '123456',
-                sendAttempts: 5,
-                lastRequestAt: new Date(Date.now() - 11 * 60 * 1000), // 11 mins ago
-                createdAt: new Date(),
-                updatedAt: new Date()
-            });
+        it('should allow request after rate limiter reset', async () => {
+            // With in-memory rate limiter, we can't easily simulate 10 min passage
+            // This test verifies that after limiter.delete(), requests work again
+            // Exhaust the limit
+            for (let i = 0; i < 5; i++) {
+                await request(app).post('/api/auth/send-otp').send({ phone: validPhone });
+            }
+            const blockedRes = await request(app).post('/api/auth/send-otp').send({ phone: validPhone });
+            expect(blockedRes.status).toBe(429);
 
+            // Reset the limiter (simulating time passage)
+            await otpSendLimiter.delete(validPhone);
+
+            // Should work again
             const res = await request(app).post('/api/auth/send-otp').send({ phone: validPhone });
             expect(res.status).toBe(200);
-
-            const otp = await db.collection('otps').findOne({ phone: validPhone });
-            // Should reset to 1 (current attempt)
-            expect(otp?.sendAttempts).toBe(1);
         });
     });
 
@@ -122,7 +127,7 @@ describe('OTP Auth Flow', () => {
             await db.collection('otps').insertOne({
                 phone: validPhone,
                 userId: userId,
-                otp: '123456',
+                otp: hashOtp('123456'), // Store hashed OTP
                 expiresAt: new Date(Date.now() + 5 * 60 * 1000),
                 attempts: 0,
                 sendAttempts: 1,
@@ -149,7 +154,7 @@ describe('OTP Auth Flow', () => {
             const db = getTestDB();
             await db.collection('otps').insertOne({
                 phone: validPhone,
-                otp: '123456',
+                otp: hashOtp('123456'), // Store hashed OTP
                 expiresAt: new Date(Date.now() + 5 * 60 * 1000),
                 attempts: 0,
                 sendAttempts: 1,
@@ -172,7 +177,7 @@ describe('OTP Auth Flow', () => {
             const db = getTestDB();
             await db.collection('otps').insertOne({
                 phone: validPhone,
-                otp: '123456',
+                otp: hashOtp('123456'), // Store hashed OTP
                 expiresAt: new Date(Date.now() + 5 * 60 * 1000),
                 attempts: 5, // Already reached max
                 sendAttempts: 1,
@@ -194,7 +199,7 @@ describe('OTP Auth Flow', () => {
             const db = getTestDB();
             await db.collection('otps').insertOne({
                 phone: validPhone,
-                otp: '123456',
+                otp: hashOtp('123456'), // Store hashed OTP
                 expiresAt: new Date(Date.now() - 1000), // Expired
                 attempts: 0,
                 sendAttempts: 1,

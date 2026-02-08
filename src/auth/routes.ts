@@ -13,13 +13,12 @@ import axios from 'axios';
 import { getDB } from '../db';
 import { ObjectId } from 'mongodb';
 import { smsService } from '../services/sms-service';
+import crypto from "crypto";
+import { otpSendLimiter } from "./rate-limiter";
 
-// JWT Configuration
-const JWT_SECRET = process.env.JWT_SECRET || 'p2p-trading-pilot-secret';
-const REFRESH_SECRET = process.env.REFRESH_SECRET || (JWT_SECRET + '_refresh');
-
-const ACCESS_TOKEN_EXPIRY = '1h';
-const REFRESH_TOKEN_EXPIRY = '30d';
+// JWT Configuration - RS256 (Asymmetric)
+const ACCESS_TOKEN_EXPIRY: string = process.env.ACCESS_TOKEN_EXPIRY || '1h';
+const REFRESH_TOKEN_EXPIRY: string = process.env.REFRESH_TOKEN_EXPIRY || '30d';
 
 // VC Verification API
 const VC_API_BASE = 'https://35.244.45.209.sslip.io/credential/credentials';
@@ -107,7 +106,7 @@ const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1, "Refresh token is required"),
 });
 
-// --- JWT Utilities ---
+// --- JWT Utilities (RS256) ---
 
 interface JWTPayload {
   phone: string;
@@ -117,29 +116,35 @@ interface JWTPayload {
   type: string;
 }
 
+const privateKey = process.env.JWT_PRIVATE_KEY;
 function signAccessToken(phone: string, userId?: string): string {
-  return jwt.sign({ phone, userId, type: 'access' }, JWT_SECRET, {
-    algorithm: 'HS256',
-    expiresIn: ACCESS_TOKEN_EXPIRY
+  return jwt.sign({ phone, userId, type: "access" }, privateKey as string, {
+    algorithm: "RS256",
+    expiresIn: ACCESS_TOKEN_EXPIRY as jwt.SignOptions['expiresIn'],
   });
 }
 
 function signRefreshToken(phone: string, userId?: string): string {
-  return jwt.sign({ phone, userId, type: 'refresh' }, REFRESH_SECRET, {
-    algorithm: 'HS256',
-    expiresIn: REFRESH_TOKEN_EXPIRY
+  return jwt.sign({ phone, userId, type: "refresh" }, privateKey as string, {
+    algorithm: "RS256",
+    expiresIn: REFRESH_TOKEN_EXPIRY as jwt.SignOptions['expiresIn'],
   });
 }
 
-// Backwards compatibility alias if needed, or deprecate
+// Backwards compatibility alias
 const signToken = signAccessToken;
 
+const publicKey = process.env.JWT_PUBLIC_KEY;
 function verifyToken(token: string): JWTPayload {
-  return jwt.verify(token, JWT_SECRET) as JWTPayload;
+  return jwt.verify(token, publicKey as string, {
+    algorithms: ["RS256"],
+  }) as JWTPayload;
 }
 
 function verifyRefreshToken(token: string): JWTPayload {
-  return jwt.verify(token, REFRESH_SECRET) as JWTPayload;
+  return jwt.verify(token, publicKey as string, {
+    algorithms: ["RS256"],
+  }) as JWTPayload;
 }
 
 // Extend Express Request type
@@ -206,8 +211,7 @@ function authMiddleware(req: Request, res: Response, next: NextFunction) {
 // --- Handlers ---
 
 function generateOtp(): string {
-  // Generate a random 6-digit number
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 999999).toString();
 }
 
 async function sendOtp(req: Request, res: Response) {
@@ -237,56 +241,39 @@ async function sendOtp(req: Request, res: Response) {
 
     const userId = user._id;
 
-    // 2. Rate Limiting Check
-    const existingOtp = await db.collection('otps').findOne({ phone });
-    const now = new Date();
-    const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
-
-    let sendAttempts = existingOtp?.sendAttempts || 0;
-    let lastRequestAt = existingOtp?.lastRequestAt || new Date(0);
-
-    // Reset attempts if window passed
-    if (lastRequestAt < tenMinutesAgo) {
-      sendAttempts = 0;
-    }
-
-    if (sendAttempts >= 5) {
+    // 2. Rate Limiting Check using rate-limiter-flexible
+    try {
+      await otpSendLimiter.consume(phone);
+    } catch (rateLimiterRes) {
       return res.status(429).json({
         success: false,
         error: {
-          code: 'RATE_LIMIT_EXCEEDED',
-          message: 'Max OTP send attempts reached. Please try again in 10 minutes.',
+          code: "RATE_LIMIT_EXCEEDED",
+          message:
+            "Max OTP send attempts reached. Please try again in 10 minutes.",
         },
       });
     }
 
     // 3. Generate and Save OTP
+    const now = new Date();
     const otp = generateOtp();
     const expiresAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes expiry
+    const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
-    const updateDoc: any = {
-      $set: {
-        userId,
-        otp,
-        expiresAt,
-        verified: false,
-        attempts: 0, // Reset verify attempts for new OTP
-        lastRequestAt: now,
-      }
-    };
-
-    if (lastRequestAt < tenMinutesAgo) {
-      // Reset window: Set sendAttempts to 1
-      updateDoc.$set.sendAttempts = 1;
-    } else {
-      // Within window: Increment sendAttempts
-      updateDoc.$inc = { sendAttempts: 1 };
-    }
-
-    await db.collection('otps').updateOne(
+    await db.collection("otps").updateOne(
       { phone },
-      updateDoc,
-      { upsert: true }
+      {
+        $set: {
+          userId,
+          otp: hashedOtp,
+          expiresAt,
+          verified: false,
+          attempts: 0, // Reset verify attempts for new OTP
+          lastRequestAt: now,
+        },
+      },
+      { upsert: true },
     );
 
     // add SNS to send otp
@@ -352,8 +339,10 @@ async function verifyOtp(req: Request, res: Response) {
       });
     }
 
+    const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
+
     // 3. Verify Code
-    if (otpRecord.otp !== otp) {
+    if (otpRecord.otp !== hashedOtp) {
       // Increment attempts
       await db.collection('otps').updateOne(
         { phone },
