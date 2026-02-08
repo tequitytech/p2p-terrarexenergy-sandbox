@@ -487,6 +487,7 @@
   },
   {
     "id": "T15",
+    "status": "done",
     "priority": "P2",
     "category": "new-tests",
     "title": "User routes — beneficiary accounts listing",

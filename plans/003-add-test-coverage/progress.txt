@@ -271,3 +271,18 @@ Notes for next person:
 - `getBuyerOrders` and `getSellerOrders` receive `{ userId }` object, but `getCombinedOrders` receives userId as a plain string — matches the source code signatures.
 - `console.error` spy with `mockImplementation()` is used in the 500 error test to suppress noise, with `mockRestore()` after assertion.
 - `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must set its own mock return values.
+
+## 2026-02-08 — T15: User routes tests (done)
+
+Created `src/user/routes.test.ts` with 7 tests covering the GET /api/beneficiary-accounts endpoint:
+
+- **GET /api/beneficiary-accounts** (7 tests): returns verified beneficiary accounts, empty array when none exist, only returns users with both vcVerified=true AND isVerifiedBeneficiary=true, id fallback chain (consumptionProfile.id → utilityCustomer.did → phone), includes name/verified/type/requiredEnergy fields, 500 when DB query fails, does not expose sensitive fields (pin, email, phone, profiles)
+
+All 7 tests pass. Full suite: 687 tests, 32 suites, all green.
+
+Notes for next person:
+- Uses **in-memory MongoDB** (setupTestDB pattern) with `jest.mock('../db')` pointing at `getTestDB()`. Real DB operations for higher confidence than simple mocks.
+- Uses **supertest** with Express app mounting `userRoutes()` at `/api` prefix — same pattern as dashboard/routes.test.ts.
+- The DB error test uses `jest.spyOn(realDb, 'collection').mockImplementation(...)` to make `.find()` throw. Must use `(...args: unknown[])` param type to satisfy TypeScript, then cast `args[0] as string`. Remember to call `mockRestore()` after.
+- The "not expose sensitive fields" test verifies only 5 keys exist on the response object (`id`, `name`, `requiredEnergy`, `type`, `verified`) — ensures `.map()` projection doesn't leak raw DB fields.
+- The id fallback chain test seeds 3 users: one with consumptionProfile.id, one with only utilityCustomer.did, one with neither (falls back to phone). Uses `res.body.accounts.find(a => a.name === ...)` to match since MongoDB doesn't guarantee insertion order.
