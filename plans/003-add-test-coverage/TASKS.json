@@ -415,6 +415,7 @@
   },
   {
     "id": "T12",
+    "status": "done",
     "priority": "P1",
     "category": "expand-tests",
     "title": "Expand payment routes — callback order update, verify payment signature, edge cases",

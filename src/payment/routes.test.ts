@@ -145,6 +145,43 @@ describe("Payment Routes", () => {
             expect(response.body.error.code).toBe("VALIDATION_ERROR");
         });
 
+        it("should return 400 when amount is zero", async () => {
+            const response = await request(app)
+                .post("/api/payment/order")
+                .send({ ...validOrderData, amount: 0 });
+
+            expect(response.status).toBe(400);
+            expect(response.body.success).toBe(false);
+            expect(response.body.error.code).toBe("VALIDATION_ERROR");
+            expect(response.body.error.details).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        field: "amount",
+                        message: expect.stringContaining("greater than 0"),
+                    }),
+                ]),
+            );
+        });
+
+        it("should return 400 when sourceMeterId is missing", async () => {
+            const { sourceMeterId, ...noSourceMeter } = validOrderData;
+
+            const response = await request(app)
+                .post("/api/payment/order")
+                .send(noSourceMeter);
+
+            expect(response.status).toBe(400);
+            expect(response.body.success).toBe(false);
+            expect(response.body.error.code).toBe("VALIDATION_ERROR");
+            expect(response.body.error.details).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        field: "sourceMeterId",
+                    }),
+                ]),
+            );
+        });
+
         it("should fall back to userPhone from request body when req.user is not set", async () => {
             // Override auth middleware to NOT set req.user (simulating pass-through without auth context)
             mockAuthMiddleware.mockImplementation((req, res, next) => {
@@ -226,6 +263,62 @@ describe("Payment Routes", () => {
             );
         });
 
+        it("should update buyer order status to SCHEDULED after successful verification", async () => {
+            mockPaymentService.verifyPayment.mockResolvedValue(true);
+            mockCollection.findOne.mockResolvedValue({
+                transactionId: "txn-abc-123",
+                razorpayOrderId: validQuery.razorpay_payment_link_reference_id,
+            });
+            mockOrderService.updateBuyerOrderStatus.mockResolvedValue(undefined as any);
+
+            const response = await request(app)
+                .get("/api/payment-callback")
+                .query(validQuery);
+
+            expect(response.status).toBe(200);
+            expect(response.body.success).toBe(true);
+
+            // Verify buyer_orders collection was queried
+            expect(mockDb.collection).toHaveBeenCalledWith("buyer_orders");
+            expect(mockCollection.findOne).toHaveBeenCalledWith({
+                razorpayOrderId: validQuery.razorpay_payment_link_reference_id,
+            });
+
+            // Verify order status updated to SCHEDULED with payment details
+            expect(mockOrderService.updateBuyerOrderStatus).toHaveBeenCalledWith(
+                "txn-abc-123",
+                "SCHEDULED",
+                {
+                    paymentId: validQuery.razorpay_payment_id,
+                    razorpaySignature: validQuery.razorpay_signature,
+                },
+            );
+        });
+
+        it("should warn when buyer order not found for razorpayOrderId after verification", async () => {
+            mockPaymentService.verifyPayment.mockResolvedValue(true);
+            mockCollection.findOne.mockResolvedValue(null);
+
+            const warnSpy = jest.spyOn(console, "warn").mockImplementation();
+
+            const response = await request(app)
+                .get("/api/payment-callback")
+                .query(validQuery);
+
+            expect(response.status).toBe(200);
+            expect(response.body.success).toBe(true);
+
+            // Should NOT call updateBuyerOrderStatus
+            expect(mockOrderService.updateBuyerOrderStatus).not.toHaveBeenCalled();
+
+            // Should log a warning
+            expect(warnSpy).toHaveBeenCalledWith(
+                expect.stringContaining("Buyer Order not found"),
+            );
+
+            warnSpy.mockRestore();
+        });
+
         it("should return 400 if verification fails", async () => {
             mockPaymentService.verifyPayment.mockResolvedValue(false);
 
@@ -236,6 +329,18 @@ describe("Payment Routes", () => {
             expect(response.status).toBe(400);
             expect(response.body.success).toBe(false);
             expect(response.body.error.code).toBe("VERIFICATION_FAILED");
+        });
+
+        it("should not update order status when verification fails", async () => {
+            mockPaymentService.verifyPayment.mockResolvedValue(false);
+
+            await request(app)
+                .get("/api/payment-callback")
+                .query(validQuery);
+
+            // Should NOT attempt to look up buyer order or update status
+            expect(mockCollection.findOne).not.toHaveBeenCalled();
+            expect(mockOrderService.updateBuyerOrderStatus).not.toHaveBeenCalled();
         });
 
         it("should return 400 for missing query parameters", async () => {

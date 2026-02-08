@@ -222,3 +222,18 @@ Notes for next person:
 - **emailService is mocked** (`jest.mock('../services/email-service')`) — `sendEmail` is a jest.fn(). For the "returns false" test, use `mockResolvedValue(false)` to hit the else branch. For the error test, use `mockRejectedValue(new Error(...))` to hit the catch block.
 - The source distinguishes between `sendEmail` returning false (→ "Failed to send email") vs throwing (→ "Internal Server Error") — these are separate 500 responses with different error messages.
 - `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must set its own mock return values.
+
+## 2026-02-08 — T12: Expand payment routes tests (done)
+
+Expanded `src/payment/routes.test.ts` from 10 to 15 tests (+5), adding payment callback order update verification and create-order validation edge cases:
+
+- **POST /api/payment/order** (+2 tests): amount=0 rejected by `z.number().min(1)` with field-specific error detail, missing sourceMeterId → 400 VALIDATION_ERROR with field detail
+- **GET /api/payment-callback** (+3 tests): successful verification looks up buyer_orders by razorpayOrderId and calls `orderService.updateBuyerOrderStatus(transactionId, "SCHEDULED", { paymentId, razorpaySignature })`, warns when buyer order not found (no status update attempted), verification failure skips DB lookup and status update entirely
+
+All 15 tests pass. Full suite passes.
+
+Notes for next person:
+- The existing callback tests only verified `paymentService.verifyPayment` was called and the response status. The new tests cover the **post-verification logic**: DB lookup in `buyer_orders` by `razorpayOrderId` and the `updateBuyerOrderStatus` call.
+- The `mockCollection.findOne` mock is shared across both the payment/order route (users lookup) and payment-callback route (buyer_orders lookup). In callback tests, `mockDb.collection` returns the same mockCollection regardless of collection name — this works because callback only uses `findOne`.
+- The `console.warn` spy test for "buyer order not found" uses `jest.spyOn(console, 'warn').mockImplementation()` and calls `mockRestore()` after assertion — don't forget cleanup or it suppresses warnings in later tests.
+- `jest.clearAllMocks()` in `beforeEach` resets call counts but not implementations (since `restoreMocks: true` handles that). The `mockGetDB.mockReturnValue(mockDb)` in beforeEach ensures DB mock is always available.
