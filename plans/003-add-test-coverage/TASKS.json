@@ -131,6 +131,7 @@
   },
   {
     "id": "T04",
+    "status": "done",
     "priority": "P0",
     "category": "new-tests",
     "title": "BAP webhook controller — on_select/init/confirm/status callbacks",

@@ -54,3 +54,27 @@ Notes for next person:
 - For the AxiosError test, use `jest.requireActual('axios')` to get the real `AxiosError` constructor so `instanceof AxiosError` check works in the source code.
 - To test missing `rzp_key_secret`, require the mocked module and temporarily set it to empty string, then restore after assertion.
 - `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must re-configure its mock return values.
+
+## 2026-02-08 — T04: BAP webhook controller tests (done)
+
+Created `src/bap-webhook/controller.test.ts` with 30 tests covering all 9 exported handlers:
+
+- **onSelect** (6 tests): ACK response, resolve pending txn, no pending txn handling, error in body still ACKs, error passed through to resolved data, missing context graceful handling
+- **onInit** (3 tests): ACK response, resolve pending txn, error field pass-through
+- **onConfirm** (13 tests): ACK response, resolve pending txn, BUYER settlement creation with correct quantity, multi-item quantity sum, sellerPlatformId from context.bpp_id, sellerDiscomId from orderAttributes.utilityIdSeller, saveBuyerOrder call, sendOrderConfirmation call, no settlement when error present, no settlement when order missing, graceful handling of settlement creation failure, fallback orderItemId chains (beckn:orderedItem → beckn:id → item-{txnId}), empty orderItems (qty=0)
+- **onStatus** (2 tests): ACK response, resolve pending txn
+- **onCancel** (1 test): ACK + resolve pending txn
+- **onUpdate** (1 test): ACK + resolve pending txn
+- **onRating** (1 test): ACK + resolve pending txn
+- **onSupport** (1 test): ACK + resolve pending txn
+- **onTrack** (1 test): ACK + resolve pending txn
+
+All 30 tests pass. Full suite: 532 tests, 27 suites, all green.
+
+Notes for next person:
+- **Transaction store is NOT mocked** — uses real in-memory `createPendingTransaction`/`resolvePendingTransaction`/`hasPendingTransaction` since transaction-store is a pure in-memory Map.
+- **settlementStore, orderService, notificationService are mocked** via `jest.mock()` since they hit MongoDB.
+- Uses `mockRequest`/`mockResponse` from `test-utils/index.ts` for handler invocation (not supertest since these are raw handlers, not routes).
+- `flushPromises()` + `setTimeout(50ms)` is needed for `onConfirm` tests because settlement/order/notification logic runs in a detached async IIFE `(async () => { ... })()`.
+- `restoreMocks: true` in jest.config clears mock implementations between tests. For `onConfirm` tests that check mocks were NOT called, explicitly call `mockClear()` at start of that test.
+- Each test uses unique transaction IDs to prevent cross-test interference in the shared in-memory transaction store.
