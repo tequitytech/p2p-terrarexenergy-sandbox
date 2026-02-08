@@ -244,6 +244,7 @@
   },
   {
     "id": "T07",
+    "status": "done",
     "priority": "P0",
     "category": "new-tests",
     "title": "Settlement poller — pollOnce, refreshSettlement, triggerOnSettle, startPolling, stopPolling",

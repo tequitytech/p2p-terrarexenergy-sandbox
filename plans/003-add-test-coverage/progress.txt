@@ -55,6 +55,29 @@ Notes for next person:
 - To test missing `rzp_key_secret`, require the mocked module and temporarily set it to empty string, then restore after assertion.
 - `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must re-configure its mock return values.
 
+## 2026-02-08 — T07: Settlement poller tests (done)
+
+Created `src/services/settlement-poller.test.ts` with 25 tests covering all 6 exported functions:
+
+- **pollOnce** (13 tests): empty pending list, ledger query per settlement, settlement update on ledger record, counter increment, newlySettled tracking, markOnSettleNotified after callback, skip callback when already notified, buyer order → DELIVERED, seller order → DELIVERED, error isolation per settlement, isPolling finally-block reset, no order update when not SETTLED, graceful order update failure
+- **triggerOnSettle** (5 tests): POST to callback URL with correct payload, context with action=on_settle and settlement details, skip when no URL configured, catch callback errors without throwing, use saved order domain
+- **refreshSettlement** (4 tests): query ledger + update store, trigger callback for newly settled, return null when no ledger record, skip callback when already notified
+- **startPolling** (1 test): disabled when ENABLE_SETTLEMENT_POLLING=false
+- **stopPolling** (1 test): safe to call when not running
+- **getPollingStatus** (1 test): returns current state object
+
+All 25 tests pass. Full suite: 557 tests, 28 suites, all green.
+
+Notes for next person:
+- **Uses in-memory MongoDB** (setupTestDB pattern) with real `settlementStore` for DB operations. Only `ledgerClient`, `orderService`, `catalogStore`, and `axios` are mocked.
+- **Module loaded with dynamic import** (`await import('./settlement-poller')`) because it reads `process.env.ENABLE_SETTLEMENT_POLLING` at module level. Set env vars before import.
+- `process.env.ENABLE_SETTLEMENT_POLLING = 'false'` prevents the poller from auto-starting during tests.
+- `process.env.ON_SETTLE_CALLBACK_URL` is toggled per test — set to a URL to test callback logic, empty string to test skip-callback path.
+- `uuid.v4` is mocked to `'test-uuid-1234'` for deterministic `message_id` assertions in callback payload.
+- For `onSettleNotified` tests, insert settlement documents directly into DB with `onSettleNotified: true` rather than using `seedSettlement` (which defaults to false).
+- The `isPolling` guard test is implicit — tested via the "reset isPolling flag even on error" test which verifies a second poll runs after a failed first one.
+- `restoreMocks: true` in jest.config clears mock implementations between tests — re-configure mocks in each test.
+
 ## 2026-02-08 — T04: BAP webhook controller tests (done)
 
 Created `src/bap-webhook/controller.test.ts` with 30 tests covering all 9 exported handlers:
