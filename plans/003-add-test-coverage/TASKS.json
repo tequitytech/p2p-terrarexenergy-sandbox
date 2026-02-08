@@ -343,6 +343,7 @@
   },
   {
     "id": "T10",
+    "status": "done",
     "priority": "P1",
     "category": "expand-tests",
     "title": "Expand sync-api controller — catalog-based select, select-based init, init-based confirm with inter-discom validation",

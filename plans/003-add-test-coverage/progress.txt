@@ -160,6 +160,35 @@ Notes for next person:
 - For the error handling test, `mockSendEmail.mockRejectedValue(new Error(...))` triggers the catch block. The test verifies the function resolves without throwing (try/catch in source swallows the error).
 - `restoreMocks: true` in jest.config resets mock implementations between tests, so `mockSendEmail.mockResolvedValue(true)` is set in beforeEach.
 
+## 2026-02-08 — T10: Expand sync-api controller tests (done)
+
+Expanded `src/sync-api/controller.test.ts` from 24 to 50 tests (+26), covering all simplified API formats and validation middleware:
+
+- **isAckResponse** (7 tests, +2 new): ACK/NACK detection in JSON and string formats, NACK priority in malformed, null/unknown format, ACK with spaces around colon
+- **syncSelect — raw beckn** (8 tests, +2 new): forward to ONIX, transaction ID, business error, timeout, 500, BUSINESS_ERROR code verification, 502 UPSTREAM_ERROR from ONIX
+- **syncSelect — catalog-based format** (6 tests, all new): transform catalog to beckn order with buyer details, 401 when no userId, 403 NO_BUYER_PROFILE, 400 invalid schema (empty items), selectedOfferId selection, 500 on non-profile extractBuyerDetails error
+- **syncInit — raw beckn** (2 tests, existing): forward and success response
+- **syncInit — select-based format** (5 tests, all new): transform to init with fulfillment + payment + settlement accounts, wheeling charges calculation (10 kWh × 5.5 + 10 × 1.50 = 70), 401 no userId, 400 invalid schema (empty payment.id), 400 empty orderItems
+- **syncConfirm — raw beckn** (5 tests, existing): buyer/seller utilityId validation, empty string, forward, business error
+- **syncConfirm — init-based format** (4 tests, all new): transform to confirm with AUTHORIZED payment status, missing buyer utilityId, missing seller utilityId, empty buyer utilityId
+- **syncStatus** (2 tests, existing)
+- **syncHealth** (2 tests, +1 new): health status, pending count from transaction store
+- **validateSelect middleware** (2 tests, all new): catalog-based passthrough, standard format validation
+- **validateInit middleware** (3 tests, all new): select-based passthrough, reject missing transaction_id, pass valid transaction_id
+- **validateConfirm middleware** (3 tests, all new): init-based passthrough, reject missing transaction_id, pass valid transaction_id
+- **error handling** (2 tests, existing)
+
+All 50 tests pass. Full suite: 647 tests, 29 suites, all green.
+
+Notes for next person:
+- **`extractBuyerDetails` is mocked** via `jest.mock('../trade/routes')` using `jest.requireActual` to preserve other exports. This is cleaner than mocking `../db` since only the catalog-based path needs DB access.
+- Three helper factories (`createCatalogBasedSelectBody`, `createSelectBasedInitBody`, `createInitBasedConfirmBody`) build valid request bodies with override support for targeted test variations.
+- For the wheeling charges test: WHEELING_RATE defaults to 1.50 INR/kWh. Total = (price × qty) + (qty × WHEELING_RATE) = (5.5 × 10) + (10 × 1.50) = 70 INR.
+- The init-based confirm transform sets `beckn:paymentStatus` to `'AUTHORIZED'` (from `'INITIATED'`).
+- `validateSelect`, `validateInit`, `validateConfirm` are exported middleware functions tested with `mockNext()`.
+- `mockedAxios.post.mock.calls[0][1]` extracts the posted body — cast to `any` to avoid TS errors.
+- `restoreMocks: true` in jest.config resets mock implementations between tests.
+
 ## 2026-02-08 — T09: Expand webhook controller tests (done)
 
 Expanded `src/webhook/controller.test.ts` from 42 to 49 tests (+7), adding in-memory MongoDB tests for `onSelect` and `onConfirm` business logic:
