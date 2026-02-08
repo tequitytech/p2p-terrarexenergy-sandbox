@@ -539,6 +539,7 @@
   },
   {
     "id": "T17",
+    "status": "done",
     "priority": "P2",
     "category": "new-tests",
     "title": "Bidding controller — preview and confirm bid flows",

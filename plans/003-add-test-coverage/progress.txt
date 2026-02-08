@@ -304,3 +304,21 @@ Notes for next person:
 - Catalogs with 0 items after farmer filtering get removed by the `catalogs.filter(p => p["beckn:items"].length > 0)` line.
 - The Zod schema parses query params with coercion (e.g., `isActive` is string "true"/"false" transformed to boolean). Default values: `sourceType=SOLAR`, `isActive=true`.
 - `restoreMocks: true` in jest.config resets mock implementations between tests.
+
+## 2026-02-08 — T17: Bidding controller tests (done)
+
+Created `src/bidding/controller.test.ts` with 11 tests covering both `previewBid` and `confirmBid` handlers:
+
+- **previewBid** (6 tests): missing provider_id → 400, missing meter_id → 400, invalid source_type (HYDRO) → 400, valid request → 200 with preview result (verifies preview() called with correct BidRequest), 'not found' error → 400, unexpected error → 500
+- **confirmBid** (5 tests): missing provider_id → 400, valid request → 200 with placed_bids (verifies confirm() called with BidRequest + undefined maxBids), max_bids param passed as parsed integer to confirm(), 'malformed' error → 400, unexpected error → 500
+
+All 11 tests pass. Full suite: 707 tests, 34 suites, all green.
+
+Notes for next person:
+- **bid-optimizer is fully mocked** (`jest.mock('./services/bid-optimizer')`) — `preview` and `confirm` are jest.fn() wrappers. No DB, no axios, no external calls needed.
+- Uses `mockRequest`/`mockResponse` from `test-utils/index.ts` for direct handler invocation (not supertest, since these are raw handler functions not routes).
+- The `validateRequest` function is private — tested implicitly through the handler invocations. Each validation path (provider_id, meter_id, source_type) is covered by both previewBid and confirmBid (only previewBid tests all 3 to avoid duplication, confirmBid tests provider_id to confirm shared validation).
+- Error status code logic: `error.message` containing 'not found' or 'malformed' → 400, everything else → 500. Both keywords are tested.
+- `max_bids` is passed as string in request body (`"3"`), parsed with `parseInt` in controller — test verifies confirm() receives integer `3`.
+- `console.log` and `console.error` are spied/suppressed in beforeEach to keep test output clean.
+- `restoreMocks: true` in jest.config resets mock implementations between tests.
