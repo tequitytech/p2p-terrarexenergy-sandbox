@@ -13,3 +13,25 @@ Notes for next person:
 - TIME_OF_DAY tests use `jest.useFakeTimers()` + `jest.setSystemTime()` to control `new Date().getUTCHours()`. Remember to call `jest.useRealTimers()` in afterEach.
 - AxiosError constructor needs `AxiosHeaders` import for the config.headers param.
 - These are pure functions with zero mocks (no DB, no external calls) — the simplest test pattern in the codebase.
+
+## 2026-02-08 — T01: Auth routes tests (done)
+
+Created `src/auth/routes.test.ts` with 35 tests covering all auth endpoints, middleware, and JWT utilities:
+
+- **signToken/verifyToken** (2 tests): round-trip JWT encode/decode, expired and tampered token rejection
+- **authMiddleware** (4 tests): missing header → 401, non-Bearer header → 401, invalid JWT → TOKEN_MALFORMED, valid token → sets req.user + calls next()
+- **validateBody** (2 tests): Zod schema pass-through, VALIDATION_ERROR on failure
+- **POST /api/auth/login** (8 tests): valid login returns token + user, wrong PIN → 401, non-existent phone → 401, missing phone → 400, invalid phone format → 400, short PIN → 400, non-numeric PIN → 400, userId included in JWT
+- **POST /api/auth/verify-vc** (14 tests): 401 without token, empty credentials → 400, invalid did format → 400, missing VerifiableCredential type → 400, user not found → 404, successful verification stores profile + sets vcVerified, issuerName→utilityId mapping, meterNumber extraction, non-ISSUED status → failed, check failures → failed, timeout → 503, 5xx → 503, 404 → failed entry, multiple credentials in one request
+- **GET /api/auth/me** (5 tests): 401 without token, 404 unknown userId, role=prosumer when generationProfile exists, role=consumer otherwise, all profile fields + meters + memberSince
+
+All 35 tests pass. Full suite: 487 tests, 25 suites, all green.
+
+Notes for next person:
+- Uses **in-memory MongoDB** (setupTestDB pattern) — NOT a simple DB mock. Real DB operations for auth tests give higher confidence.
+- Uses **real JWT** (no jsonwebtoken mock). `signToken`/`verifyToken` are exported from routes.ts and used directly.
+- **axios is mocked** (`jest.mock('axios')`) for the external VC verification API calls. Mock responses need `data: { status, checks }` structure.
+- For verify-vc tests, create token via `signToken(phone, user._id.toString())` after seeding user and fetching with `getTestUser()`.
+- `seedUser` and `seedUserWithProfiles` from test-utils/db are the main seeding helpers. `seedUserWithProfiles` accepts optional vcVerified, profiles, and meters.
+- The `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must set its own `mockAxios.get.mockResolvedValue(...)`.
+- Error mocks for axios: use plain Error with extra properties (`.code`, `.response.status`) rather than AxiosError constructor — the handler checks these properties directly.

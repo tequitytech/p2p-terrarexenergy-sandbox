@@ -1,6 +1,7 @@
 [
   {
     "id": "T01",
+    "status": "done",
     "priority": "P0",
     "category": "new-tests",
     "title": "Auth routes — login, verify-vc, /me, middleware",
