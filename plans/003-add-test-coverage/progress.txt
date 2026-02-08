@@ -286,3 +286,21 @@ Notes for next person:
 - The DB error test uses `jest.spyOn(realDb, 'collection').mockImplementation(...)` to make `.find()` throw. Must use `(...args: unknown[])` param type to satisfy TypeScript, then cast `args[0] as string`. Remember to call `mockRestore()` after.
 - The "not expose sensitive fields" test verifies only 5 keys exist on the response object (`id`, `name`, `requiredEnergy`, `type`, `verified`) — ensures `.map()` projection doesn't leak raw DB fields.
 - The id fallback chain test seeds 3 users: one with consumptionProfile.id, one with only utilityCustomer.did, one with neither (falls back to phone). Uses `res.body.accounts.find(a => a.name === ...)` to match since MongoDB doesn't guarantee insertion order.
+
+## 2026-02-08 — T16: Discover routes tests (done)
+
+Created `src/discover/routes.test.ts` with 9 tests covering the GET /api/discover endpoint:
+
+- **GET /api/discover** (9 tests): forward discover request to CDS and return catalogs, default sourceType to SOLAR and isActive to true, sort offers by price ascending within each catalog, sort offers by price descending when order=desc, sort offers by energy quantity (maximumQuantity), sort catalogs by their best offer, filter items by tag=farmer (schema:name match against "Suresh - BRPL Prosumer"), return 500 when CDS request fails, handle empty catalogs gracefully
+
+All 9 tests pass. Full suite: 696 tests, 33 suites, all green.
+
+Notes for next person:
+- **axios and buildDiscoverRequest are both mocked** (`jest.mock('axios')` and `jest.mock('../bidding/services/market-analyzer')`) — no real CDS calls. `buildDiscoverRequest` returns a minimal request body that gets forwarded to the mocked `axios.post`.
+- Uses **supertest** with Express app mounting `discoverRoutes()` at `/api` prefix — same pattern as dashboard/routes.test.ts.
+- Helper factories: `makeCdsResponse(catalogs)` wraps catalogs in `{ data: { message: { catalogs } } }` format. `makeCatalog(id, offers, items)` and `makeOffer(id, price, maxQty)` build properly-structured beckn objects with both `beckn:price.schema:price` and `beckn:offerAttributes.maximumQuantity` paths.
+- For the sorting tests, offers use `beckn:price.schema:price` for price sorting and `beckn:offerAttributes.maximumQuantity` for energy sorting. The source code checks both `schema:price` and nested `beckn:price.value` paths as fallbacks.
+- The farmer tag filter is hardcoded to match `schema:name === 'Suresh - BRPL Prosumer'` — it's not a general tag filter, just this specific name match.
+- Catalogs with 0 items after farmer filtering get removed by the `catalogs.filter(p => p["beckn:items"].length > 0)` line.
+- The Zod schema parses query params with coercion (e.g., `isActive` is string "true"/"false" transformed to boolean). Default values: `sourceType=SOLAR`, `isActive=true`.
+- `restoreMocks: true` in jest.config resets mock implementations between tests.

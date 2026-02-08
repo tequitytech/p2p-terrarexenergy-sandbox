@@ -512,6 +512,7 @@
   },
   {
     "id": "T16",
+    "status": "done",
     "priority": "P2",
     "category": "new-tests",
     "title": "Discover routes — CDS proxy with sorting and filtering",
