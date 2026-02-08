@@ -4,11 +4,13 @@ import { paymentRoutes } from "./routes";
 import { paymentService } from "../services/payment-service";
 import { getDB } from "../db";
 import { authMiddleware } from "../auth/routes";
+import { orderService } from "../services/order-service";
 
 // --- Mocks ---
 jest.mock("../services/payment-service");
 jest.mock("../db");
 jest.mock("../auth/routes");
+jest.mock("../services/order-service");
 jest.mock("uuid", () => ({
     v4: jest.fn(() => "test-transaction-id-uuid"),
 }));
@@ -16,6 +18,7 @@ jest.mock("uuid", () => ({
 const mockPaymentService = paymentService as jest.Mocked<typeof paymentService>;
 const mockGetDB = getDB as jest.MockedFunction<typeof getDB>;
 const mockAuthMiddleware = authMiddleware as jest.MockedFunction<typeof authMiddleware>;
+const mockOrderService = orderService as jest.Mocked<typeof orderService>;
 
 describe("Payment Routes", () => {
     let app: express.Express;
@@ -41,9 +44,9 @@ describe("Payment Routes", () => {
         };
         mockGetDB.mockReturnValue(mockDb);
 
-        // Default Auth Middleware Mock (Pass through)
+        // Default Auth Middleware Mock (Pass through with userId)
         mockAuthMiddleware.mockImplementation((req, res, next) => {
-            (req as any).user = { phone: "1234567890" }; // Simulate logged-in user
+            (req as any).user = { phone: "1234567890", userId: "aaaaaaaaaaaaaaaaaaaaaaaa" };
             next();
             return undefined as any;
         });
@@ -56,15 +59,18 @@ describe("Payment Routes", () => {
             notes: { name: "Test User" },
             userPhone: "9876543210",
             meterId: "meter-123",
+            sourceMeterId: "source-meter-456",
+            messageId: "msg-789",
         };
 
-        it("should successfully create an order and return payment link", async () => {
+        it("should create Razorpay order, save to DB, generate payment link, and save buyer order", async () => {
             const mockOrder = { id: "order_123", amount: 10000 };
             const mockPaymentLink = { short_url: "https://razorpay.com/pl_123" };
 
             mockPaymentService.createOrder.mockResolvedValue(mockOrder);
             mockPaymentService.createPaymentLink.mockResolvedValue(mockPaymentLink);
             mockCollection.insertOne.mockResolvedValue({ insertedId: "db_id" });
+            mockOrderService.saveBuyerOrder.mockResolvedValue(undefined as any);
 
             const response = await request(app)
                 .post("/api/payment/order")
@@ -79,7 +85,7 @@ describe("Payment Routes", () => {
                 },
             });
 
-            // Verify Service Calls
+            // Verify Razorpay order creation
             expect(mockPaymentService.createOrder).toHaveBeenCalledWith(
                 validOrderData.amount,
                 validOrderData.currency,
@@ -87,24 +93,40 @@ describe("Payment Routes", () => {
                 validOrderData.notes
             );
 
-            // Verify DB Call
+            // Verify payment record saved to DB
             expect(mockCollection.insertOne).toHaveBeenCalledWith(expect.objectContaining({
                 amount: validOrderData.amount,
                 currency: validOrderData.currency,
                 orderId: mockOrder.id,
                 transaction_id: "test-transaction-id-uuid",
-                meterId: validOrderData.meterId,
-                status: "pending"
+                status: "pending",
+                userPhone: "1234567890",
+                userId: "aaaaaaaaaaaaaaaaaaaaaaaa",
             }));
 
-            // Verify Payment Link Creation
+            // Verify payment link uses authenticated user's phone
             expect(mockPaymentService.createPaymentLink).toHaveBeenCalledWith({
                 amount: mockOrder.amount,
                 currency: validOrderData.currency,
                 id: mockOrder.id,
-                contact: "1234567890", // From auth middleware
+                contact: "1234567890",
                 name: "Test User",
             });
+
+            // Verify buyer order saved via orderService
+            expect(mockOrderService.saveBuyerOrder).toHaveBeenCalledWith(
+                "test-transaction-id-uuid",
+                expect.objectContaining({
+                    userId: "aaaaaaaaaaaaaaaaaaaaaaaa",
+                    userPhone: "1234567890",
+                    razorpayOrderId: mockOrder.id,
+                    meterId: validOrderData.meterId,
+                    sourceMeterId: validOrderData.sourceMeterId,
+                    messageId: validOrderData.messageId,
+                    status: "INITIATED",
+                    type: "buyer",
+                })
+            );
         });
 
         it("should return 400 validation error for missing required fields", async () => {
@@ -120,25 +142,44 @@ describe("Payment Routes", () => {
             expect(response.body.error.code).toBe("VALIDATION_ERROR");
         });
 
-        it("should use userPhone from body if not authenticated", async () => {
-            // Override auth middleware to NOT set user (simulate unauthenticated but middleware passed - or different middleware usage)
-            // Note: The actual route uses `authMiddleware`, so req.user SHOULD be present if it passes.
-            // However, the code allows fall back: `const phone = (req as any).user?.phone || userPhone;`
-            // We can test this fallback by mocking auth middleware to NOT attach user but call next()
+        it("should fall back to userPhone from request body when req.user is not set", async () => {
+            // Override auth middleware to NOT set req.user (simulating pass-through without auth context)
             mockAuthMiddleware.mockImplementation((req, res, next) => {
                 next();
                 return undefined as any;
             });
 
+            // When userId is absent, route looks up user by phone in the users collection
+            const { ObjectId } = require("mongodb");
+            mockCollection.findOne.mockResolvedValue({
+                _id: new ObjectId("bbbbbbbbbbbbbbbbbbbbbbbb"),
+                phone: "9876543210",
+            });
+
             mockPaymentService.createOrder.mockResolvedValue({ id: "order_123", amount: 10000 });
             mockPaymentService.createPaymentLink.mockResolvedValue({ short_url: "url" });
-            mockCollection.insertOne.mockResolvedValue({});
+            mockCollection.insertOne.mockResolvedValue({ insertedId: "db_id" });
+            mockOrderService.saveBuyerOrder.mockResolvedValue(undefined as any);
 
-            await request(app).post("/api/payment/order").send(validOrderData);
+            const response = await request(app).post("/api/payment/order").send(validOrderData);
 
+            expect(response.status).toBe(200);
+
+            // Phone should fall back to userPhone from request body
             expect(mockPaymentService.createPaymentLink).toHaveBeenCalledWith(expect.objectContaining({
-                contact: validOrderData.userPhone // Should fall back to body param
+                contact: validOrderData.userPhone,
             }));
+
+            // userId should come from the DB lookup
+            expect(mockOrderService.saveBuyerOrder).toHaveBeenCalledWith(
+                "test-transaction-id-uuid",
+                expect.objectContaining({
+                    userId: "bbbbbbbbbbbbbbbbbbbbbbbb",
+                    userPhone: validOrderData.userPhone,
+                    status: "INITIATED",
+                    type: "buyer",
+                })
+            );
         });
 
         it("should handle internal service errors", async () => {

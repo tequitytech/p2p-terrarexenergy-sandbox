@@ -49,10 +49,18 @@ describe('hourly-market-analyzer', () => {
       expect(result.lowest_competitor_price).toBe(7.0);
     });
 
-    it('should include offers with unknown date', () => {
+    it('should include unknown-date offers when their validity window overlaps the delivery window', () => {
+      // 'unknown' date offers pass the date filter but still need a valid
+      // validity_window to pass the timeRangesOverlap check. The default
+      // createValidityWindow('unknown') produces invalid date strings (NaN).
       const offers: CompetitorOffer[] = [
         createCompetitorOffer('2026-01-28', 8.0),
-        createCompetitorOffer('unknown', 6.5)  // Should be included
+        createCompetitorOffer('unknown', 6.5, 10, {
+          validity_window: {
+            start: '2026-01-28T09:00:00.000Z',  // Valid window that overlaps
+            end: '2026-01-28T12:00:00.000Z'      // delivery 10:00-11:00 UTC
+          }
+        })
       ];
 
       const result = analyzeCompetitorsForHour(
@@ -119,12 +127,14 @@ describe('hourly-market-analyzer', () => {
   });
 
   describe('time range overlap detection', () => {
-    it('should include offers that overlap with delivery window', () => {
+    it('should include offers whose validity window partially overlaps the start of the delivery window', () => {
+      // Validity 09:30-10:30 UTC partially overlaps delivery 10:00-11:00 UTC
+      // timeRangesOverlap(09:30, 10:30, 10:00, 11:00) → 09:30 < 11:00 && 10:00 < 10:30 → true
       const overlappingOffer: CompetitorOffer = {
         ...createCompetitorOffer('2026-01-28', 7.0),
         validity_window: {
-          start: '2026-01-28T06:00:00.000Z',  // 11:30 IST - starts before delivery
-          end: '2026-01-28T07:00:00.000Z'     // 12:30 IST - ends during delivery
+          start: '2026-01-28T09:30:00.000Z',  // Starts before delivery
+          end: '2026-01-28T10:30:00.000Z'     // Ends during delivery
         }
       };
 
@@ -138,12 +148,14 @@ describe('hourly-market-analyzer', () => {
       expect(result.competitors_found).toBe(1);
     });
 
-    it('should include offers that completely contain delivery window', () => {
+    it('should include offers whose validity window fully contains the delivery window', () => {
+      // Validity 09:00-12:00 UTC fully contains delivery 10:00-11:00 UTC
+      // timeRangesOverlap(09:00, 12:00, 10:00, 11:00) → 09:00 < 11:00 && 10:00 < 12:00 → true
       const containingOffer: CompetitorOffer = {
         ...createCompetitorOffer('2026-01-28', 7.0),
         validity_window: {
-          start: '2026-01-28T05:30:00.000Z',  // 11:00 IST
-          end: '2026-01-28T08:30:00.000Z'     // 14:00 IST
+          start: '2026-01-28T09:00:00.000Z',  // Starts before delivery (10:00 UTC)
+          end: '2026-01-28T12:00:00.000Z'     // Ends after delivery (11:00 UTC)
         }
       };
 
@@ -157,12 +169,14 @@ describe('hourly-market-analyzer', () => {
       expect(result.competitors_found).toBe(1);
     });
 
-    it('should include offers where delivery window contains validity', () => {
+    it('should include offers whose validity window is fully contained within the delivery window', () => {
+      // Validity 10:15-10:45 UTC is fully inside delivery 10:00-11:00 UTC
+      // timeRangesOverlap(10:15, 10:45, 10:00, 11:00) → 10:15 < 11:00 && 10:00 < 10:45 → true
       const containedOffer: CompetitorOffer = {
         ...createCompetitorOffer('2026-01-28', 7.0),
         validity_window: {
-          start: '2026-01-28T06:45:00.000Z',  // Inside delivery window
-          end: '2026-01-28T07:15:00.000Z'     // Inside delivery window
+          start: '2026-01-28T10:15:00.000Z',  // Inside delivery window (starts after 10:00 UTC)
+          end: '2026-01-28T10:45:00.000Z'     // Inside delivery window (ends before 11:00 UTC)
         }
       };
 
@@ -255,26 +269,31 @@ describe('hourly-market-analyzer', () => {
   });
 
   describe('multiple competitor scenarios', () => {
-    it('should analyze mixed valid and invalid offers', () => {
+    it('should correctly filter mixed offers by date and time overlap, including only valid competitors', () => {
       const offers: CompetitorOffer[] = [
-        // Valid: same date, overlapping time
+        // Expected: INCLUDED — same date, validity 09:30-11:30 UTC overlaps delivery 10:00-11:00 UTC
         {
           ...createCompetitorOffer('2026-01-28', 7.5),
           validity_window: {
-            start: '2026-01-28T06:00:00.000Z',
-            end: '2026-01-28T08:00:00.000Z'
+            start: '2026-01-28T09:30:00.000Z',
+            end: '2026-01-28T11:30:00.000Z'
           }
         },
-        // Invalid: different date
+        // Expected: EXCLUDED — different date (2026-01-29 ≠ 2026-01-28)
         createCompetitorOffer('2026-01-29', 6.0),
-        // Valid: unknown date
-        createCompetitorOffer('unknown', 8.0),
-        // Invalid: same date but non-overlapping time
+        // Expected: INCLUDED — 'unknown' date passes date filter; valid overlapping window 09:00-12:00 UTC
+        createCompetitorOffer('unknown', 8.0, 10, {
+          validity_window: {
+            start: '2026-01-28T09:00:00.000Z',
+            end: '2026-01-28T12:00:00.000Z'
+          }
+        }),
+        // Expected: EXCLUDED — same date but validity 04:00-05:00 UTC is entirely before delivery 10:00-11:00 UTC
         {
           ...createCompetitorOffer('2026-01-28', 5.0),
           validity_window: {
-            start: '2026-01-28T10:00:00.000Z',
-            end: '2026-01-28T11:00:00.000Z'
+            start: '2026-01-28T04:00:00.000Z',
+            end: '2026-01-28T05:00:00.000Z'
           }
         }
       ];
@@ -286,7 +305,7 @@ describe('hourly-market-analyzer', () => {
         offers
       );
 
-      expect(result.competitors_found).toBe(2);  // 7.5 and 8.0 (unknown)
+      expect(result.competitors_found).toBe(2);  // offer #1 (7.5) + offer #3 (8.0 unknown)
       expect(result.lowest_competitor_price).toBe(7.5);
     });
 

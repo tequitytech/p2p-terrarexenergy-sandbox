@@ -1,0 +1,413 @@
+[
+  {
+    "category": "test-fix",
+    "id": "T01",
+    "file": "src/services/ledger-client.test.ts",
+    "test": "should retry once and succeed after transient 5xx server error",
+    "description": "Fix retry test: setup.ts sets LEDGER_RETRY_COUNT=1 so withRetry() only runs 1 attempt. Test expects 2 calls. Also fake timers don't flush microtasks before advancing time, preventing the async retry sleep from resolving.",
+    "steps": [
+      "Override LEDGER_RETRY_COUNT to 3 via process.env at the top of the retry describe block",
+      "Replace jest.advanceTimersByTime with jest.advanceTimersByTimeAsync or use manual microtask flushing (await Promise.resolve() + advanceTimersByTime interleaving)",
+      "Verify mockedAxios.post is called exactly 2 times (1 failure + 1 success)",
+      "Verify the result is non-null and contains the expected transaction ID",
+      "Rename test to: 'should retry once and succeed after transient 5xx server error'",
+      "Add clear AAA (Arrange/Act/Assert) section comments",
+      "Run: npm test -- --testPathPattern=ledger-client"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T02",
+    "file": "src/services/ledger-client.test.ts",
+    "test": "should retry on connection errors",
+    "description": "Fix connection retry test: With LEDGER_RETRY_COUNT=1 (set in setup.ts), withRetry() loop runs only 1 iteration (attempt=1). When ECONNRESET fires, isRetryable=true but attempt===retries (1===1) causes immediate throw. queryTradeByTransaction's outer catch returns null. Test expects non-null result → FAILS. The second mock (success) is never reached because there's no retry.",
+    "steps": [
+      "Override LEDGER_RETRY_COUNT to 3 via process.env at the top of the retry describe block (before ledger-client module loads, or use jest.resetModules pattern)",
+      "ECONNRESET on first call triggers retry; second call succeeds with mock record",
+      "Use proper async timer advancement: jest.advanceTimersByTimeAsync(LEDGER_RETRY_DELAY * attempt) to flush the sleep promise between retries",
+      "Assert result is not null and contains the expected transaction ID",
+      "Assert mockedAxios.post was called exactly 2 times (1 ECONNRESET + 1 success)",
+      "Rename test to: 'should retry once and succeed after transient ECONNRESET connection error'",
+      "Run: npm test -- --testPathPattern=ledger-client"
+    ],
+    "passes": true,
+    "note": "T02 previously referenced 'should give up after max retries' which actually PASSES with LEDGER_RETRY_COUNT=1 (the 503 throws immediately on attempt===retries, outer catch returns null as expected). This test is the real failure."
+  },
+  {
+    "category": "test-fix",
+    "id": "T03",
+    "file": "src/seller-bidding/services/hourly-market-analyzer.test.ts",
+    "test": "should include offers with unknown date",
+    "description": "Fix unknown-date offer inclusion: createCompetitorOffer('unknown', 6.5) generates validity_window with 'unknownT08:00:00Z' (invalid date). timeRangesOverlap() returns NaN comparisons = false. The offer is excluded despite passing the date filter.",
+    "steps": [
+      "Give the 'unknown' date offer a VALID overlapping validity_window (e.g., '2026-01-28T09:00:00.000Z' to '2026-01-28T12:00:00.000Z') so timeRangesOverlap returns true",
+      "Verify competitors_found is 2 (both same-date and unknown-date offers pass)",
+      "Verify lowest_competitor_price is 6.5",
+      "Add a comment explaining that 'unknown' date offers need valid time windows to pass the overlap check in the source code",
+      "Rename test to: 'should include unknown-date offers when their validity window overlaps the delivery window'",
+      "Run: npm test -- --testPathPattern=hourly-market-analyzer"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T04",
+    "file": "src/seller-bidding/services/hourly-market-analyzer.test.ts",
+    "test": "should include offers whose validity window partially overlaps the start of the delivery window",
+    "description": "Fix overlap test: The offer's validity window (06:00-07:00 UTC) is ENTIRELY BEFORE the delivery window (10:00-11:00 UTC). Despite comments saying 'starts before delivery, ends during delivery', the times don't actually overlap.",
+    "steps": [
+      "Change the offer validity window to actually overlap with delivery (10:00-11:00 UTC). Use start: '2026-01-28T09:30:00.000Z', end: '2026-01-28T10:30:00.000Z' (starts before, ends during)",
+      "Update the inline comments to correctly reflect the UTC times and their overlap semantics",
+      "Verify competitors_found is 1",
+      "Rename test to: 'should include offers whose validity window partially overlaps the start of the delivery window'",
+      "Run: npm test -- --testPathPattern=hourly-market-analyzer"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T05",
+    "file": "src/seller-bidding/services/hourly-market-analyzer.test.ts",
+    "test": "should include offers that completely contain delivery window",
+    "description": "Fix containment test: The offer's validity window (05:30-08:30 UTC) does NOT contain the delivery window (10:00-11:00 UTC). No overlap exists. The times were likely written with IST in mind but stored as UTC.",
+    "steps": [
+      "Change validity window to truly contain delivery: start: '2026-01-28T09:00:00.000Z', end: '2026-01-28T12:00:00.000Z' (fully wraps 10:00-11:00 UTC)",
+      "Update inline comments to correctly describe the containment relationship in UTC",
+      "Verify competitors_found is 1",
+      "Rename test to: 'should include offers whose validity window fully contains the delivery window'",
+      "Run: npm test -- --testPathPattern=hourly-market-analyzer"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T06",
+    "file": "src/seller-bidding/services/hourly-market-analyzer.test.ts",
+    "test": "should include offers where delivery window contains validity",
+    "description": "Fix inverse containment test: The offer's validity window (06:45-07:15 UTC) is BEFORE the delivery window (10:00-11:00 UTC), not inside it.",
+    "steps": [
+      "Change validity window to be inside delivery: start: '2026-01-28T10:15:00.000Z', end: '2026-01-28T10:45:00.000Z' (inside 10:00-11:00 UTC)",
+      "Update inline comments to describe how the delivery window fully contains this validity window",
+      "Verify competitors_found is 1",
+      "Rename test to: 'should include offers whose validity window is fully contained within the delivery window'",
+      "Run: npm test -- --testPathPattern=hourly-market-analyzer"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T07",
+    "file": "src/seller-bidding/services/hourly-market-analyzer.test.ts",
+    "test": "should analyze mixed valid and invalid offers",
+    "description": "Fix mixed scenario test: Three issues — (1) the 'valid' offer has validity 06:00-08:00 UTC which doesn't overlap delivery 10:00-11:00 UTC, (2) the 'unknown' date offer gets default validity from createCompetitorOffer('unknown') which generates 'unknownT08:00:00Z' (invalid date → NaN in timeRangesOverlap → false), (3) offer #4 labeled 'non-overlapping' has validity 10:00-11:00 UTC which DOES overlap the delivery window 10:00-11:00 UTC (timeRangesOverlap(10:00,11:00,10:00,11:00) = 10<11 && 10<11 = true).",
+    "steps": [
+      "Fix the first 'valid' offer (#1): change validity to overlap delivery window (e.g., '2026-01-28T09:30:00.000Z' to '2026-01-28T11:30:00.000Z')",
+      "Fix the 'unknown' date offer (#3): give it a valid overlapping validity_window (e.g., '2026-01-28T09:00:00.000Z' to '2026-01-28T12:00:00.000Z')",
+      "Fix the 'non-overlapping' offer (#4): change validity from 10:00-11:00 UTC to truly non-overlapping (e.g., '2026-01-28T04:00:00.000Z' to '2026-01-28T05:00:00.000Z'). The original 10:00-11:00 exactly matches the delivery window, so timeRangesOverlap returns true, wrongly including it",
+      "Keep the 'different date' offer (#2) as invalid (expected to be excluded by date filter)",
+      "Verify competitors_found is 2 (offer #1 valid + offer #3 unknown valid)",
+      "Verify lowest_competitor_price is 7.5 (offer #1's price)",
+      "Add inline comments marking each offer as // Expected: INCLUDED or // Expected: EXCLUDED with reasoning",
+      "Rename test to: 'should correctly filter mixed offers by date and time overlap, including only valid competitors'",
+      "Run: npm test -- --testPathPattern=hourly-market-analyzer"
+    ],
+    "passes": true,
+    "note": "Previously T07 only addressed issues #1 and #2, missing that offer #4 (validity 10:00-11:00 UTC = delivery window) is actually included by timeRangesOverlap, contradicting the 'non-overlapping' label."
+  },
+  {
+    "category": "test-fix",
+    "id": "T08",
+    "file": "src/notification/controller.test.ts",
+    "test": "should return 400 if validation fails (invalid phone)",
+    "description": "Fix validation test: sendSmsHandler uses .parse() (throws ZodError) OUTSIDE the try/catch. When called directly (not via Express), ZodError propagates as unhandled rejection. The app.ts global error handler catches ZodError and returns 400, but this test bypasses Express.",
+    "steps": [
+      "Wrap the handler in a small Express app with the ZodError error handler from app.ts, OR change the test to verify ZodError is thrown",
+      "Option A (recommended - matches real behavior): Create a mini Express app in beforeEach that mounts the handler and includes the ZodError global error handler, then use supertest",
+      "Option B: Assert the handler rejects with ZodError using expect(...).rejects.toThrow()",
+      "Verify the response body includes the validation error details",
+      "Add test for specific validation field that failed (phone format)",
+      "Rename test to: 'should return 400 with validation details when phone format is invalid'",
+      "Run: npm test -- --testPathPattern=notification/controller"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T09",
+    "file": "src/notification/controller.test.ts",
+    "test": "should return 400 if validation fails (missing message)",
+    "description": "Fix missing field validation test: Same root cause as T08 — .parse() throws ZodError outside try/catch.",
+    "steps": [
+      "Apply the same Express wrapper pattern from T08 (shared beforeEach setup)",
+      "Send request with phone but no message field",
+      "Verify 400 status with VALIDATION_ERROR code",
+      "Verify the error details mention the missing 'message' field",
+      "Rename test to: 'should return 400 with validation details when message field is missing'",
+      "Run: npm test -- --testPathPattern=notification/controller"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T10",
+    "file": "src/bidding/services/catalog-builder.test.ts",
+    "test": "should reference the consolidated EnergyTrade schema context in item attributes",
+    "description": "Fix schema context assertion: ENERGY_RESOURCE_SCHEMA_CTX was consolidated to ENERGY_TRADE_SCHEMA_CTX pointing to EnergyTrade/v0.3/context.jsonld. Test checks for 'EnergyResource' but URL contains 'EnergyTrade'.",
+    "steps": [
+      "Change assertion from .toContain('EnergyResource') to .toContain('EnergyTrade')",
+      "Add a comment explaining the consolidated schema: all energy schemas (EnergyResource, EnergyTradeOffer, etc.) now use the unified EnergyTrade/v0.3 context",
+      "Also verify the @context is a valid URL (existing test already does this in the parent describe)",
+      "Verify the @type is still 'EnergyResource' (the type didn't change, only the context URL)",
+      "Rename test to: 'should reference the consolidated EnergyTrade schema context in item attributes'",
+      "Run: npm test -- --testPathPattern=catalog-builder"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T11",
+    "file": "src/bidding/services/catalog-builder.test.ts",
+    "test": "should reference the consolidated EnergyTrade schema context in offer attributes",
+    "description": "Fix offer schema context assertion: Same consolidation as T10 — ENERGY_TRADE_OFFER_SCHEMA_CTX now points to EnergyTrade/v0.3 URL.",
+    "steps": [
+      "Change assertion from .toContain('EnergyTradeOffer') to .toContain('EnergyTrade')",
+      "Verify the @type is still 'EnergyTradeOffer'",
+      "Add comment about consolidated schema",
+      "Rename test to: 'should reference the consolidated EnergyTrade schema context in offer attributes'",
+      "Run: npm test -- --testPathPattern=catalog-builder"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T12",
+    "file": "src/payment/routes.test.ts",
+    "test": "should successfully create an order and return payment link",
+    "description": "Fix payment order creation test: Zod schema now requires sourceMeterId + messageId. Route calls orderService.saveBuyerOrder() (not mocked). Auth mock gives phone but not userId, causing user DB lookup that returns undefined → 404.",
+    "steps": [
+      "Add sourceMeterId and messageId to validOrderData (required by paymentOrderSchema Zod validation at routes.ts:58-59)",
+      "Add jest.mock for ../../services/order-service with saveBuyerOrder as jest.fn() — the route calls orderService.saveBuyerOrder() at line 175",
+      "Update auth mock to include userId (e.g., 'aaaaaaaaaaaaaaaaaaaaaaaa') so the route skips the users collection findOne entirely (routes.ts:122: if(!userId) branch is skipped)",
+      "Update the payment link assertion: contact should use the authenticated user's phone from req.user, not the hardcoded phone",
+      "Verify response status 200 with success: true",
+      "Verify orderService.saveBuyerOrder was called with correct transactionId and order data",
+      "Rename test to: 'should create Razorpay order, save to DB, generate payment link, and save buyer order'",
+      "Run: npm test -- --testPathPattern=payment/routes"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T13",
+    "file": "src/payment/routes.test.ts",
+    "test": "should use userPhone from body if not authenticated",
+    "description": "Fix phone fallback test: Same missing fields as T12. Also, when userId is absent, route queries users collection by phone — mock findOne must return a user with _id.",
+    "steps": [
+      "Add sourceMeterId and messageId to validOrderData (shared with T12)",
+      "Mock findOne on users collection to return { _id: ObjectId, phone: '9876543210' }",
+      "Override auth mock to NOT set req.user (simulating unauthenticated pass-through)",
+      "Verify paymentService.createPaymentLink was called with contact: validOrderData.userPhone",
+      "Rename test to: 'should fall back to userPhone from request body when req.user is not set'",
+      "Run: npm test -- --testPathPattern=payment/routes"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T14",
+    "file": "src/payment/routes.test.ts",
+    "test": "should handle internal service errors",
+    "description": "Fix error handling test: The createOrder rejection should reach the 500 handler, but validation and user lookup happen first. Missing required fields cause 400 before reaching createOrder.",
+    "steps": [
+      "Add sourceMeterId and messageId to validOrderData (shared with T12)",
+      "Ensure auth mock provides userId so user lookup is skipped",
+      "Mock createOrder to reject with Error('Razorpay Error')",
+      "Verify response status 500",
+      "Verify response body has success: false, error.code: 'INTERNAL_SERVER_ERROR', error.details: 'Razorpay Error'",
+      "Rename test to: 'should return 500 with error details when Razorpay order creation fails'",
+      "Run: npm test -- --testPathPattern=payment/routes"
+    ],
+    "passes": true,
+    "note": "T14 was fixed as a side-effect of the shared T12 fixes (sourceMeterId, messageId in validOrderData, userId in auth mock). The test name was not renamed since only T12 was the primary fix."
+  },
+  {
+    "category": "test-fix",
+    "id": "T15",
+    "file": "src/services/catalog-store.test.ts",
+    "test": "should return items with quantity projection",
+    "description": "Fix inventory test: getInventory() was refactored to read from the offers collection (not items). Test seeds items but getInventory returns offers. The projected fields are beckn:id, beckn:items, beckn:price.applicableQuantity, catalogId.",
+    "steps": [
+      "Change seedItem calls to seedOffer calls with appropriate IDs and quantities",
+      "Update assertions: check for offer properties (beckn:id, beckn:items) instead of beckn:itemAttributes",
+      "Rename describe label from 'getInventory' properties to match actual return shape",
+      "Rename test to: 'should return offers with inventory quantity projection from offers collection'",
+      "Run: npm test -- --testPathPattern=catalog-store"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T16",
+    "file": "src/__tests__/api/trade-api.test.ts",
+    "test": "should store catalog and return success",
+    "description": "Fix publish integration test: /api/publish was refactored from accepting full beckn catalogs to minimal input (quantity, price, deliveryDate, startHour, duration, sourceType). Route now requires auth and user with generationProfile.",
+    "steps": [
+      "Change auth mock userId to a valid MongoDB ObjectId string (24 hex chars, e.g., 'aaaaaaaaaaaaaaaaaaaaaaaa'). The route does new ObjectId(userId) at line 340 which throws on invalid format",
+      "Seed a user document via direct db.collection('users').insertOne() with _id: new ObjectId('aaaaaaaaaaaaaaaaaaaaaaaa'). Note: seedUser/seedUserWithProfiles helpers do NOT accept _id, so direct insertOne is required. Include: name, profiles.generationProfile with meterNumber, utilityId, consumerNumber, did",
+      "Replace the full catalog publish request with minimal publishInputSchema data: { quantity: 10, price: 7.5, deliveryDate: '2026-01-28', startHour: 10, duration: 1, sourceType: 'SOLAR' }",
+      "Update assertions: verify response has success: true, catalog_id, item_id, offer_id, prosumer info",
+      "Remove old createBecknCatalog/createBecknItem/createBecknOffer usage for this test",
+      "Rename test to: 'should accept minimal publish input, build catalog server-side, and return catalog IDs'",
+      "Run: npm test -- --testPathPattern='api/trade-api'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T17",
+    "file": "src/__tests__/api/trade-api.test.ts",
+    "test": "should store items and offers separately",
+    "description": "Fix publish + verify test: Same refactored publish route as T16. Also the inventory endpoint now reads offers, not items.",
+    "steps": [
+      "Apply same minimal input format and user seeding as T16 (direct insertOne with known ObjectId, generationProfile with meterNumber/utilityId/consumerNumber/did)",
+      "After publish, verify via /api/offers endpoint (not /api/inventory with item assertions)",
+      "Verify the offer has beckn:id and was stored in the offers collection",
+      "Also verify /api/items returns the auto-generated item",
+      "Rename test to: 'should store auto-generated items and offers separately in their collections after publish'",
+      "Run: npm test -- --testPathPattern='api/trade-api'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T18",
+    "file": "src/__tests__/api/bidding-api.test.ts",
+    "test": "should return 7-day bid preview",
+    "description": "Fix bid preview test: The forecast-reader mock only exports readForecast and processDailyForecast, but bid-optimizer imports getProcessedForecasts which is undefined → TypeError → 500.",
+    "steps": [
+      "Add getProcessedForecasts to the forecast-reader mock",
+      "Mock getProcessedForecasts to return { all: ProcessedDay[], biddable: ProcessedDay[] } with 7 days of data",
+      "Import and type-cast getProcessedForecasts as jest.MockedFunction",
+      "Set up mock implementation in beforeEach with proper ProcessedDay objects (date, rawTotal, bufferedQuantity, isBiddable, validityWindow)",
+      "Mock axios.post for the CDS discover call to return a valid CDS response (or empty catalogs)",
+      "Verify response status 200, body.success true, body.bids array with length > 0",
+      "Rename test to: 'should return 7-day bid preview with market-competitive pricing'",
+      "Run: npm test -- --testPathPattern='api/bidding-api'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T19",
+    "file": "src/__tests__/api/bidding-api.test.ts",
+    "test": "should return empty bids when no forecast data",
+    "description": "Fix empty forecast test: Same getProcessedForecasts mock issue as T18.",
+    "steps": [
+      "Ensure getProcessedForecasts is in the mock (from T18 setup)",
+      "Mock getProcessedForecasts to return { all: [], biddable: [] }",
+      "Verify response status 200 with success: true and empty bids array",
+      "Rename test to: 'should return empty bids array when forecast has no biddable days'",
+      "Run: npm test -- --testPathPattern='api/bidding-api'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T20",
+    "file": "src/__tests__/api/bidding-api.test.ts",
+    "test": "should publish bids and return placed_bids",
+    "description": "Fix bid confirm test: Same getProcessedForecasts mock issue. Also confirm() calls axios.post to internal /api/publish which needs a mock.",
+    "steps": [
+      "Ensure getProcessedForecasts is properly mocked with biddable days",
+      "Mock axios.post to return { status: 200, data: { success: true } } for publish calls",
+      "Verify response status 200 with success: true and placed_bids array",
+      "Verify placed_bids entries have date, quantity_kwh, price_inr, offer_id",
+      "Rename test to: 'should publish all calculated bids sequentially and return placed_bids with catalog IDs'",
+      "Run: npm test -- --testPathPattern='api/bidding-api'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T21",
+    "file": "src/__tests__/api/bidding-api.test.ts",
+    "test": "should handle publish failures gracefully",
+    "description": "Fix publish failure handling test: Same getProcessedForecasts mock issue. Also needs proper mock to make the first publish call fail.",
+    "steps": [
+      "Ensure getProcessedForecasts is properly mocked with biddable days",
+      "Mock axios.post to reject with Error('Publish failed')",
+      "Verify response status 200 (the controller catches and returns 200 with success: false)",
+      "Verify response body has success: false and failed_at with date and error message",
+      "Rename test to: 'should halt on first publish failure and return failed_at with error details'",
+      "Run: npm test -- --testPathPattern='api/bidding-api'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T22",
+    "file": "src/__tests__/api/bidding-api.test.ts",
+    "test": "should return top 5 hourly bids",
+    "description": "Fix seller preview test: authMiddleware is not mocked. Seller routes require JWT auth → 401. Also hourly-forecast-reader mock needs getTomorrowForecast and filterValidHours properly returning data.",
+    "steps": [
+      "Add jest.mock('../../auth/routes') with authMiddleware pass-through and authRoutes returning Router()",
+      "Ensure hourly-forecast-reader mock returns proper forecast data",
+      "Verify response status 200 with success: true and bids array with length <= 5",
+      "Verify target_date is tomorrow's date",
+      "Rename test to: 'should return at most 5 highest-revenue hourly bids for tomorrow'",
+      "Run: npm test -- --testPathPattern='api/bidding-api'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T23",
+    "file": "src/__tests__/api/bidding-api.test.ts",
+    "test": "should track skipped hours",
+    "description": "Fix skipped hours tracking test: Same auth issue as T22.",
+    "steps": [
+      "Ensure authMiddleware mock is in place (from T22)",
+      "Mock forecast with 1 below-threshold hour and 1 valid hour",
+      "Verify response includes skipped_hours array with length > 0",
+      "Verify skipped_hours entries have hour and reason fields",
+      "Rename test to: 'should report skipped hours that fall below minimum kWh threshold'",
+      "Run: npm test -- --testPathPattern='api/bidding-api'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T24",
+    "file": "src/__tests__/api/bidding-api.test.ts",
+    "test": "should publish hourly bids",
+    "description": "Fix seller confirm test: Same auth issue as T22. Also needs axios mock for publish calls.",
+    "steps": [
+      "Ensure authMiddleware mock is in place (from T22)",
+      "Mock forecast and filterValidHours with valid hourly data",
+      "Mock axios.post for the internal publish API calls",
+      "Verify response status 200 with success: true and placed_bids array",
+      "Rename test to: 'should publish hourly bids to ONIX and return placed_bids with status'",
+      "Run: npm test -- --testPathPattern='api/bidding-api'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test-fix",
+    "id": "T25",
+    "file": "src/__tests__/flows/e2e-order-flow.test.ts",
+    "test": "should complete full order lifecycle",
+    "description": "Fix E2E lifecycle test: /api/publish requires auth (no authMiddleware mock) and now expects minimal input format instead of full beckn catalog.",
+    "steps": [
+      "Add jest.mock('../../auth/routes') with authMiddleware pass-through providing userId as valid ObjectId, and authRoutes returning Router()",
+      "Seed a user document with generationProfile (meterNumber, utilityId, consumerNumber, did, name)",
+      "Replace the full catalog publish request with minimal input: { quantity: 10, price: 7.5, deliveryDate: '2026-01-28', startHour: 10, duration: 1, sourceType: 'SOLAR' }",
+      "Update publish response assertions to match new response shape (catalog_id, item_id, offer_id, prosumer)",
+      "Update inventory verification: getInventory now returns offers, so check /api/offers instead or adjust assertions",
+      "Verify the full lifecycle: publish → verify storage → verify inventory has offer",
+      "Rename test to: 'should publish minimal input, auto-build catalog, store items/offers, and appear in inventory'",
+      "Run: npm test -- --testPathPattern='e2e-order-flow'"
+    ],
+    "passes": true
+  }
+]

@@ -385,13 +385,15 @@ describe('catalog-builder', () => {
       expect(catalog['beckn:offers'][0]['@context']).toMatch(/^https?:\/\//);
     });
 
-    it('should include EnergyResource context in items', () => {
+    it('should reference the consolidated EnergyTrade schema context in item attributes', () => {
       const item = buildItem(mockParams);
 
-      expect(item['beckn:itemAttributes']['@context']).toContain('EnergyResource');
+      // All energy schemas (EnergyResource, EnergyTradeOffer, etc.) now use the unified EnergyTrade/v0.3 context
+      expect(item['beckn:itemAttributes']['@context']).toContain('EnergyTrade');
+      expect(item['beckn:itemAttributes']['@type']).toBe('EnergyResource');
     });
 
-    it('should include EnergyTradeOffer context in offers', () => {
+    it('should reference the consolidated EnergyTrade schema context in offer attributes', () => {
       const offer = buildOffer({
         provider_id: 'test',
         item_id: 'item-001',
@@ -401,7 +403,9 @@ describe('catalog-builder', () => {
         validityWindow: createValidityWindow('2026-01-28')
       });
 
-      expect(offer['beckn:offerAttributes']['@context']).toContain('EnergyTradeOffer');
+      // All energy schemas (EnergyResource, EnergyTradeOffer, etc.) now use the unified EnergyTrade/v0.3 context
+      expect(offer['beckn:offerAttributes']['@context']).toContain('EnergyTrade');
+      expect(offer['beckn:offerAttributes']['@type']).toBe('EnergyTradeOffer');
     });
   });
 });

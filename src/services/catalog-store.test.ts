@@ -121,16 +121,16 @@ describe('catalog-store', () => {
   });
 
   describe('getInventory', () => {
-    it('should return items with quantity projection', async () => {
-      await seedItem('item-inv-001', 10);
-      await seedItem('item-inv-002', 20);
+    it('should return offers with inventory quantity projection from offers collection', async () => {
+      await seedOffer('offer-inv-001', 'item-inv-001', 7.5, 10);
+      await seedOffer('offer-inv-002', 'item-inv-002', 8.0, 20);
 
       const inventory = await catalogStore.getInventory();
 
       expect(inventory.length).toBeGreaterThanOrEqual(2);
-      inventory.forEach(item => {
-        expect(item).toHaveProperty('beckn:id');
-        expect(item).toHaveProperty('beckn:itemAttributes');
+      inventory.forEach(entry => {
+        expect(entry).toHaveProperty('beckn:id');
+        expect(entry).toHaveProperty('beckn:items');
       });
     });
   });

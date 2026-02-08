@@ -14,7 +14,7 @@ const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('ledger-client', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     jest.useFakeTimers();
   });
 
@@ -73,45 +73,67 @@ describe('ledger-client', () => {
       );
     });
 
-    it('should retry on 5xx errors', async () => {
+    it('should retry once and succeed after transient 5xx server error', async () => {
+      // Arrange: Re-load ledger-client with LEDGER_RETRY_COUNT=3 so withRetry actually retries
+      // (setup.ts sets LEDGER_RETRY_COUNT=1 which disables retries)
+      process.env.LEDGER_RETRY_COUNT = '3';
+      jest.resetModules();
+      const freshAxios = require('axios') as jest.Mocked<typeof axios>;
+      const { queryTradeByTransaction: queryWithRetry } = require('./ledger-client');
+
       const serverError = new Error('Server error') as AxiosError;
       serverError.response = { status: 500 } as any;
       serverError.code = 'ERR_BAD_RESPONSE';
 
-      mockedAxios.post
+      freshAxios.post
         .mockRejectedValueOnce(serverError)
         .mockResolvedValueOnce({
           data: { records: [createLedgerRecord('txn-001')], total: 1 }
         });
 
-      const promise = queryTradeByTransaction('txn-001', 'TPDDL');
-
-      // Advance timers for retry delay
-      jest.advanceTimersByTime(1000);
-
+      // Act: Start query and advance timers to flush the async retry sleep
+      const promise = queryWithRetry('txn-001', 'TPDDL');
+      await jest.advanceTimersByTimeAsync(1000);
       const result = await promise;
 
-      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+      // Assert
+      expect(freshAxios.post).toHaveBeenCalledTimes(2);
       expect(result).not.toBeNull();
+      expect(result?.transactionId).toBe('txn-001');
+
+      // Cleanup
+      process.env.LEDGER_RETRY_COUNT = '1';
     });
 
-    it('should retry on connection errors', async () => {
+    it('should retry once and succeed after transient ECONNRESET connection error', async () => {
+      // Arrange: Re-load ledger-client with LEDGER_RETRY_COUNT=3 so withRetry actually retries
+      // (setup.ts sets LEDGER_RETRY_COUNT=1 which disables retries)
+      process.env.LEDGER_RETRY_COUNT = '3';
+      jest.resetModules();
+      const freshAxios = require('axios') as jest.Mocked<typeof axios>;
+      const { queryTradeByTransaction: queryWithRetry } = require('./ledger-client');
+
       const connError = new Error('Connection reset') as any;
       connError.code = 'ECONNRESET';
 
-      mockedAxios.post
+      freshAxios.post
         .mockRejectedValueOnce(connError)
         .mockResolvedValueOnce({
           data: { records: [createLedgerRecord('txn-001')], total: 1 }
         });
 
-      const promise = queryTradeByTransaction('txn-001', 'TPDDL');
-
-      jest.advanceTimersByTime(1000);
-
+      // Act: Start query and advance timers to flush the async retry sleep
+      const promise = queryWithRetry('txn-001', 'TPDDL');
+      await jest.advanceTimersByTimeAsync(1000);
       const result = await promise;
 
+      // Assert
+      expect(freshAxios.post).toHaveBeenCalledTimes(2);
       expect(result).not.toBeNull();
+      expect(result?.transactionId).toBe('txn-001');
+
+      // Cleanup
+      process.env.LEDGER_RETRY_COUNT = '1';
     });
 
     it('should not retry on 4xx errors', async () => {
