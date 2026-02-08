@@ -292,6 +292,7 @@
   },
   {
     "id": "T08",
+    "status": "done",
     "priority": "P0",
     "category": "new-tests",
     "title": "Notification service — sendOrderConfirmation email flow",

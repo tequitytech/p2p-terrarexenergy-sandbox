@@ -143,3 +143,19 @@ Notes for next person:
 - For `getBeneficiaryDonations`, seed users with `vcVerified: true` AND `isVerifiedBeneficiary: true` plus `profiles.consumptionProfile.id` — the function builds a Set from these IDs to filter orders by `beckn:buyer.beckn:id`.
 - `reduceOfferInventory` uses `beckn:price.applicableQuantity.unitQuantity` path (different from old `reduceInventory` which uses `beckn:itemAttributes.availableQuantity` on items).
 - `getPublishedItems` uses MongoDB `$lookup` with `$expr` — the test verifies offers are joined by checking `beckn:items` array contains the item's `beckn:id`.
+
+## 2026-02-08 — T08: Notification service tests (done)
+
+Created `src/services/notification-service.test.ts` with 10 tests covering the `sendOrderConfirmation` method:
+
+- **sendOrderConfirmation** (10 tests): send email to buyer with verified email, include transactionId/totalQuantity/seller/amount in email body, find user by consumptionProfile.id, find user by utilityCustomer.did as fallback, find user by phone as last fallback, skip when no buyer ID in order, skip when user not found in DB, skip when user has no email, calculate totalQuantity from multiple orderItems, catch and log emailService errors without throwing
+
+All 10 tests pass. Full suite: 611 tests, 29 suites, all green.
+
+Notes for next person:
+- Uses **in-memory MongoDB** (setupTestDB pattern) for user lookups. The `seedUserWithProfiles` helper from test-utils/db does NOT have an `email` field, so users are inserted directly via `getTestDB().collection('users').insertOne()`.
+- **emailService is mocked** (`jest.mock('./email-service')`) — `sendEmail` is a jest.fn() that returns `true` by default. Reset with `mockResolvedValue(true)` in `beforeEach`.
+- The $or query fallback chain (consumptionProfile.id → utilityCustomer.did → phone) is tested by seeding users with only one matching field each.
+- For the "no email" test, insert user with `email: null` — the source checks `!user.email` which covers both null and undefined.
+- For the error handling test, `mockSendEmail.mockRejectedValue(new Error(...))` triggers the catch block. The test verifies the function resolves without throwing (try/catch in source swallows the error).
+- `restoreMocks: true` in jest.config resets mock implementations between tests, so `mockSendEmail.mockResolvedValue(true)` is set in beforeEach.
