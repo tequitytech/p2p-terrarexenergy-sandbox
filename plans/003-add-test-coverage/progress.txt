@@ -403,3 +403,22 @@ Notes for next person:
 - `console.error` and `console.log` are spied/suppressed in beforeEach to keep test output clean.
 - `restoreMocks: true` in jest.config resets mock implementations between tests.
 - **Remaining task**: T22 (energy-request service, 12 tests) — P3.
+
+## 2026-02-08 — T22: Energy-request service tests (done)
+
+Created `src/energy-request/service.test.ts` with 23 tests covering both exported functions:
+
+- **executeDirectTransaction** (12 tests): full publish→select→init→confirm sequence verification, simplified publish format (quantity, price, deliveryDate, startHour, duration, sourceType), autoConfirm=false stops at init (gift flow), INITIATED status for gift flow, CONFIRMED status for full flow, price=0.01 minimum for donations (instead of 0), beneficiaryId in select payload, publish error propagation, select error propagation, amount calculation (pricePerUnit × quantity), consistent base URI across all API calls, amount=0 for donation flow
+- **discoverBestSeller** (11 tests): cheapest offer from CDS catalogs (sorted by price ascending), null when no catalogs, null when CDS fails, null when catalogs have no offers, auth token in headers, no auth header when no token, fallback price path (beckn:offerAttributes.beckn:price.value), bppId fallback as sellerId when provider.id missing, buildDiscoverRequest forwarded as payload, correct discover URL, 15s timeout on CDS request
+
+All 23 tests pass. Full suite: 793 tests, 38 suites, all green.
+
+Notes for next person:
+- **axios is fully mocked** (`jest.mock('axios')`) — no real HTTP calls. `setupSequentialMocks()` helper sets up publish→select→init→confirm mock chain via `mockResolvedValueOnce`.
+- **crypto.randomUUID is mocked** via `jest.spyOn(require('crypto'), 'randomUUID')` at module level for deterministic UUIDs in test assertions.
+- **BAP_ID and BAP_URI are read at module level** (`const BAP_URI = process.env.BAP_URI`), so changing env vars AFTER import does NOT change the base URI used in function calls. Tests that need different URIs would require re-importing the module.
+- **buildDiscoverRequest is mocked** (`jest.mock('../bidding/services/market-analyzer')`) — returns `{ mock: 'discover-payload' }` which gets forwarded to mocked `axios.post`.
+- For the "stop at init" test (autoConfirm=false): verify exactly 3 axios.post calls (publish, select, init) — NOT 4. The INITIATED result includes the full `initResponse.message` for payment processing by the caller.
+- For donation tests: `pricePerUnit === 0` triggers `effectivePrice = 0.01` in publish and offer data, but `amount = pricePerUnit * quantity = 0` (uses original pricePerUnit, not effectivePrice).
+- `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must set its own `mockResolvedValueOnce` chains.
+- **ALL TASKS COMPLETE** — T01 through T22 are done. 793 tests across 38 suites, all passing.
