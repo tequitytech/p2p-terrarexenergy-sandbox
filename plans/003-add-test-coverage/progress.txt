@@ -101,3 +101,23 @@ Notes for next person:
 - `flushPromises()` + `setTimeout(50ms)` is needed for `onConfirm` tests because settlement/order/notification logic runs in a detached async IIFE `(async () => { ... })()`.
 - `restoreMocks: true` in jest.config clears mock implementations between tests. For `onConfirm` tests that check mocks were NOT called, explicitly call `mockClear()` at start of that test.
 - Each test uses unique transaction IDs to prevent cross-test interference in the shared in-memory transaction store.
+
+## 2026-02-08 — T05: Expand order-service tests (done)
+
+Expanded `src/services/order-service.test.ts` from 3 to 17 tests, covering all 6 methods in order-service.ts:
+
+- **saveBuyerOrder** (3 tests): save + retrieve, upsert when same transactionId exists, default status to INITIATED when not provided
+- **getBuyerOrder** (2 tests): single order by transactionId, returns null when not found
+- **updateBuyerOrderStatus** (3 tests): status update with extra fields, warn when no match (matchedCount=0), merge additional update fields (razorpayPaymentId, razorpaySignature, paymentId)
+- **getSellerOrders** (3 tests): returns from 'orders' collection with type=SELLER, empty array when none exist, sort by createdAt descending
+- **updateSellerOrderStatus** (3 tests): updates both orderStatus and status fields, warns when no match, merges additional fields (settlementId, actualDelivered)
+- **getCombinedOrders** (3 tests): combines buyer + seller orders, sorts by createdAt descending across both collections, returns empty array when no orders
+
+All 17 tests pass. Full suite passes.
+
+Notes for next person:
+- Uses **in-memory MongoDB** (setupTestDB pattern) — same as the original 3 tests.
+- Seller orders go in the `orders` collection (not `buyer_orders`). Use `getTestDB().collection('orders').insertOne()` to seed seller orders.
+- `console.warn` spy tests need `mockRestore()` to clean up — use `jest.spyOn(console, 'warn').mockImplementation()` and restore after assertion.
+- The upsert test verifies that calling `saveBuyerOrder` twice with the same transactionId results in only 1 document (second call updates rather than inserts).
+- Combined orders sort test uses 3 orders across 2 collections (1 buyer at middle date, 2 sellers at oldest/newest) to verify cross-collection descending sort.
