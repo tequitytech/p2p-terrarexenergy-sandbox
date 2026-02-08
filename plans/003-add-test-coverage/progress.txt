@@ -359,3 +359,21 @@ Notes for next person:
 - For ONIX failure test, `mockedAxios.post.mockRejectedValue(...)` causes the try/catch in the route to set `onixError`, resulting in `onix_forwarded: false` in the response but still 200 (catalog saved locally).
 - Published-items uses real MongoDB `$lookup` aggregation — items need `userId` matching the authMiddleware mock userId, `beckn:isActive: true`, and offers with `beckn:items` containing the item's `beckn:id` and `beckn:price.applicableQuantity.unitQuantity > 0`.
 - `restoreMocks: true` in jest.config resets mock implementations between tests.
+
+## 2026-02-08 — T20: Voice routes tests (done)
+
+Created `src/voice/routes.test.ts` with 7 tests covering the POST /api/voice/intent endpoint:
+
+- **POST /api/voice/intent** (7 tests): 400 when text field is missing, 400 when text is empty string, 400 when text exceeds 50 word limit, classified intent with confidence and entities returned correctly, low_confidence=true when confidence < 0.5, 503 when LLM service throws (LLM_SERVICE_UNAVAILABLE), all 5 entity types mapped to correct ENTITY_TYPES units (quantity→kWh, price→INR/kWh, time_window→ISO8601, meter_id→mRID, source_type→enum)
+
+All 7 tests pass. Full suite: 737 tests, 36 suites, all green.
+
+Notes for next person:
+- **classifyIntent is fully mocked** (`jest.mock('./intent-service')`) — no real OpenAI/LLM calls. Mock returns `{ intent, confidence, detected_language, entities }` objects.
+- **ENTITY_TYPES is NOT mocked** — uses real values from `./entities.ts` for unit mapping verification. The test asserts both the mapped values and cross-checks against the actual ENTITY_TYPES constants.
+- Uses **supertest** with Express app mounting `voiceRoutes()` at `/api/voice` prefix — same pattern as dashboard/routes.test.ts.
+- The `validateBody` middleware in routes.ts uses `safeParse` (not `schema.parse()`), so ZodErrors are handled internally and return `{ success: false, error: { code: 'VALIDATION_ERROR', ... } }` — no need for a global ZodError handler in the test app.
+- The 50-word limit is validated via `.refine()` on the Zod schema — it splits on `\s+` and checks length. The test uses exactly 51 "word" tokens.
+- `console.log` for successful requests (voice/intent logging) is NOT suppressed — it's non-intrusive. Only `console.error` is spied/suppressed in the 503 error test.
+- `restoreMocks: true` in jest.config resets mock implementations between tests.
+- **Remaining tasks**: T21 (energy-request controller, 24 tests) and T22 (energy-request service, 12 tests) — both P3.
