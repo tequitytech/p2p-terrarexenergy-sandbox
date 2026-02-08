@@ -252,3 +252,22 @@ Notes for next person:
 - The rounding test verifies the `Number(value.toFixed(2))` behavior — note that `10.999.toFixed(2)` = `"11.00"` which `Number()` converts to `11` (not `11.00`).
 - For the error test, only `getSellerEarnings` needs to reject — since `Promise.all` fails fast, the other 3 methods don't need error setup.
 - `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must set its own `mockResolvedValue` calls.
+
+## 2026-02-08 — T14: Orders routes tests (done)
+
+Created `src/orders/routes.test.ts` with 9 tests covering all 3 authenticated order listing endpoints:
+
+- **GET /api/orders/buyer** (3 tests): returns buyer orders for authenticated user (verifies getBuyerOrders called with userId), 401 when not authenticated (authMiddleware passes through without setting req.user), empty array when no buyer orders
+- **GET /api/orders/seller** (3 tests): returns seller orders for authenticated user (verifies getSellerOrders called with userId), 401 with UNAUTHORIZED code when not authenticated, empty array when no seller orders
+- **GET /api/orders/combined** (3 tests): returns combined buyer + seller orders (verifies getCombinedOrders called with userId string), 401 with UNAUTHORIZED code when not authenticated, 500 with INTERNAL_SERVER_ERROR when orderService throws
+
+All 9 tests pass. Full suite: 680 tests, 31 suites, all green.
+
+Notes for next person:
+- **authMiddleware is mocked** (`jest.mock('../auth/routes')`) — default implementation sets `req.user = { phone, userId }` and calls `next()`. For 401 tests, override to call `next()` without setting `req.user`.
+- **orderService is fully mocked** (`jest.mock('../services/order-service')`) — no DB needed. `getBuyerOrders`, `getSellerOrders`, and `getCombinedOrders` are jest.fn() wrappers.
+- Uses **supertest** with Express app mounting `ordersRoutes()` at `/api` prefix.
+- Note the different 401 response shapes: buyer route returns `{ success: false, error: "Unauthorized" }` (string), while seller and combined routes return `{ success: false, error: { code: "UNAUTHORIZED", message: "Unauthorized Access" } }` (object). Tests match each format accordingly.
+- `getBuyerOrders` and `getSellerOrders` receive `{ userId }` object, but `getCombinedOrders` receives userId as a plain string — matches the source code signatures.
+- `console.error` spy with `mockImplementation()` is used in the 500 error test to suppress noise, with `mockRestore()` after assertion.
+- `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must set its own mock return values.
