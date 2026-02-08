@@ -1,0 +1,15 @@
+## 2026-02-08 — T02: Utility functions tests (done)
+
+Created `src/utils/index.test.ts` with 26 tests covering all exported utility functions:
+
+- **normalizeDomain** (5 tests): port stripping, multi-segment ports, falsy inputs
+- **parseError** (4 tests): non-Error returns null, plain Error message, AxiosError with ONIX structure, AxiosError fallback
+- **calculatePrice** (9 tests): PER_KWH (basePrice × quantity, wheelingCharges, defaults), FIXED (ignores quantity, adds wheeling), SUBSCRIPTION (basePrice only), TIME_OF_DAY (matching rate, no match falls back to basePrice, undefined rates, empty rates), unknown model (uses PER_KWH formula)
+- **calculateTotalAmount** (6 tests): extracts beckn:price, default PER_KWH, wheelingCharges from offerAttributes, TIME_OF_DAY with rates, FIXED pricing, missing offerAttributes
+
+All 26 tests pass. Full suite: 452 tests, 24 suites, all green.
+
+Notes for next person:
+- TIME_OF_DAY tests use `jest.useFakeTimers()` + `jest.setSystemTime()` to control `new Date().getUTCHours()`. Remember to call `jest.useRealTimers()` in afterEach.
+- AxiosError constructor needs `AxiosHeaders` import for the config.headers param.
+- These are pure functions with zero mocks (no DB, no external calls) — the simplest test pattern in the codebase.
