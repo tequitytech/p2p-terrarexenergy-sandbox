@@ -1,17 +1,18 @@
 import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
+
 import { getDB } from "../../db";
-import { DeliveryMode } from "../../types";
 import {
-  CompetitorOffer,
   DEFAULT_UNDERCUT_PERCENT,
-  FLOOR_PRICE,
-  MarketAnalysis,
-  MarketSnapshot,
+  FLOOR_PRICE
 } from "../types";
 
-// Use ONIX BAP for discover (handles signing and routing to CDS)
-const ONIX_BAP_URL = process.env.ONIX_BAP_URL || "http://onix-bap:8081";
+import type { DeliveryMode } from "../../types";
+import type {
+  CompetitorOffer,
+  MarketAnalysis,
+  MarketSnapshot} from "../types";
+
 const UNDERCUT_PERCENT = parseFloat(
   process.env.UNDERCUT_PERCENT || String(DEFAULT_UNDERCUT_PERCENT),
 );

@@ -9,7 +9,7 @@ interface PendingTransaction {
 const pendingTransactions = new Map<string, PendingTransaction>();
 const CALLBACK_TIMEOUT = parseInt(process.env.CALLBACK_TIMEOUT || '30000', 10);
 
-export function createPendingTransaction(transactionId: string, action: string): Promise<any> {
+export async function createPendingTransaction(transactionId: string, action: string): Promise<any> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       pendingTransactions.delete(transactionId);

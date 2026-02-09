@@ -1,4 +1,5 @@
 import { getDB } from "../db";
+
 import { emailService } from "./email-service";
 
 export const notificationService = {

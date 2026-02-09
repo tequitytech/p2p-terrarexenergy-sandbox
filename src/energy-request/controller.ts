@@ -1,11 +1,9 @@
-import { Request, Response } from 'express';
-import { getDB } from '../db';
-import { EnergyRequest, CreateEnergyRequestDTO } from './types';
-import { ObjectId } from 'mongodb';
-import { buildDiscoverRequest } from '../bidding/services/market-analyzer';
 import axios from 'axios';
 
-const ONIX_BAP_URL = process.env.ONIX_BAP_URL || "http://onix-bap:8081";
+import type { Request, Response } from 'express';
+
+import { ObjectId } from 'mongodb';
+
 
 const COLLECTION_NAME = 'energy_requests';
 
@@ -100,7 +98,7 @@ export async function findBestSeller(req: Request, res: Response) {
     let request: any;
     try {
         request = await db.collection(COLLECTION_NAME).findOne({ _id: new ObjectId(requestId as string) });
-    } catch(err) {
+    } catch(_err) {
         // Invalid object id
         return res.status(400).json({ success: false, error: 'Invalid Request ID format' });
     }
@@ -194,9 +192,16 @@ export async function findBestSeller(req: Request, res: Response) {
   }
 }
 
-import { executeDirectTransaction, discoverBestSeller } from './service';
+
 import z from 'zod';
+
+import { buildDiscoverRequest } from '../bidding/services/market-analyzer';
+import { getDB } from '../db';
 import { SourceType } from '../types';
+
+import { executeDirectTransaction, discoverBestSeller } from './service';
+
+import type { EnergyRequest, CreateEnergyRequestDTO } from './types';
 
 /**
  * giftEnergy
@@ -257,7 +262,7 @@ export async function giftEnergy(req: Request, res: Response) {
         );
 
         // 4. Update Request Status
-        const updateResult = await db.collection(COLLECTION_NAME).updateOne(
+        await db.collection(COLLECTION_NAME).updateOne(
             { _id: new ObjectId(requestId) },
             { 
                 $set: { 

@@ -1,6 +1,7 @@
-import { isAxiosError } from "axios";
 import { readFileSync } from "fs";
 import path from "path";
+
+import { isAxiosError } from "axios";
 
 const RESPONSES_BASE_PATH = path.resolve(__dirname, "../webhook/jsons");
 

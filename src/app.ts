@@ -1,24 +1,27 @@
-import express, { Router, Request, Response } from "express";
 import cors from "cors";
+import express, { Router } from "express";
 import helmet from "helmet";
-import { webhookRoutes } from "./webhook/routes";
-import { bapWebhookRoutes } from "./bap-webhook/routes";
-import { tradeRoutes } from "./trade/routes";
-import { syncApiRoutes } from "./sync-api/routes";
-import { biddingRoutes } from "./bidding/routes";
-import { sellerBiddingRoutes } from "./seller-bidding/routes";
-import { authRoutes, authMiddleware } from "./auth/routes";
-import { paymentRoutes } from "./payment/routes";
-import { notificationRoutes } from "./notification/routes";
-import { voiceRoutes } from "./voice/routes";
-import { connectDB } from "./db";
-import { startPolling, stopPolling } from "./services/settlement-poller";
 import { ZodError } from "zod";
-import { ordersRoutes } from "./orders/routes";
-import { discoverRoutes } from "./discover/routes";
+
+import { authRoutes, authMiddleware } from "./auth/routes";
+import { bapWebhookRoutes } from "./bap-webhook/routes";
+import { biddingRoutes } from "./bidding/routes";
 import { dashboardRoutes } from "./dashboard/routes";
-import { userRoutes } from "./user/routes";
+import { connectDB } from "./db";
+import { discoverRoutes } from "./discover/routes";
 import { energyRequestRoutes } from "./energy-request/routes";
+import { notificationRoutes } from "./notification/routes";
+import { ordersRoutes } from "./orders/routes";
+import { paymentRoutes } from "./payment/routes";
+import { sellerBiddingRoutes } from "./seller-bidding/routes";
+import { startPolling, stopPolling } from "./services/settlement-poller";
+import { syncApiRoutes } from "./sync-api/routes";
+import { tradeRoutes } from "./trade/routes";
+import { userRoutes } from "./user/routes";
+import { voiceRoutes } from "./voice/routes";
+import { webhookRoutes } from "./webhook/routes";
+
+import type { Request, Response } from "express";
 
 export async function createApp() {
   // Connect to MongoDB on startup

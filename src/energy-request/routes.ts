@@ -1,6 +1,8 @@
 import { Router } from 'express';
-import { createEnergyRequest, getEnergyRequests, findBestSeller, giftEnergy, donateEnergy } from './controller';
+
 import { authMiddleware } from '../auth/routes';
+
+import { createEnergyRequest, getEnergyRequests, findBestSeller, giftEnergy, donateEnergy } from './controller';
 
 export function energyRequestRoutes() {
   const router = Router();

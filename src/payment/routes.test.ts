@@ -1,10 +1,13 @@
-import request from "supertest";
 import express from "express";
-import { paymentRoutes } from "./routes";
-import { paymentService } from "../services/payment-service";
-import { getDB } from "../db";
+import request from "supertest";
+
+
 import { authMiddleware } from "../auth/routes";
+import { getDB } from "../db";
 import { orderService } from "../services/order-service";
+import { paymentService } from "../services/payment-service";
+
+import { paymentRoutes } from "./routes";
 
 // --- Mocks ---
 jest.mock("../services/payment-service");

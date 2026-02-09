@@ -5,12 +5,17 @@
  */
 
 import axios from 'axios';
-import { preview, confirm } from './hourly-optimizer';
-import * as forecastReader from './hourly-forecast-reader';
+
 import * as marketAnalyzer from '../../bidding/services/market-analyzer';
-import * as hourlyMarketAnalyzer from './hourly-market-analyzer';
-import { SellerBidRequest, DailyForecast, TOP_N_HOURS, FLOOR_PRICE } from '../types';
 import { createDailyForecast, createMarketAnalysis } from '../../test-utils';
+import { TOP_N_HOURS, FLOOR_PRICE } from '../types';
+
+import * as forecastReader from './hourly-forecast-reader';
+import * as hourlyMarketAnalyzer from './hourly-market-analyzer';
+import { preview } from './hourly-optimizer';
+
+import type { SellerBidRequest} from '../types';
+
 
 // Mock dependencies
 jest.mock('axios');
@@ -18,7 +23,7 @@ jest.mock('./hourly-forecast-reader');
 jest.mock('../../bidding/services/market-analyzer');
 jest.mock('./hourly-market-analyzer');
 
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+const _mockedAxios = axios as jest.Mocked<typeof axios>;
 const mockedForecastReader = forecastReader as jest.Mocked<typeof forecastReader>;
 const mockedMarketAnalyzer = marketAnalyzer as jest.Mocked<typeof marketAnalyzer>;
 const mockedHourlyMarketAnalyzer = hourlyMarketAnalyzer as jest.Mocked<typeof hourlyMarketAnalyzer>;

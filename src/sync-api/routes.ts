@@ -1,6 +1,8 @@
 import { Router } from 'express';
-import { syncSelect, syncInit, syncConfirm, syncStatus, syncHealth, validateSelect, validateInit, validateConfirm } from './controller';
+
 import { authMiddleware } from '../auth/routes';
+
+import { syncSelect, syncInit, syncConfirm, syncStatus, syncHealth, validateSelect, validateInit, validateConfirm } from './controller';
 
 /**
  * Optional auth middleware - passes through if no auth header,

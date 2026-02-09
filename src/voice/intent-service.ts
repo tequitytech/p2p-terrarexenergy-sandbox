@@ -1,8 +1,9 @@
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
-import { INTENTS } from "./intents";
+
 import { ENTITY_TYPES } from "./entities";
+import { INTENTS } from "./intents";
 
 const classificationSchema = z.object({
   intent: z.string(),
