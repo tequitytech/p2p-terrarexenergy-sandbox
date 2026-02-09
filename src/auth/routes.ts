@@ -26,7 +26,7 @@ const REFRESH_TOKEN_EXPIRY: string = process.env.REFRESH_TOKEN_EXPIRY || '30d';
 // Module-level constants
 const OTP_EXPIRY_MINUTES: number = parseInt(process.env.OTP_EXPIRY_MINUTES || '5', 10);
 // VC Verification API
-const VC_API_BASE = 'https://35.244.45.209.sslip.io/credential/credentials';
+const VC_API_BASE = process.env.VC_API_BASE;
 const VC_TIMEOUT = 10000; // 10 seconds
 
 // Valid VC types we accept
@@ -437,7 +437,10 @@ async function verifyOtp(req: Request, res: Response) {
     });
   }
 }
-
+/**
+ * @deprecated Use `send-otp` (the new auth flow) instead.
+ * This method is kept only for backward compatibility.
+ */
 async function login(req: Request, res: Response) {
   const { phone, pin } = req.body;
 
@@ -460,7 +463,11 @@ async function login(req: Request, res: Response) {
 
   return res.json({
     success: true,
-    token, // Keeping 'token' for backward compatibility
+    /**
+     * @deprecated Use `accessToken` instead.
+     * Kept only for backward compatibility.
+     */
+    token, // deprecated
     accessToken: token,
     refreshToken,
     user: {
@@ -638,7 +645,7 @@ async function refreshTokenHandler(req: Request, res: Response) {
       return res.status(401).json({
         success: false,
         error: {
-          code: 401,
+          code: "INVALID_REFRESH_TOKEN",
           message: "Invalid Refresh Token",
         },
       });
