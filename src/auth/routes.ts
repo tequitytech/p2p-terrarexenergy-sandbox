@@ -11,7 +11,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import axios from 'axios';
 import { getDB } from '../db';
-import { ObjectId } from 'mongodb';
+import { Db, ObjectId } from 'mongodb';
 import { smsService } from '../services/sms-service';
 import crypto from "crypto";
 import { otpSendLimiter } from "./rate-limiter";
@@ -19,7 +19,8 @@ import { otpSendLimiter } from "./rate-limiter";
 // JWT Configuration - RS256 (Asymmetric)
 const ACCESS_TOKEN_EXPIRY: string = process.env.ACCESS_TOKEN_EXPIRY || '1h';
 const REFRESH_TOKEN_EXPIRY: string = process.env.REFRESH_TOKEN_EXPIRY || '30d';
-
+// Module-level constants
+const OTP_EXPIRY_MINUTES: number = parseInt(process.env.OTP_EXPIRY_MINUTES || '5', 10);
 // VC Verification API
 const VC_API_BASE = 'https://35.244.45.209.sslip.io/credential/credentials';
 const VC_TIMEOUT = 10000; // 10 seconds
@@ -86,20 +87,12 @@ const verifyVcSchema = z.object({
 });
 
 const sendOtpSchema = z.object({
-  phone: z
-    .string()
-    .min(10, 'Phone number must be at least 10 digits')
-    .max(10, 'Phone number must be at most 10 characters')
-    .regex(/^[\d]+$/, 'Phone number must contain only digits'),
+  phone: z.string().regex(/^\d{10}$/, "Phone number must be exactly 10 digits"), // only digits, exactly 10
 });
 
 const verifyOtpInputSchema = z.object({
-  phone: z
-    .string()
-    .min(10, "Phone number is required")
-    .max(10, "Phone number must be at most 10 characters")
-    .regex(/^[\d]+$/, "Phone number must contain only digits"),
-  otp: z.string().length(6, "OTP must be 6 digits"),
+  phone: z.string().regex(/^\d{10}$/, "Phone number must be exactly 10 digits"), // only digits, exactly 10,
+  otp: z.string().regex(/^\d{6}$/, "OTP must be exactly 6 digits"), // only digits, exactly 6,
 });
 
 const refreshTokenSchema = z.object({
@@ -214,26 +207,55 @@ function generateOtp(): string {
   return crypto.randomInt(100000, 999999).toString();
 }
 
+export async function findOrCreateUser(db: Db, phone: string) {
+  // Check if user exists
+  let user = await db.collection("users").findOne({ phone });
+
+  // If not, create the user
+  if (!user) {
+    console.log(`[Auth] Creating new user for phone: ${phone}`);
+    const timestamp = new Date()
+    const result = await db.collection('users').insertOne({
+        phone,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        vcVerified: false,
+        meters: [],
+      });
+    user = await db.collection("users").findOne({ _id: result.insertedId });
+  }
+
+  return user;
+}
+
+
+export function normalizeIndianPhone(phoneNumber: string): string {
+
+  // Strip +91 if already present
+  if (phoneNumber.startsWith("+91")) {
+    phoneNumber = phoneNumber.slice(3);
+  }
+
+  // Validate 10-digit number
+  if (!/^\d{10}$/.test(phoneNumber)) {
+    throw new Error("Invalid phone number. Must be a 10-digit Indian mobile number");
+  }
+
+  // Return normalized phone with +91
+  return `+91${phoneNumber}`;
+}
+
 async function sendOtp(req: Request, res: Response) {
-  const { phone } = req.body;
+  let { phone: phoneNumber } = req.body;
+
+  const phone = normalizeIndianPhone(phoneNumber);
+
   console.log(`[Auth] Received OTP request for phone: ${phone}`); // Debug log
   const db = getDB();
 
   try {
     // 1. Check if user exists, create if not
-    let user = await db.collection('users').findOne({ phone });
-
-    if (!user) {
-      console.log(`[Auth] Creating new user for phone: ${phone}`);
-      const result = await db.collection('users').insertOne({
-        phone,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        vcVerified: false,
-        meters: [],
-      });
-      user = await db.collection('users').findOne({ _id: result.insertedId });
-    }
+    const user = await findOrCreateUser(db, phone);
 
     if (!user) {
       throw new Error("Failed to find or create user");
@@ -243,14 +265,17 @@ async function sendOtp(req: Request, res: Response) {
 
     // 2. Rate Limiting Check using rate-limiter-flexible
     try {
-      await otpSendLimiter.consume(phone);
-    } catch (rateLimiterRes) {
+      let resl = await otpSendLimiter.consume(phone);
+    } catch (rateLimiterRes: any) {
+      // rateLimiterRes.msBeforeNext gives milliseconds until the next available point
+      const retryAfterSeconds = Math.ceil(rateLimiterRes.msBeforeNext / 1000);
+      const retryAfterMinutes = Math.ceil(retryAfterSeconds / 60);
+
       return res.status(429).json({
         success: false,
         error: {
           code: "RATE_LIMIT_EXCEEDED",
-          message:
-            "Max OTP send attempts reached. Please try again in 10 minutes.",
+          message:`Max OTP send attempts reached. Please try again in ${retryAfterMinutes} minutes.`,
         },
       });
     }
@@ -258,7 +283,7 @@ async function sendOtp(req: Request, res: Response) {
     // 3. Generate and Save OTP
     const now = new Date();
     const otp = generateOtp();
-    const expiresAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes expiry
+    const expiresAt = new Date(now.getTime() + OTP_EXPIRY_MINUTES * 60 * 1000); // 5 minutes expiry
     const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
     await db.collection("otps").updateOne(
@@ -278,30 +303,32 @@ async function sendOtp(req: Request, res: Response) {
 
     // add SNS to send otp
     const message = `Your Terrarex login OTP is ${otp}`;
-    const messageId = await smsService.sendSms(`+91${phone}`, message);
+    const messageId = await smsService.sendSms(phone, message);
 
-    console.log(`[Auth] SMS sent to ${phone}, MessageId: ${messageId}`);
+    console.log(`[Auth] SMS sent to ${phone}, MessageId: ${messageId}, ${otp}`);
 
     return res.json({
       success: true,
-      message: 'OTP sent successfully',
+      message: "OTP sent successfully",
     });
-
   } catch (err: any) {
-    console.error('Send OTP Error:', err);
+    console.error("Send OTP Error:", err);
     return res.status(500).json({
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to send OTP',
+        code: "INTERNAL_ERROR",
+        message: "Failed to send OTP",
       },
     });
   }
 }
 
 async function verifyOtp(req: Request, res: Response) {
-  const { phone, otp } = req.body;
+  let { phone: phoneNumber, otp } = req.body;
   const db = getDB();
+
+  const phone = normalizeIndianPhone(phoneNumber);
+
 
   try {
     const otpRecord = await db.collection('otps').findOne({ phone });
@@ -605,7 +632,7 @@ async function refreshTokenHandler(req: Request, res: Response) {
 
     if (!decoded || decoded?.type !== "refresh") {
       return res.status(401).json({
-        data: null,
+        success: false,
         error: {
           code: 401,
           message: "Invalid Refresh Token",
