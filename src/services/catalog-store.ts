@@ -4,7 +4,7 @@ export const catalogStore = {
   async saveCatalog(catalog: any, userId?: string) {
     const db = getDB();
     const catalogId = catalog['beckn:id'];
-    let usrId = userId || null;
+    const usrId = userId || null;
     await db.collection('catalogs').updateOne(
       { 'beckn:id': catalogId },
       { $set: { ...catalog, updatedAt: new Date(), userId: usrId } },
@@ -18,7 +18,7 @@ export const catalogStore = {
   async saveItem(catalogId: string, item: any, userId?: string) {
     const db = getDB();
     const itemId = item['beckn:id'];
-    let usrId = userId || null;
+    const usrId = userId || null;
     await db.collection('items').updateOne(
       { 'beckn:id': itemId },
       { $set: { ...item, catalogId, updatedAt: new Date(), userId: usrId } },
@@ -165,7 +165,7 @@ export const catalogStore = {
     console.log(`[DB] Order saved: ${transactionId}`);
   },
 
-  async getOrderByTransactionId(transactionId: string): Promise<any | null> {
+  async getOrderByTransactionId(transactionId: string): Promise<any> {
     const db = getDB();
     return db.collection('orders').findOne({ transactionId });
   },

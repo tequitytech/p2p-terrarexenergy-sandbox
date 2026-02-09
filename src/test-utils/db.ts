@@ -4,8 +4,10 @@
  * Provides isolated in-memory MongoDB for tests
  */
 
+import { MongoClient } from 'mongodb';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import { MongoClient, Db } from 'mongodb';
+
+import type { Db } from 'mongodb';
 
 let mongoServer: MongoMemoryServer | null = null;
 let mongoClient: MongoClient | null = null;

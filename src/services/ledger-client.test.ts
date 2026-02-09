@@ -4,9 +4,13 @@
  * Tests ledger API queries with retry logic
  */
 
-import axios, { AxiosError } from 'axios';
-import { queryTradeByTransaction, queryTrades, getLedgerHealth, ledgerClient } from './ledger-client';
+import axios from 'axios';
+
 import { createLedgerRecord } from '../test-utils';
+
+import { queryTradeByTransaction, queryTrades, getLedgerHealth, ledgerClient } from './ledger-client';
+
+import type { AxiosError } from 'axios';
 
 // Mock axios
 jest.mock('axios');

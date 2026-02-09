@@ -4,9 +4,12 @@
  * Tests hourly competitor analysis with time range overlap detection
  */
 
-import { analyzeCompetitorsForHour } from './hourly-market-analyzer';
 import { createCompetitorOffer } from '../../test-utils';
-import { CompetitorOffer } from '../types';
+
+import { analyzeCompetitorsForHour } from './hourly-market-analyzer';
+
+import type { CompetitorOffer } from '../types';
+
 
 describe('hourly-market-analyzer', () => {
   const targetDate = '2026-01-28';

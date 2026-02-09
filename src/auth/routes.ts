@@ -6,15 +6,19 @@
  * GET /api/auth/me - Get user profile (requires JWT)
  */
 
-import { Router, Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { z } from 'zod';
 import axios from 'axios';
-import { getDB } from '../db';
+import { Router } from 'express';
+import jwt from 'jsonwebtoken';
 import { Db, ObjectId } from 'mongodb';
+import { z } from 'zod';
 import { smsService } from '../services/sms-service';
 import crypto from "crypto";
 import { otpSendLimiter } from "./rate-limiter";
+
+import { getDB } from '../db';
+
+import type { Request, Response, NextFunction } from 'express';
+
 
 // JWT Configuration - RS256 (Asymmetric)
 const ACCESS_TOKEN_EXPIRY: string = process.env.ACCESS_TOKEN_EXPIRY || '1h';
@@ -190,7 +194,7 @@ function authMiddleware(req: Request, res: Response, next: NextFunction) {
     const decoded = verifyToken(token);
     req.user = decoded;
     next();
-  } catch (err: any) {
+  } catch (_err: any) {
     return res.status(401).json({
       success: false,
       error: {

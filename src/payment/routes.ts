@@ -1,11 +1,14 @@
-import { Router, Request, Response, NextFunction } from "express";
-import { z } from "zod";
-import { paymentService } from "../services/payment-service";
-import { getDB } from "../db";
-import { ObjectId } from "mongodb";
+import { Router } from "express";
 import { v4 as uuidv4 } from "uuid";
+import { z } from "zod";
+
 import { authMiddleware } from "../auth/routes";
+import { getDB } from "../db";
 import { orderService } from "../services/order-service";
+import { paymentService } from "../services/payment-service";
+
+import type { Request, Response, NextFunction } from "express";
+import type { ObjectId } from "mongodb";
 
 // Extend Request type to include rawBody if we capture it in app.ts
 declare global {
@@ -157,7 +160,7 @@ export const paymentRoutes = () => {
           updatedAt: new Date(),
         };
 
-        let trnsResp = await db
+        const trnsResp = await db
           .collection<PaymentData>("payments")
           .insertOne(txnBody);
         console.log("Created payment db transaction:", trnsResp);

@@ -1,16 +1,16 @@
-import axios from "axios";
 import crypto from "crypto";
+
+import axios from "axios";
 import dotenv from "dotenv";
+
 import { buildDiscoverRequest } from '../bidding/services/market-analyzer';
-import { SourceType } from '../types';
+
+import type { SourceType } from '../types';
 
 dotenv.config();
 
 const BAP_ID = process.env.BAP_ID;
 const BAP_URI = process.env.BAP_URI;
-const BPP_ID = process.env.BPP_ID;
-const BPP_URI = process.env.BPP_URI;
-const ONIX_BAP_URL = process.env.ONIX_BAP_URL || "http://onix-bap:8081";
 
 export interface TransactionResult {
   success: boolean;
@@ -72,7 +72,7 @@ export async function executeDirectTransaction(
   beneficiaryId?: string,
   autoConfirm: boolean = true
 ): Promise<TransactionResult> {
-  const BASE_URI = BAP_URI ? new URL(BAP_URI!).origin : "https://p2p.terrarexenergy.com";
+  const BASE_URI = BAP_URI ? new URL(BAP_URI).origin : "https://p2p.terrarexenergy.com";
   // const PORT = process.env.PORT || 3000;
   // const BASE_URI = `http://localhost:${PORT}`;
 
@@ -110,18 +110,9 @@ export async function executeDirectTransaction(
     throw err;
   }
 
-  const { item_id: itemId, offer_id: offerId, catalog_id: catalogId, prosumer } = pubData;
+  const { item_id: itemId, offer_id: offerId, catalog_id: _catalogId, prosumer } = pubData;
   console.log(`[TransactionService] Published. Item: ${itemId}, Offer: ${offerId}`);
 
-  // Reconstruct generic objects for Select payload to satisfy typings/structure
-  // We use the IDs returned by publish.
-  const itemData = {
-    "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
-    "@type": "beckn:Item",
-    "beckn:id": itemId,
-    "beckn:descriptor": { "schema:name": "Solar Energy" } 
-  };
-  
   const offerData = {
       "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
       "@type": "beckn:Offer",
