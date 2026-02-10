@@ -90,7 +90,8 @@ export const onConfirm = (req: Request, res: Response) => {
         if (order) {
           await orderService.saveBuyerOrder(transactionId, {
             order: order,
-            updatedAt: new Date()
+            updatedAt: new Date(),
+            status: 'SCHEDULED',
           });
           console.log(`[BAP-Webhook] Buyer Order ${transactionId} updated with full Beckn order details`);
         }
