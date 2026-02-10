@@ -1,0 +1,424 @@
+## 2026-02-08 — T02: Utility functions tests (done)
+
+Created `src/utils/index.test.ts` with 26 tests covering all exported utility functions:
+
+- **normalizeDomain** (5 tests): port stripping, multi-segment ports, falsy inputs
+- **parseError** (4 tests): non-Error returns null, plain Error message, AxiosError with ONIX structure, AxiosError fallback
+- **calculatePrice** (9 tests): PER_KWH (basePrice × quantity, wheelingCharges, defaults), FIXED (ignores quantity, adds wheeling), SUBSCRIPTION (basePrice only), TIME_OF_DAY (matching rate, no match falls back to basePrice, undefined rates, empty rates), unknown model (uses PER_KWH formula)
+- **calculateTotalAmount** (6 tests): extracts beckn:price, default PER_KWH, wheelingCharges from offerAttributes, TIME_OF_DAY with rates, FIXED pricing, missing offerAttributes
+
+All 26 tests pass. Full suite: 452 tests, 24 suites, all green.
+
+Notes for next person:
+- TIME_OF_DAY tests use `jest.useFakeTimers()` + `jest.setSystemTime()` to control `new Date().getUTCHours()`. Remember to call `jest.useRealTimers()` in afterEach.
+- AxiosError constructor needs `AxiosHeaders` import for the config.headers param.
+- These are pure functions with zero mocks (no DB, no external calls) — the simplest test pattern in the codebase.
+
+## 2026-02-08 — T01: Auth routes tests (done)
+
+Created `src/auth/routes.test.ts` with 35 tests covering all auth endpoints, middleware, and JWT utilities:
+
+- **signToken/verifyToken** (2 tests): round-trip JWT encode/decode, expired and tampered token rejection
+- **authMiddleware** (4 tests): missing header → 401, non-Bearer header → 401, invalid JWT → TOKEN_MALFORMED, valid token → sets req.user + calls next()
+- **validateBody** (2 tests): Zod schema pass-through, VALIDATION_ERROR on failure
+- **POST /api/auth/login** (8 tests): valid login returns token + user, wrong PIN → 401, non-existent phone → 401, missing phone → 400, invalid phone format → 400, short PIN → 400, non-numeric PIN → 400, userId included in JWT
+- **POST /api/auth/verify-vc** (14 tests): 401 without token, empty credentials → 400, invalid did format → 400, missing VerifiableCredential type → 400, user not found → 404, successful verification stores profile + sets vcVerified, issuerName→utilityId mapping, meterNumber extraction, non-ISSUED status → failed, check failures → failed, timeout → 503, 5xx → 503, 404 → failed entry, multiple credentials in one request
+- **GET /api/auth/me** (5 tests): 401 without token, 404 unknown userId, role=prosumer when generationProfile exists, role=consumer otherwise, all profile fields + meters + memberSince
+
+All 35 tests pass. Full suite: 487 tests, 25 suites, all green.
+
+Notes for next person:
+- Uses **in-memory MongoDB** (setupTestDB pattern) — NOT a simple DB mock. Real DB operations for auth tests give higher confidence.
+- Uses **real JWT** (no jsonwebtoken mock). `signToken`/`verifyToken` are exported from routes.ts and used directly.
+- **axios is mocked** (`jest.mock('axios')`) for the external VC verification API calls. Mock responses need `data: { status, checks }` structure.
+- For verify-vc tests, create token via `signToken(phone, user._id.toString())` after seeding user and fetching with `getTestUser()`.
+- `seedUser` and `seedUserWithProfiles` from test-utils/db are the main seeding helpers. `seedUserWithProfiles` accepts optional vcVerified, profiles, and meters.
+- The `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must set its own `mockAxios.get.mockResolvedValue(...)`.
+- Error mocks for axios: use plain Error with extra properties (`.code`, `.response.status`) rather than AxiosError constructor — the handler checks these properties directly.
+
+## 2026-02-08 — T03: Payment service tests (done)
+
+Created `src/services/payment-service.test.ts` with 15 tests covering all 4 exported methods:
+
+- **createOrder** (4 tests): amount→paise conversion (×100), Math.floor for fractional amounts, currency/receipt/notes passthrough, error propagation
+- **createPaymentLink** (4 tests): correct params with accept_partial=false and callback_url, AxiosError returns response.data instead of throwing, non-Axios errors propagate
+- **verifyPayment** (5 tests): valid signature updates DB (status, paymentId, razorpaySignature), maps known status strings to PaymentStatus enum, unknown status → FAILED, invalid signature returns false, missing RAZORPAY_KEY_SECRET throws
+- **getPayment** (2 tests): retrieves by orderId, returns null for missing orderId
+
+All 15 tests pass. Full suite: 502 tests, 26 suites, all green.
+
+Notes for next person:
+- Uses **in-memory MongoDB** (setupTestDB pattern) for verifyPayment and getPayment tests that hit the `payments` collection.
+- `razorpay` module is fully mocked — `razorpay.orders.create` and `razorpay.paymentLink.create` are jest.fn() wrappers. `rzp_key_secret` is set to `'test-secret-key'`.
+- `validatePaymentVerification` from `razorpay/dist/utils/razorpay-utils` is also mocked — returns true/false to control signature validation flow.
+- For the AxiosError test, use `jest.requireActual('axios')` to get the real `AxiosError` constructor so `instanceof AxiosError` check works in the source code.
+- To test missing `rzp_key_secret`, require the mocked module and temporarily set it to empty string, then restore after assertion.
+- `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must re-configure its mock return values.
+
+## 2026-02-08 — T07: Settlement poller tests (done)
+
+Created `src/services/settlement-poller.test.ts` with 25 tests covering all 6 exported functions:
+
+- **pollOnce** (13 tests): empty pending list, ledger query per settlement, settlement update on ledger record, counter increment, newlySettled tracking, markOnSettleNotified after callback, skip callback when already notified, buyer order → DELIVERED, seller order → DELIVERED, error isolation per settlement, isPolling finally-block reset, no order update when not SETTLED, graceful order update failure
+- **triggerOnSettle** (5 tests): POST to callback URL with correct payload, context with action=on_settle and settlement details, skip when no URL configured, catch callback errors without throwing, use saved order domain
+- **refreshSettlement** (4 tests): query ledger + update store, trigger callback for newly settled, return null when no ledger record, skip callback when already notified
+- **startPolling** (1 test): disabled when ENABLE_SETTLEMENT_POLLING=false
+- **stopPolling** (1 test): safe to call when not running
+- **getPollingStatus** (1 test): returns current state object
+
+All 25 tests pass. Full suite: 557 tests, 28 suites, all green.
+
+Notes for next person:
+- **Uses in-memory MongoDB** (setupTestDB pattern) with real `settlementStore` for DB operations. Only `ledgerClient`, `orderService`, `catalogStore`, and `axios` are mocked.
+- **Module loaded with dynamic import** (`await import('./settlement-poller')`) because it reads `process.env.ENABLE_SETTLEMENT_POLLING` at module level. Set env vars before import.
+- `process.env.ENABLE_SETTLEMENT_POLLING = 'false'` prevents the poller from auto-starting during tests.
+- `process.env.ON_SETTLE_CALLBACK_URL` is toggled per test — set to a URL to test callback logic, empty string to test skip-callback path.
+- `uuid.v4` is mocked to `'test-uuid-1234'` for deterministic `message_id` assertions in callback payload.
+- For `onSettleNotified` tests, insert settlement documents directly into DB with `onSettleNotified: true` rather than using `seedSettlement` (which defaults to false).
+- The `isPolling` guard test is implicit — tested via the "reset isPolling flag even on error" test which verifies a second poll runs after a failed first one.
+- `restoreMocks: true` in jest.config clears mock implementations between tests — re-configure mocks in each test.
+
+## 2026-02-08 — T04: BAP webhook controller tests (done)
+
+Created `src/bap-webhook/controller.test.ts` with 30 tests covering all 9 exported handlers:
+
+- **onSelect** (6 tests): ACK response, resolve pending txn, no pending txn handling, error in body still ACKs, error passed through to resolved data, missing context graceful handling
+- **onInit** (3 tests): ACK response, resolve pending txn, error field pass-through
+- **onConfirm** (13 tests): ACK response, resolve pending txn, BUYER settlement creation with correct quantity, multi-item quantity sum, sellerPlatformId from context.bpp_id, sellerDiscomId from orderAttributes.utilityIdSeller, saveBuyerOrder call, sendOrderConfirmation call, no settlement when error present, no settlement when order missing, graceful handling of settlement creation failure, fallback orderItemId chains (beckn:orderedItem → beckn:id → item-{txnId}), empty orderItems (qty=0)
+- **onStatus** (2 tests): ACK response, resolve pending txn
+- **onCancel** (1 test): ACK + resolve pending txn
+- **onUpdate** (1 test): ACK + resolve pending txn
+- **onRating** (1 test): ACK + resolve pending txn
+- **onSupport** (1 test): ACK + resolve pending txn
+- **onTrack** (1 test): ACK + resolve pending txn
+
+All 30 tests pass. Full suite: 532 tests, 27 suites, all green.
+
+Notes for next person:
+- **Transaction store is NOT mocked** — uses real in-memory `createPendingTransaction`/`resolvePendingTransaction`/`hasPendingTransaction` since transaction-store is a pure in-memory Map.
+- **settlementStore, orderService, notificationService are mocked** via `jest.mock()` since they hit MongoDB.
+- Uses `mockRequest`/`mockResponse` from `test-utils/index.ts` for handler invocation (not supertest since these are raw handlers, not routes).
+- `flushPromises()` + `setTimeout(50ms)` is needed for `onConfirm` tests because settlement/order/notification logic runs in a detached async IIFE `(async () => { ... })()`.
+- `restoreMocks: true` in jest.config clears mock implementations between tests. For `onConfirm` tests that check mocks were NOT called, explicitly call `mockClear()` at start of that test.
+- Each test uses unique transaction IDs to prevent cross-test interference in the shared in-memory transaction store.
+
+## 2026-02-08 — T05: Expand order-service tests (done)
+
+Expanded `src/services/order-service.test.ts` from 3 to 17 tests, covering all 6 methods in order-service.ts:
+
+- **saveBuyerOrder** (3 tests): save + retrieve, upsert when same transactionId exists, default status to INITIATED when not provided
+- **getBuyerOrder** (2 tests): single order by transactionId, returns null when not found
+- **updateBuyerOrderStatus** (3 tests): status update with extra fields, warn when no match (matchedCount=0), merge additional update fields (razorpayPaymentId, razorpaySignature, paymentId)
+- **getSellerOrders** (3 tests): returns from 'orders' collection with type=SELLER, empty array when none exist, sort by createdAt descending
+- **updateSellerOrderStatus** (3 tests): updates both orderStatus and status fields, warns when no match, merges additional fields (settlementId, actualDelivered)
+- **getCombinedOrders** (3 tests): combines buyer + seller orders, sorts by createdAt descending across both collections, returns empty array when no orders
+
+All 17 tests pass. Full suite passes.
+
+Notes for next person:
+- Uses **in-memory MongoDB** (setupTestDB pattern) — same as the original 3 tests.
+- Seller orders go in the `orders` collection (not `buyer_orders`). Use `getTestDB().collection('orders').insertOne()` to seed seller orders.
+- `console.warn` spy tests need `mockRestore()` to clean up — use `jest.spyOn(console, 'warn').mockImplementation()` and restore after assertion.
+- The upsert test verifies that calling `saveBuyerOrder` twice with the same transactionId results in only 1 document (second call updates rather than inserts).
+- Combined orders sort test uses 3 orders across 2 collections (1 buyer at middle date, 2 sellers at oldest/newest) to verify cross-collection descending sort.
+
+## 2026-02-08 — T06: Expand catalog-store tests (done)
+
+Expanded `src/services/catalog-store.test.ts` from 29 to 59 tests, covering all remaining methods in catalog-store.ts:
+
+- **getSellerEarnings** (6 tests): total from confirmed/scheduled orders, 0 for no orders, date range filtering via from/to, 2 decimal place rounding, excluding non-confirmed/scheduled statuses, multi-item sum within single order
+- **getSellerTotalSold** (4 tests): sum unitQuantity from confirmed/scheduled, 0 for no orders, multi-item sum, excludes cancelled orders
+- **getSellerAvailableInventory** (3 tests): sum availableQuantity from items, 0 when no items, excludes other sellers' items
+- **getBeneficiaryDonations** (3 tests): donations only from verified beneficiaries (vcVerified+isVerifiedBeneficiary), 0 for no donations, sum across multiple orders (CONFIRMED, COMPLETED, SCHEDULED)
+- **getSellerUserIdForItem** (5 tests): direct item.userId, catalog.userId fallback, meterId→user lookup fallback, null for not found, null when all fallbacks fail
+- **getPublishedItems** (5 tests): active items with matching offers qty>0, excludes items with no offers, excludes zero-qty offers, $lookup joins items↔offers by beckn:id, excludes inactive items
+- **reduceOfferInventory** (4 tests): decrement unitQuantity, throw on insufficient inventory, reduce to zero, throw for non-existent offer
+
+All 59 tests pass. Full suite: 601 tests, 28 suites, all green.
+
+Notes for next person:
+- Uses **in-memory MongoDB** (setupTestDB pattern) — same as the existing tests.
+- For `getSellerEarnings`/`getSellerTotalSold` tests, seed orders directly via `getTestDB().collection('orders').insertOne()` with the full nested beckn order structure (`order.beckn:seller`, `order.beckn:orderStatus`, `order.beckn:orderItems`).
+- The aggregation pipeline tests require exact field path matching: `order.beckn:orderItems.beckn:quantity.unitQuantity` for quantities, `order.beckn:orderItems.beckn:acceptedOffer.beckn:offerAttributes.beckn:price.value` for prices.
+- For `getBeneficiaryDonations`, seed users with `vcVerified: true` AND `isVerifiedBeneficiary: true` plus `profiles.consumptionProfile.id` — the function builds a Set from these IDs to filter orders by `beckn:buyer.beckn:id`.
+- `reduceOfferInventory` uses `beckn:price.applicableQuantity.unitQuantity` path (different from old `reduceInventory` which uses `beckn:itemAttributes.availableQuantity` on items).
+- `getPublishedItems` uses MongoDB `$lookup` with `$expr` — the test verifies offers are joined by checking `beckn:items` array contains the item's `beckn:id`.
+
+## 2026-02-08 — T08: Notification service tests (done)
+
+Created `src/services/notification-service.test.ts` with 10 tests covering the `sendOrderConfirmation` method:
+
+- **sendOrderConfirmation** (10 tests): send email to buyer with verified email, include transactionId/totalQuantity/seller/amount in email body, find user by consumptionProfile.id, find user by utilityCustomer.did as fallback, find user by phone as last fallback, skip when no buyer ID in order, skip when user not found in DB, skip when user has no email, calculate totalQuantity from multiple orderItems, catch and log emailService errors without throwing
+
+All 10 tests pass. Full suite: 611 tests, 29 suites, all green.
+
+Notes for next person:
+- Uses **in-memory MongoDB** (setupTestDB pattern) for user lookups. The `seedUserWithProfiles` helper from test-utils/db does NOT have an `email` field, so users are inserted directly via `getTestDB().collection('users').insertOne()`.
+- **emailService is mocked** (`jest.mock('./email-service')`) — `sendEmail` is a jest.fn() that returns `true` by default. Reset with `mockResolvedValue(true)` in `beforeEach`.
+- The $or query fallback chain (consumptionProfile.id → utilityCustomer.did → phone) is tested by seeding users with only one matching field each.
+- For the "no email" test, insert user with `email: null` — the source checks `!user.email` which covers both null and undefined.
+- For the error handling test, `mockSendEmail.mockRejectedValue(new Error(...))` triggers the catch block. The test verifies the function resolves without throwing (try/catch in source swallows the error).
+- `restoreMocks: true` in jest.config resets mock implementations between tests, so `mockSendEmail.mockResolvedValue(true)` is set in beforeEach.
+
+## 2026-02-08 — T10: Expand sync-api controller tests (done)
+
+Expanded `src/sync-api/controller.test.ts` from 24 to 50 tests (+26), covering all simplified API formats and validation middleware:
+
+- **isAckResponse** (7 tests, +2 new): ACK/NACK detection in JSON and string formats, NACK priority in malformed, null/unknown format, ACK with spaces around colon
+- **syncSelect — raw beckn** (8 tests, +2 new): forward to ONIX, transaction ID, business error, timeout, 500, BUSINESS_ERROR code verification, 502 UPSTREAM_ERROR from ONIX
+- **syncSelect — catalog-based format** (6 tests, all new): transform catalog to beckn order with buyer details, 401 when no userId, 403 NO_BUYER_PROFILE, 400 invalid schema (empty items), selectedOfferId selection, 500 on non-profile extractBuyerDetails error
+- **syncInit — raw beckn** (2 tests, existing): forward and success response
+- **syncInit — select-based format** (5 tests, all new): transform to init with fulfillment + payment + settlement accounts, wheeling charges calculation (10 kWh × 5.5 + 10 × 1.50 = 70), 401 no userId, 400 invalid schema (empty payment.id), 400 empty orderItems
+- **syncConfirm — raw beckn** (5 tests, existing): buyer/seller utilityId validation, empty string, forward, business error
+- **syncConfirm — init-based format** (4 tests, all new): transform to confirm with AUTHORIZED payment status, missing buyer utilityId, missing seller utilityId, empty buyer utilityId
+- **syncStatus** (2 tests, existing)
+- **syncHealth** (2 tests, +1 new): health status, pending count from transaction store
+- **validateSelect middleware** (2 tests, all new): catalog-based passthrough, standard format validation
+- **validateInit middleware** (3 tests, all new): select-based passthrough, reject missing transaction_id, pass valid transaction_id
+- **validateConfirm middleware** (3 tests, all new): init-based passthrough, reject missing transaction_id, pass valid transaction_id
+- **error handling** (2 tests, existing)
+
+All 50 tests pass. Full suite: 647 tests, 29 suites, all green.
+
+Notes for next person:
+- **`extractBuyerDetails` is mocked** via `jest.mock('../trade/routes')` using `jest.requireActual` to preserve other exports. This is cleaner than mocking `../db` since only the catalog-based path needs DB access.
+- Three helper factories (`createCatalogBasedSelectBody`, `createSelectBasedInitBody`, `createInitBasedConfirmBody`) build valid request bodies with override support for targeted test variations.
+- For the wheeling charges test: WHEELING_RATE defaults to 1.50 INR/kWh. Total = (price × qty) + (qty × WHEELING_RATE) = (5.5 × 10) + (10 × 1.50) = 70 INR.
+- The init-based confirm transform sets `beckn:paymentStatus` to `'AUTHORIZED'` (from `'INITIATED'`).
+- `validateSelect`, `validateInit`, `validateConfirm` are exported middleware functions tested with `mockNext()`.
+- `mockedAxios.post.mock.calls[0][1]` extracts the posted body — cast to `any` to avoid TS errors.
+- `restoreMocks: true` in jest.config resets mock implementations between tests.
+
+## 2026-02-08 — T09: Expand webhook controller tests (done)
+
+Expanded `src/webhook/controller.test.ts` from 42 to 49 tests (+7), adding in-memory MongoDB tests for `onSelect` and `onConfirm` business logic:
+
+- **onSelect — inventory check** (3 tests): ACK immediate response, INSUFFICIENT_INVENTORY error callback when requested > available qty, successful on_select with CREATED status when qty is sufficient
+- **onConfirm — settlement + inventory + republish** (4 tests): ACK immediate response, settlement record creation with totalQuantity sum from multiple orderItems, INSUFFICIENT_INVENTORY error callback when pre-check fails (no settlement created), inventory reduction on offer + catalog republish to ONIX + seller order saved with SCHEDULED status
+
+All 49 tests pass. Full suite: 619 tests, 29 suites, all green.
+
+Notes for next person:
+- **Uses in-memory MongoDB** (setupTestDB pattern) — DB is required because `onSelect` and `onConfirm` use real `catalogStore` (getItem, getOffer, reduceOfferInventory, buildCatalogForPublish, saveOrder) and `settlementStore.createSettlement`.
+- **DB mock approach differs from existing tests**: the original tests only mocked `readDomainResponse` for template handlers (onUpdate, onRating, etc.). The new tests mock `../db` module to point at `getTestDB()`, enabling real MongoDB operations for onSelect/onConfirm.
+- **`parseError` must NOT be mocked** — it's used by onConfirm's catch block. The utils mock now uses `jest.requireActual('../utils')` to keep parseError working while mocking readDomainResponse.
+- **payment-service is mocked** since onInit (called internally) creates Razorpay orders. Mock returns dummy `{ id, amount, currency }` and `{ short_url }`.
+- Offers must have `beckn:price.applicableQuantity.unitQuantity` field for both onSelect availability check and onConfirm pre-check + `reduceOfferInventory`.
+- Async handler tests need `setTimeout(200-500ms)` because onSelect/onConfirm run their business logic in detached `(async () => { ... })()` IIFEs that fire-and-forget.
+- Each test uses unique item/offer/transaction IDs and `clearTestDB()` in beforeEach to prevent cross-test interference.
+- The republish test verifies both the `/bpp/caller/publish` POST and the `on_confirm` callback POST by searching `mockedAxios.post.mock.calls` for matching URLs.
+
+## 2026-02-08 — T11: Expand notification controller tests (done)
+
+Expanded `src/notification/controller.test.ts` from 4 to 18 tests, adding full `sendEmailHandler` coverage and SMS edge cases:
+
+- **sendSmsHandler** (8 tests, +4 new): empty phone string → 400, empty body → 400, international phone formats (+91...) accepted, specific validation errors per field when body is empty object
+- **sendEmailHandler** (10 tests, all new): successful send → 200, sendEmail returns false → 500, SMTP error → 500 Internal Server Error, missing 'to' → 400, invalid email format → 400, empty subject → 400, empty body → 400, all fields missing → 400, missing subject only → 400, missing body only → 400
+
+All 18 tests pass. Full suite: 661 tests, 29 suites, all green.
+
+Notes for next person:
+- Both `sendSmsHandler` and `sendEmailHandler` call `schema.parse()` OUTSIDE their try/catch block, so ZodError propagates to the Express error handler. The `createTestApp()` function replicates the global ZodError handler from app.ts.
+- **emailService is mocked** (`jest.mock('../services/email-service')`) — `sendEmail` is a jest.fn(). For the "returns false" test, use `mockResolvedValue(false)` to hit the else branch. For the error test, use `mockRejectedValue(new Error(...))` to hit the catch block.
+- The source distinguishes between `sendEmail` returning false (→ "Failed to send email") vs throwing (→ "Internal Server Error") — these are separate 500 responses with different error messages.
+- `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must set its own mock return values.
+
+## 2026-02-08 — T12: Expand payment routes tests (done)
+
+Expanded `src/payment/routes.test.ts` from 10 to 15 tests (+5), adding payment callback order update verification and create-order validation edge cases:
+
+- **POST /api/payment/order** (+2 tests): amount=0 rejected by `z.number().min(1)` with field-specific error detail, missing sourceMeterId → 400 VALIDATION_ERROR with field detail
+- **GET /api/payment-callback** (+3 tests): successful verification looks up buyer_orders by razorpayOrderId and calls `orderService.updateBuyerOrderStatus(transactionId, "SCHEDULED", { paymentId, razorpaySignature })`, warns when buyer order not found (no status update attempted), verification failure skips DB lookup and status update entirely
+
+All 15 tests pass. Full suite passes.
+
+Notes for next person:
+- The existing callback tests only verified `paymentService.verifyPayment` was called and the response status. The new tests cover the **post-verification logic**: DB lookup in `buyer_orders` by `razorpayOrderId` and the `updateBuyerOrderStatus` call.
+- The `mockCollection.findOne` mock is shared across both the payment/order route (users lookup) and payment-callback route (buyer_orders lookup). In callback tests, `mockDb.collection` returns the same mockCollection regardless of collection name — this works because callback only uses `findOne`.
+- The `console.warn` spy test for "buyer order not found" uses `jest.spyOn(console, 'warn').mockImplementation()` and calls `mockRestore()` after assertion — don't forget cleanup or it suppresses warnings in later tests.
+- `jest.clearAllMocks()` in `beforeEach` resets call counts but not implementations (since `restoreMocks: true` handles that). The `mockGetDB.mockReturnValue(mockDb)` in beforeEach ensures DB mock is always available.
+
+## 2026-02-08 — T13: Dashboard routes tests (done)
+
+Created `src/dashboard/routes.test.ts` with 5 tests covering the GET /api/dashboard/stats endpoint:
+
+- **GET /api/dashboard/stats** (5 tests): 400 when sellerId missing, aggregated stats for valid sellerId (verifies all 4 catalogStore methods called with correct sellerId), 2 decimal place rounding (100.456→100.46, 50.789→50.79, 25.1234→25.12, 10.999→11), zeros when seller has no data, 500 when catalogStore throws
+
+All 5 tests pass. Full suite: 671 tests, 30 suites, all green.
+
+Notes for next person:
+- **catalogStore is fully mocked** (`jest.mock('../services/catalog-store')`) — no DB needed. Each of the 4 methods (`getSellerEarnings`, `getSellerTotalSold`, `getSellerAvailableInventory`, `getBeneficiaryDonations`) is mocked with `mockResolvedValue`.
+- Uses **supertest** with Express app mounting `dashboardRoutes()` at `/api` prefix.
+- The rounding test verifies the `Number(value.toFixed(2))` behavior — note that `10.999.toFixed(2)` = `"11.00"` which `Number()` converts to `11` (not `11.00`).
+- For the error test, only `getSellerEarnings` needs to reject — since `Promise.all` fails fast, the other 3 methods don't need error setup.
+- `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must set its own `mockResolvedValue` calls.
+
+## 2026-02-08 — T14: Orders routes tests (done)
+
+Created `src/orders/routes.test.ts` with 9 tests covering all 3 authenticated order listing endpoints:
+
+- **GET /api/orders/buyer** (3 tests): returns buyer orders for authenticated user (verifies getBuyerOrders called with userId), 401 when not authenticated (authMiddleware passes through without setting req.user), empty array when no buyer orders
+- **GET /api/orders/seller** (3 tests): returns seller orders for authenticated user (verifies getSellerOrders called with userId), 401 with UNAUTHORIZED code when not authenticated, empty array when no seller orders
+- **GET /api/orders/combined** (3 tests): returns combined buyer + seller orders (verifies getCombinedOrders called with userId string), 401 with UNAUTHORIZED code when not authenticated, 500 with INTERNAL_SERVER_ERROR when orderService throws
+
+All 9 tests pass. Full suite: 680 tests, 31 suites, all green.
+
+Notes for next person:
+- **authMiddleware is mocked** (`jest.mock('../auth/routes')`) — default implementation sets `req.user = { phone, userId }` and calls `next()`. For 401 tests, override to call `next()` without setting `req.user`.
+- **orderService is fully mocked** (`jest.mock('../services/order-service')`) — no DB needed. `getBuyerOrders`, `getSellerOrders`, and `getCombinedOrders` are jest.fn() wrappers.
+- Uses **supertest** with Express app mounting `ordersRoutes()` at `/api` prefix.
+- Note the different 401 response shapes: buyer route returns `{ success: false, error: "Unauthorized" }` (string), while seller and combined routes return `{ success: false, error: { code: "UNAUTHORIZED", message: "Unauthorized Access" } }` (object). Tests match each format accordingly.
+- `getBuyerOrders` and `getSellerOrders` receive `{ userId }` object, but `getCombinedOrders` receives userId as a plain string — matches the source code signatures.
+- `console.error` spy with `mockImplementation()` is used in the 500 error test to suppress noise, with `mockRestore()` after assertion.
+- `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must set its own mock return values.
+
+## 2026-02-08 — T15: User routes tests (done)
+
+Created `src/user/routes.test.ts` with 7 tests covering the GET /api/beneficiary-accounts endpoint:
+
+- **GET /api/beneficiary-accounts** (7 tests): returns verified beneficiary accounts, empty array when none exist, only returns users with both vcVerified=true AND isVerifiedBeneficiary=true, id fallback chain (consumptionProfile.id → utilityCustomer.did → phone), includes name/verified/type/requiredEnergy fields, 500 when DB query fails, does not expose sensitive fields (pin, email, phone, profiles)
+
+All 7 tests pass. Full suite: 687 tests, 32 suites, all green.
+
+Notes for next person:
+- Uses **in-memory MongoDB** (setupTestDB pattern) with `jest.mock('../db')` pointing at `getTestDB()`. Real DB operations for higher confidence than simple mocks.
+- Uses **supertest** with Express app mounting `userRoutes()` at `/api` prefix — same pattern as dashboard/routes.test.ts.
+- The DB error test uses `jest.spyOn(realDb, 'collection').mockImplementation(...)` to make `.find()` throw. Must use `(...args: unknown[])` param type to satisfy TypeScript, then cast `args[0] as string`. Remember to call `mockRestore()` after.
+- The "not expose sensitive fields" test verifies only 5 keys exist on the response object (`id`, `name`, `requiredEnergy`, `type`, `verified`) — ensures `.map()` projection doesn't leak raw DB fields.
+- The id fallback chain test seeds 3 users: one with consumptionProfile.id, one with only utilityCustomer.did, one with neither (falls back to phone). Uses `res.body.accounts.find(a => a.name === ...)` to match since MongoDB doesn't guarantee insertion order.
+
+## 2026-02-08 — T16: Discover routes tests (done)
+
+Created `src/discover/routes.test.ts` with 9 tests covering the GET /api/discover endpoint:
+
+- **GET /api/discover** (9 tests): forward discover request to CDS and return catalogs, default sourceType to SOLAR and isActive to true, sort offers by price ascending within each catalog, sort offers by price descending when order=desc, sort offers by energy quantity (maximumQuantity), sort catalogs by their best offer, filter items by tag=farmer (schema:name match against "Suresh - BRPL Prosumer"), return 500 when CDS request fails, handle empty catalogs gracefully
+
+All 9 tests pass. Full suite: 696 tests, 33 suites, all green.
+
+Notes for next person:
+- **axios and buildDiscoverRequest are both mocked** (`jest.mock('axios')` and `jest.mock('../bidding/services/market-analyzer')`) — no real CDS calls. `buildDiscoverRequest` returns a minimal request body that gets forwarded to the mocked `axios.post`.
+- Uses **supertest** with Express app mounting `discoverRoutes()` at `/api` prefix — same pattern as dashboard/routes.test.ts.
+- Helper factories: `makeCdsResponse(catalogs)` wraps catalogs in `{ data: { message: { catalogs } } }` format. `makeCatalog(id, offers, items)` and `makeOffer(id, price, maxQty)` build properly-structured beckn objects with both `beckn:price.schema:price` and `beckn:offerAttributes.maximumQuantity` paths.
+- For the sorting tests, offers use `beckn:price.schema:price` for price sorting and `beckn:offerAttributes.maximumQuantity` for energy sorting. The source code checks both `schema:price` and nested `beckn:price.value` paths as fallbacks.
+- The farmer tag filter is hardcoded to match `schema:name === 'Suresh - BRPL Prosumer'` — it's not a general tag filter, just this specific name match.
+- Catalogs with 0 items after farmer filtering get removed by the `catalogs.filter(p => p["beckn:items"].length > 0)` line.
+- The Zod schema parses query params with coercion (e.g., `isActive` is string "true"/"false" transformed to boolean). Default values: `sourceType=SOLAR`, `isActive=true`.
+- `restoreMocks: true` in jest.config resets mock implementations between tests.
+
+## 2026-02-08 — T17: Bidding controller tests (done)
+
+Created `src/bidding/controller.test.ts` with 11 tests covering both `previewBid` and `confirmBid` handlers:
+
+- **previewBid** (6 tests): missing provider_id → 400, missing meter_id → 400, invalid source_type (HYDRO) → 400, valid request → 200 with preview result (verifies preview() called with correct BidRequest), 'not found' error → 400, unexpected error → 500
+- **confirmBid** (5 tests): missing provider_id → 400, valid request → 200 with placed_bids (verifies confirm() called with BidRequest + undefined maxBids), max_bids param passed as parsed integer to confirm(), 'malformed' error → 400, unexpected error → 500
+
+All 11 tests pass. Full suite: 707 tests, 34 suites, all green.
+
+Notes for next person:
+- **bid-optimizer is fully mocked** (`jest.mock('./services/bid-optimizer')`) — `preview` and `confirm` are jest.fn() wrappers. No DB, no axios, no external calls needed.
+- Uses `mockRequest`/`mockResponse` from `test-utils/index.ts` for direct handler invocation (not supertest, since these are raw handler functions not routes).
+- The `validateRequest` function is private — tested implicitly through the handler invocations. Each validation path (provider_id, meter_id, source_type) is covered by both previewBid and confirmBid (only previewBid tests all 3 to avoid duplication, confirmBid tests provider_id to confirm shared validation).
+- Error status code logic: `error.message` containing 'not found' or 'malformed' → 400, everything else → 500. Both keywords are tested.
+- `max_bids` is passed as string in request body (`"3"`), parsed with `parseInt` in controller — test verifies confirm() receives integer `3`.
+- `console.log` and `console.error` are spied/suppressed in beforeEach to keep test output clean.
+- `restoreMocks: true` in jest.config resets mock implementations between tests.
+
+## 2026-02-08 — T18: Seller-bidding controller tests (done)
+
+Created `src/seller-bidding/controller.test.ts` with 12 tests covering both `previewSellerBid` and `confirmSellerBid` handlers:
+
+- **previewSellerBid** (7 tests): missing source_type → 400, invalid source_type (HYDRO) → 400, user profile not found → 500, no generationProfile → 500, valid request → 200 with profile-derived provider_id/meter_id, preview() error → 500, meters[0] fallback when meterNumber missing
+- **confirmSellerBid** (5 tests): invalid source_type → 400, no generationProfile → 500, authorization token passed to confirm(), valid request → 200 with placed_bids (WIND source_type), unexpected error → 500
+
+All 12 tests pass. Full suite: 719 tests, 35 suites, all green.
+
+Notes for next person:
+- **DB module is mocked** (`jest.mock('../db')`) with a `__mockFindOne` jest.fn() exposed for per-test control. Default in `beforeEach` returns `SELLER_USER` with full generationProfile.
+- **hourly-optimizer is fully mocked** (`jest.mock('./services/hourly-optimizer')`) — `preview` and `confirm` are jest.fn() wrappers. No real forecast or publish calls.
+- Uses `mockRequest`/`mockResponse` from `test-utils/index.ts` for direct handler invocation (not supertest, since these are raw handler functions exported from controller.ts).
+- Key difference from the regular bidding controller (T17): `provider_id` and `meter_id` are NOT in the request body. They're derived from the user's `generationProfile` via DB lookup (`generationProfile.did` → provider_id, `generationProfile.meterNumber` → meter_id, fallback to `meters[0]`).
+- `req.user` must be set manually on the mock request (e.g., `(req as any).user = { phone: '...' }`) since the controller reads `(req as any).user`.
+- `req.headers.authorization` must also be set manually — `confirmSellerBid` reads it directly via `req.headers.authorization!`.
+- All errors go to 500 (no 400 differentiation for "not found" or "malformed" like the regular bidding controller).
+- `restoreMocks: true` in jest.config resets mock implementations between tests.
+
+## 2026-02-08 — T19: Expand trade-api tests (done)
+
+Expanded `src/__tests__/api/trade-api.test.ts` from 21 to 28 tests (+7), adding publish validation, DB structure verification, ONIX forwarding, and published-items endpoint coverage:
+
+- **POST /api/publish** (+5 tests): 403 NOT_PROSUMER when user has no generationProfile, 400 VALIDATION_ERROR when quantity missing, 400 when price missing, 400 when deliveryDate format invalid (non-YYYY-MM-DD), catalog/item/offer stored with correct beckn structure (EnergyResource type, provider DID, PER_KWH pricing model), prosumer details from generationProfile in response, forward catalog to ONIX /bpp/caller/publish with catalog_publish action, handle ONIX failure gracefully (onix_forwarded=false, catalog still saved locally)
+- **GET /api/published-items** (+3 tests, all new): active items with matching offers returned via $lookup aggregation, empty array when no items, exclude inactive items and zero-quantity offers
+
+All 28 tests pass. Full suite: 730 tests, 35 suites, all green.
+
+Notes for next person:
+- **authMiddleware is statically mocked** at module level (not a jest.fn()), so it always sets `req.user = { userId: 'aaaaaaaaaaaaaaaaaaaaaaaa', phone: '1234567890' }`. Cannot test 401 directly — auth middleware itself is tested in auth/routes.test.ts (T01).
+- For the 403 test, replace the seeded prosumer user with a consumer (only `consumptionProfile`, no `generationProfile`) via `deleteMany` + `insertOne` in the test itself.
+- `validPublishInput` is extracted as a shared constant at describe-level for DRY test setup.
+- The ONIX forwarding test finds the publish call via `mockedAxios.post.mock.calls.find(call => call[0].includes('/bpp/caller/publish'))` since axios may be called for other purposes.
+- For ONIX failure test, `mockedAxios.post.mockRejectedValue(...)` causes the try/catch in the route to set `onixError`, resulting in `onix_forwarded: false` in the response but still 200 (catalog saved locally).
+- Published-items uses real MongoDB `$lookup` aggregation — items need `userId` matching the authMiddleware mock userId, `beckn:isActive: true`, and offers with `beckn:items` containing the item's `beckn:id` and `beckn:price.applicableQuantity.unitQuantity > 0`.
+- `restoreMocks: true` in jest.config resets mock implementations between tests.
+
+## 2026-02-08 — T20: Voice routes tests (done)
+
+Created `src/voice/routes.test.ts` with 7 tests covering the POST /api/voice/intent endpoint:
+
+- **POST /api/voice/intent** (7 tests): 400 when text field is missing, 400 when text is empty string, 400 when text exceeds 50 word limit, classified intent with confidence and entities returned correctly, low_confidence=true when confidence < 0.5, 503 when LLM service throws (LLM_SERVICE_UNAVAILABLE), all 5 entity types mapped to correct ENTITY_TYPES units (quantity→kWh, price→INR/kWh, time_window→ISO8601, meter_id→mRID, source_type→enum)
+
+All 7 tests pass. Full suite: 737 tests, 36 suites, all green.
+
+Notes for next person:
+- **classifyIntent is fully mocked** (`jest.mock('./intent-service')`) — no real OpenAI/LLM calls. Mock returns `{ intent, confidence, detected_language, entities }` objects.
+- **ENTITY_TYPES is NOT mocked** — uses real values from `./entities.ts` for unit mapping verification. The test asserts both the mapped values and cross-checks against the actual ENTITY_TYPES constants.
+- Uses **supertest** with Express app mounting `voiceRoutes()` at `/api/voice` prefix — same pattern as dashboard/routes.test.ts.
+- The `validateBody` middleware in routes.ts uses `safeParse` (not `schema.parse()`), so ZodErrors are handled internally and return `{ success: false, error: { code: 'VALIDATION_ERROR', ... } }` — no need for a global ZodError handler in the test app.
+- The 50-word limit is validated via `.refine()` on the Zod schema — it splits on `\s+` and checks length. The test uses exactly 51 "word" tokens.
+- `console.log` for successful requests (voice/intent logging) is NOT suppressed — it's non-intrusive. Only `console.error` is spied/suppressed in the 503 error test.
+- `restoreMocks: true` in jest.config resets mock implementations between tests.
+- **Remaining tasks**: T21 (energy-request controller, 24 tests) and T22 (energy-request service, 12 tests) — both P3.
+
+## 2026-02-08 — T21: Energy-request controller tests (done)
+
+Created `src/energy-request/controller.test.ts` with 33 tests covering all 5 exported handler functions:
+
+- **createEnergyRequest** (6 tests): 401 unauthorized, 400 missing requiredEnergy, 400 missing purpose, 404 user profile not found, 201 insert with PENDING status, isVerifiedBeneficiary + beneficiaryType from user profile
+- **getEnergyRequests** (2 tests): PENDING requests sorted by createdAt desc (excludes FULFILLED), empty array when no pending requests
+- **findBestSeller** (7 tests): 400 missing requestId, 400 invalid ObjectId format, 404 request not found, 404 no catalogs from CDS, cheapest offer sorted by price ascending, item matched via beckn:items reference, 500 when CDS fails, 404 when catalogs have no offers
+- **giftEnergy** (8 tests): 401 unauthorized, 400 missing requestId, 404 request not found, 400 already FULFILLED, 404 no suitable seller (discoverBestSeller returns null), executeDirectTransaction called with autoConfirm=false, request status updated to PAYMENT_PENDING in DB, 200 with transaction details
+- **donateEnergy** (10 tests): 401 unauthorized, 404 seller profile not found, 400 no valid seller ID (all profile IDs null), 404 request not found, executeDirectTransaction called with price=0, request status updated to FULFILLED in DB, 200 with transaction details, sellerId fallback chain (generationProfile.id → consumptionProfile.id → utilityCustomer.did), 500 when Zod parse fails (missing requestId)
+
+All 33 tests pass. Full suite: 770 tests, 37 suites, all green.
+
+Notes for next person:
+- Uses **in-memory MongoDB** (setupTestDB pattern) with `jest.mock('../db')` pointing at `getTestDB()`. Real DB operations for users and energy_requests collections.
+- **axios is mocked** (`jest.mock('axios')`) for `findBestSeller` CDS discover calls. `giftEnergy` and `donateEnergy` use mocked `discoverBestSeller` and `executeDirectTransaction` from `./service` instead.
+- **`./service` is mocked** (`jest.mock('./service')`) — `executeDirectTransaction` and `discoverBestSeller` are jest.fn() wrappers. This avoids needing to mock the full beckn transaction flow (publish→select→init→confirm).
+- **`buildDiscoverRequest` is mocked** (`jest.mock('../bidding/services/market-analyzer')`) — returns a simple mock payload for CDS calls.
+- Uses `mockRequest`/`mockResponse` from `test-utils/index.ts` for direct handler invocation (not supertest since these are raw handler functions, not routes).
+- `(req as any).user` must be set manually for authenticated endpoints. `req.headers.authorization` must be set for gift/donate flows.
+- `donateEnergy` uses Zod `.parse()` outside try/catch scope — actually inside the try/catch in controller.ts, so ZodError is caught and returns 500.
+- `giftEnergy` derives `gifterId` from `profiles.consumptionProfile.id` with fallback to `user.userId` then `"unknown-gifter"`.
+- `donateEnergy` derives `sellerId` from `generationProfile.id → consumptionProfile.id → utilityCustomer.did` fallback chain.
+- `console.error` and `console.log` are spied/suppressed in beforeEach to keep test output clean.
+- `restoreMocks: true` in jest.config resets mock implementations between tests.
+- **Remaining task**: T22 (energy-request service, 12 tests) — P3.
+
+## 2026-02-08 — T22: Energy-request service tests (done)
+
+Created `src/energy-request/service.test.ts` with 23 tests covering both exported functions:
+
+- **executeDirectTransaction** (12 tests): full publish→select→init→confirm sequence verification, simplified publish format (quantity, price, deliveryDate, startHour, duration, sourceType), autoConfirm=false stops at init (gift flow), INITIATED status for gift flow, CONFIRMED status for full flow, price=0.01 minimum for donations (instead of 0), beneficiaryId in select payload, publish error propagation, select error propagation, amount calculation (pricePerUnit × quantity), consistent base URI across all API calls, amount=0 for donation flow
+- **discoverBestSeller** (11 tests): cheapest offer from CDS catalogs (sorted by price ascending), null when no catalogs, null when CDS fails, null when catalogs have no offers, auth token in headers, no auth header when no token, fallback price path (beckn:offerAttributes.beckn:price.value), bppId fallback as sellerId when provider.id missing, buildDiscoverRequest forwarded as payload, correct discover URL, 15s timeout on CDS request
+
+All 23 tests pass. Full suite: 793 tests, 38 suites, all green.
+
+Notes for next person:
+- **axios is fully mocked** (`jest.mock('axios')`) — no real HTTP calls. `setupSequentialMocks()` helper sets up publish→select→init→confirm mock chain via `mockResolvedValueOnce`.
+- **crypto.randomUUID is mocked** via `jest.spyOn(require('crypto'), 'randomUUID')` at module level for deterministic UUIDs in test assertions.
+- **BAP_ID and BAP_URI are read at module level** (`const BAP_URI = process.env.BAP_URI`), so changing env vars AFTER import does NOT change the base URI used in function calls. Tests that need different URIs would require re-importing the module.
+- **buildDiscoverRequest is mocked** (`jest.mock('../bidding/services/market-analyzer')`) — returns `{ mock: 'discover-payload' }` which gets forwarded to mocked `axios.post`.
+- For the "stop at init" test (autoConfirm=false): verify exactly 3 axios.post calls (publish, select, init) — NOT 4. The INITIATED result includes the full `initResponse.message` for payment processing by the caller.
+- For donation tests: `pricePerUnit === 0` triggers `effectivePrice = 0.01` in publish and offer data, but `amount = pricePerUnit * quantity = 0` (uses original pricePerUnit, not effectivePrice).
+- `restoreMocks: true` in jest.config resets mock implementations between tests, so each test must set its own `mockResolvedValueOnce` chains.
+- **ALL TASKS COMPLETE** — T01 through T22 are done. 793 tests across 38 suites, all passing.
