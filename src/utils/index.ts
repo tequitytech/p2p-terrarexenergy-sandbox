@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -140,7 +141,7 @@ export const calculatePrice = (params: PriceCalculationParams): number => {
 export const calculateTotalAmount = (offer: any, quantity: number) => {
   const price = offer["beckn:price"]["schema:price"];
   const attributes = offer["beckn:offerAttributes"];
-  
+
   return calculatePrice({
       basePrice: price,
       quantity,
@@ -149,3 +150,34 @@ export const calculateTotalAmount = (offer: any, quantity: number) => {
       timeOfDayRates: attributes?.["timeOfDayRates"]
   });
 };
+
+// ── Gift Utilities ──────────────────────────────────────────────
+
+const INDIAN_PHONE_RE = /^[6-9]\d{9}$/;
+const ALPHANUMERIC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const CLAIM_SECRET_LEN = 8;
+
+const sha256 = (input: string): string =>
+  crypto.createHash('sha256').update(input).digest('hex');
+
+export function validateRecipientPhone(phone: string): void {
+  if (!INDIAN_PHONE_RE.test(phone)) {
+    throw new Error(
+      'recipientPhone must be a 10-digit Indian mobile number starting with 6-9 (e.g. 9876543210)',
+    );
+  }
+}
+
+export const phoneToE164 = (phone: string): string => `+91${phone}`;
+
+export function computeLookupHash(phone: string): string {
+  validateRecipientPhone(phone);
+  return sha256(phoneToE164(phone));
+}
+
+export const computeClaimVerifier = (secret: string): string => sha256(secret);
+
+export const generateClaimSecret = (): string =>
+  Array.from({ length: CLAIM_SECRET_LEN }, () =>
+    ALPHANUMERIC[crypto.randomInt(ALPHANUMERIC.length)],
+  ).join('');
