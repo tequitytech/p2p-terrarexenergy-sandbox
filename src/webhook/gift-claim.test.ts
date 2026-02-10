@@ -589,7 +589,7 @@ describe("Gift Claim Validation", () => {
       expect(confirmPayload.message.order["beckn:orderStatus"]).toBe("CONFIRMED");
     });
 
-    it("concurrent claims: first succeeds, second gets GIFT_ALREADY_CLAIMED", async () => {
+    it("concurrent claims: first succeeds, second gets GIFT_ALREADY_CLAIMED without double inventory reduction", async () => {
       await seedGiftOffer();
       const db = getTestDB();
       await db.collection("catalogs").insertOne({
@@ -609,6 +609,9 @@ describe("Gift Claim Validation", () => {
       const offer = await db.collection("offers").findOne({ "beckn:id": "gift-offer-001" });
       expect(offer?.giftStatus).toBe("CLAIMED");
 
+      // Record inventory after first claim
+      const inventoryAfterFirst = offer?.["beckn:price"]?.applicableQuantity?.unitQuantity;
+
       // Second claim attempt (same offer, now CLAIMED)
       jest.clearAllMocks();
       mockedAxios.post.mockResolvedValue({ data: { message: { ack: { status: "ACK" } } } });
@@ -620,6 +623,10 @@ describe("Gift Claim Validation", () => {
 
       const callPayload = mockedAxios.post.mock.calls[0][1] as any;
       expect(callPayload.error.code).toBe("GIFT_ALREADY_CLAIMED");
+
+      // Verify inventory was NOT reduced again (no double-reduction)
+      const offerAfterSecond = await db.collection("offers").findOne({ "beckn:id": "gift-offer-001" });
+      expect(offerAfterSecond?.["beckn:price"]?.applicableQuantity?.unitQuantity).toBe(inventoryAfterFirst);
     });
 
     it("order is saved correctly after gift claim", async () => {

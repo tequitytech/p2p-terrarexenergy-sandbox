@@ -638,6 +638,42 @@ export const onConfirm = (req: Request, res: Response) => {
         }
       }
 
+      // ── Atomically claim gift offers BEFORE inventory reduction ──
+      // Must happen first to prevent double-reduction in race conditions
+      for (const orderItem of orderItems) {
+        const giftAcceptedOffer = orderItem["beckn:acceptedOffer"];
+        const giftOfferId = giftAcceptedOffer?.["beckn:id"];
+        if (!giftOfferId) continue;
+
+        const buyerId = order?.["beckn:buyer"]?.["beckn:id"] || "unknown";
+        const giftQty = orderItem["beckn:quantity"]?.unitQuantity || 0;
+
+        const claimResult = await getDB().collection("offers").findOneAndUpdate(
+          { "beckn:id": giftOfferId, isGift: true, giftStatus: "UNCLAIMED" },
+          { $set: { giftStatus: "CLAIMED", claimedAt: new Date(), claimedBy: buyerId } },
+          { returnDocument: "after" },
+        );
+
+        if (claimResult) {
+          console.log(
+            `[GIFT] Gift ${giftOfferId} claimed by ${buyerId}. ` +
+            `Quantity: ${giftQty} kWh, transactionId: ${context.transaction_id}`,
+          );
+        } else {
+          // Check if this was actually a gift offer that lost the race
+          const currentOffer = await catalogStore.getOffer(giftOfferId);
+          if (currentOffer?.isGift) {
+            console.log(`[Confirm] Gift claim race condition: ${giftOfferId} already claimed`);
+            await sendRejectionCallback(context, "confirm", {
+              ...order,
+              "beckn:orderStatus": "REJECTED",
+              "beckn:id": order?.["beckn:id"] || `order-rejected-${uuidv4()}`,
+            }, { code: "GIFT_ALREADY_CLAIMED", message: "This gift has already been claimed" });
+            return;
+          }
+        }
+      }
+
       // Reduce inventory for each offer and track affected catalogs
       const affectedCatalogs = new Set<string>();
       let sellerUserId: string | null = null;
@@ -684,29 +720,6 @@ export const onConfirm = (req: Request, res: Response) => {
           } else {
             console.warn(`[Confirm] No offer found for item: ${itemId}`);
           }
-        }
-      }
-
-      // ── Atomically claim gift offers ──
-      for (const orderItem of orderItems) {
-        const giftAcceptedOffer = orderItem["beckn:acceptedOffer"];
-        const giftOfferId = giftAcceptedOffer?.["beckn:id"];
-        if (!giftOfferId) continue;
-
-        const buyerId = order?.["beckn:buyer"]?.["beckn:id"] || "unknown";
-        const giftQty = orderItem["beckn:quantity"]?.unitQuantity || 0;
-
-        const claimResult = await getDB().collection("offers").findOneAndUpdate(
-          { "beckn:id": giftOfferId, isGift: true, giftStatus: "UNCLAIMED" },
-          { $set: { giftStatus: "CLAIMED", claimedAt: new Date(), claimedBy: buyerId } },
-          { returnDocument: "after" },
-        );
-
-        if (claimResult) {
-          console.log(
-            `[GIFT] Gift ${giftOfferId} claimed by ${buyerId}. ` +
-            `Quantity: ${giftQty} kWh, transactionId: ${context.transaction_id}`,
-          );
         }
       }
 
