@@ -25,6 +25,8 @@ export async function connectDB(): Promise<Db> {
     db.collection("items").createIndex({ catalogId: 1 }),
     db.collection("offers").createIndex({ "beckn:id": 1 }, { unique: true }),
     db.collection("offers").createIndex({ catalogId: 1 }),
+    db.collection("offers").createIndex({ lookupHash: 1, giftStatus: 1 }),
+    db.collection("offers").createIndex({ isGift: 1, userId: 1 }),
 
     // Market snapshots for bidding service fallback cache
     db.collection("market_snapshots").createIndex({ "date_range.start": 1, "date_range.end": 1 },{ unique: true },),

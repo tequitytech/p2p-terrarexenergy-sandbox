@@ -25,7 +25,13 @@ import {
 import {
   settlementStore,
 } from "../services/settlement-store";
-import { parseError } from "../utils";
+import {
+  parseError,
+  computeLookupHash,
+  computeClaimVerifier,
+  generateClaimSecret,
+  phoneToE164,
+} from "../utils";
 
 import type {
   SettlementStatus} from "../services/settlement-store";
@@ -48,14 +54,32 @@ const BECKN_DOMAIN =
 // Publish Input Schema & Helpers
 // ============================================
 
-const publishInputSchema = z.object({
-  quantity: z.number().positive().max(1000), // kWh
-  price: z.number().positive().max(100), // INR/kWh
-  deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  startHour: z.number().int().min(0).max(23).default(10),
-  duration: z.number().int().min(1).max(12).default(1),
-  sourceType: z.enum(["SOLAR", "WIND", "HYDRO"]).default("SOLAR"),
-});
+const publishInputSchema = z
+  .object({
+    quantity: z.number().positive().max(1000), // kWh
+    price: z.number().min(0).max(100), // INR/kWh — min(0) to allow gifts; refines enforce context
+    deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    startHour: z.number().int().min(0).max(23).default(10),
+    duration: z.number().int().min(1).max(12).default(1),
+    sourceType: z.enum(["SOLAR", "WIND", "HYDRO"]).default("SOLAR"),
+    isGift: z.boolean().default(false),
+    recipientPhone: z
+      .string()
+      .regex(/^[6-9]\d{9}$/, 'Must be a 10-digit Indian mobile number starting with 6-9')
+      .optional(),
+  })
+  .refine((d) => !d.isGift || d.recipientPhone, {
+    message: 'Recipient phone is required for gift offers',
+    path: ['recipientPhone'],
+  })
+  .refine((d) => !d.isGift || d.price === 0, {
+    message: 'Gift offers must have price = 0',
+    path: ['price'],
+  })
+  .refine((d) => d.isGift || d.price > 0, {
+    message: 'Price must be greater than 0',
+    path: ['price'],
+  });
 
 type PublishInput = z.infer<typeof publishInputSchema>;
 
@@ -165,7 +189,11 @@ export async function extractBuyerDetails(userId: ObjectId): Promise<BuyerDetail
   };
 }
 
-function buildCatalog(input: PublishInput, prosumer: ProsumerDetails) {
+function buildCatalog(
+  input: PublishInput,
+  prosumer: ProsumerDetails,
+  giftFields?: { lookupHash: string; claimVerifier: string; expiresAt: string },
+) {
   const now = new Date();
   const timestamp = now.getTime();
   const catalogId = `catalog-${prosumer.meterId}-${timestamp}`;
@@ -278,6 +306,14 @@ function buildCatalog(input: PublishInput, prosumer: ProsumerDetails) {
               "schema:startTime": validityStart,
               "schema:endTime": validityEnd,
             },
+            ...(giftFields ? {
+              gift: {
+                "@type": "EnergyGift",
+                lookupHash: giftFields.lookupHash,
+                claimVerifier: giftFields.claimVerifier,
+                expiresAt: giftFields.expiresAt,
+              },
+            } : {}),
           },
         },
       ],
@@ -313,6 +349,53 @@ function buildPublishRequest(catalog: any): {
       message: {
         catalogs: [catalog],
       },
+    },
+  };
+}
+
+const GIFT_EXPIRY_DAYS = 7;
+
+interface GiftCatalogFields {
+  lookupHash: string;
+  claimVerifier: string;
+  expiresAt: string;
+}
+
+interface GiftDbFields {
+  isGift: true;
+  giftStatus: 'UNCLAIMED';
+  lookupHash: string;
+  claimVerifier: string;
+  claimSecret: string;
+  recipientPhone: string;
+  expiresAt: Date;
+}
+
+function buildGiftFields(recipientPhone: string): {
+  catalog: GiftCatalogFields;
+  db: GiftDbFields;
+} {
+  const claimSecret = generateClaimSecret();
+  const lookupHash = computeLookupHash(recipientPhone);
+  const claimVerifier = computeClaimVerifier(claimSecret);
+  const expiresAt = new Date(Date.now() + GIFT_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+
+  console.log(
+    `[GIFT] Created gift for ${recipientPhone}, ` +
+    `claimSecret: ${claimSecret}, lookupHash: ${lookupHash}, ` +
+    `expiresAt: ${expiresAt.toISOString()}`,
+  );
+
+  return {
+    catalog: { lookupHash, claimVerifier, expiresAt: expiresAt.toISOString() },
+    db: {
+      isGift: true,
+      giftStatus: 'UNCLAIMED',
+      lookupHash,
+      claimVerifier,
+      claimSecret,
+      recipientPhone: phoneToE164(recipientPhone),
+      expiresAt,
     },
   };
 }
@@ -370,10 +453,16 @@ export const tradeRoutes = () => {
           `[API] POST /publish - User: ${prosumerDetails.fullName}, Meter: ${prosumerDetails.meterId}`,
         );
 
+        // 3.5 Prepare gift fields
+        const gift = input.isGift && input.recipientPhone
+          ? buildGiftFields(input.recipientPhone)
+          : null;
+
         // 4. Build spec-compliant catalog
         const { catalog, catalogId, itemId, offerId } = buildCatalog(
           input,
           prosumerDetails,
+          gift?.catalog,
         );
 
         // 5. Build publish request for ONIX
@@ -388,6 +477,7 @@ export const tradeRoutes = () => {
         }
 
         for (const offer of catalog["beckn:offers"] || []) {
+          if (gift) Object.assign(offer, gift.db);
           await catalogStore.saveOffer(catalogId, offer);
         }
 
