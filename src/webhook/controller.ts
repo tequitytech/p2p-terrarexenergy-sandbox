@@ -699,10 +699,28 @@ export const onConfirm = (req: Request, res: Response) => {
         const savedSettlement = await db.collection<SettlementDocument>('settlements')
         .findOne({ transactionId: context.transaction_id, role: "SELLER" });
 
+      // Calculate costs
+      let totalUnitCost = 0;
+      orderItems.forEach((item: any) => {
+        const qty = item["beckn:quantity"]?.unitQuantity || 0;
+        const acceptedOffer = item["beckn:acceptedOffer"];
+        const price = acceptedOffer?.["beckn:offerAttributes"]?.["beckn:price"]?.value ||
+          acceptedOffer?.["beckn:price"]?.["schema:price"] ||
+          acceptedOffer?.["beckn:price"]?.value ||
+          0;
+        totalUnitCost += qty * price;
+      });
+      
+      const wheelingCharges = totalQuantity * 0.4;
+      const totalPrice = totalUnitCost + wheelingCharges;
+
       // Save order to MongoDB for status tracking
       await catalogStore.saveOrder(context.transaction_id, {
         userId: sellerUserId, // seller id from item
         order: confirmedOrder,
+        totalUnitCost: Number(totalUnitCost.toFixed(2)),
+        wheelingCharges: Number(wheelingCharges.toFixed(2)),
+        totalPrice: Number(totalPrice.toFixed(2)),
         context: {
           bap_id: context.bap_id,
           bpp_id: context.bpp_id,

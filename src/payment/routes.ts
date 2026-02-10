@@ -259,11 +259,11 @@ export const paymentRoutes = () => {
       if (buyerOrder) {
         const transactionId = buyerOrder.transactionId;
 
-        await orderService.updateBuyerOrderStatus(transactionId, "SCHEDULED", {
+        await orderService.updateBuyerOrderStatus(transactionId, "PAID", {
           paymentId: razorpay_payment_id,
           razorpaySignature: razorpay_signature,
         });
-        console.log(`[Callback] Buyer Order ${transactionId} marked as SCHEDULED`);
+        console.log(`[Callback] Buyer Order ${transactionId} marked as PAID`);
       } else {
         console.warn(
           `[Callback] Buyer Order not found for RZP Order ${razorpayOrderId}`,

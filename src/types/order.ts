@@ -35,6 +35,11 @@ export interface IOrder {
     paymentId?: string;
     settlementId?: string;
 
+    // Cost calculations
+    totalPrice?: number;
+    wheelingCharges?: number;
+    totalUnitCost?: number;
+
     // Seller specific
     orderStatus?: string; // Legacy field used in getSellerOrders/updateSellerOrderStatus
 }
