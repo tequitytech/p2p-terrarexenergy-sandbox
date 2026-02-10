@@ -134,7 +134,14 @@ export const catalogStore = {
     };
 
     const cleanOffer = (offer: any) => {
-      const { _id, catalogId, updatedAt, userId, ...rest } = offer;
+      const {
+        _id, catalogId, updatedAt, userId,
+        // Gift DB-only fields — must not leak into ONIX publish payload
+        isGift, giftStatus, claimSecret, recipientPhone,
+        expiresAt, claimedAt, claimedBy,
+        lookupHash, claimVerifier,
+        ...rest
+      } = offer;
       return rest;
     };
 

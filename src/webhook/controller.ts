@@ -12,7 +12,7 @@ import { getDB } from "../db";
 import { catalogStore } from "../services/catalog-store";
 import { paymentService } from "../services/payment-service";
 import { settlementStore } from "../services/settlement-store";
-import { parseError, readDomainResponse } from "../utils";
+import { parseError, readDomainResponse, validateGiftClaim } from "../utils";
 
 import type { SettlementDocument} from "../services/settlement-store";
 import type { Request, Response } from "express";
@@ -123,6 +123,25 @@ const getPersona = (): string | undefined => {
   return process.env.PERSONA;
 };
 
+/** Extract claimSecret from the Beckn acceptedOffer payload (SPEC 5.3) */
+const extractClaimSecret = (acceptedOffer: any): string | undefined =>
+  acceptedOffer?.["beckn:offerAttributes"]?.gift?.claimSecret;
+
+/** Send a REJECTED order callback with an error payload */
+async function sendRejectionCallback(
+  context: any,
+  action: string,
+  order: any,
+  error: { code: string; message: string },
+): Promise<void> {
+  const callbackUrl = getCallbackUrl(context, action);
+  await axios.post(callbackUrl, {
+    context: { ...context, action: `on_${action}`, timestamp: new Date().toISOString() },
+    message: { order },
+    error,
+  });
+}
+
 export const onSelect = (req: Request, res: Response) => {
   const { context, message }: { context: any; message: any } = req.body;
 
@@ -171,6 +190,25 @@ export const onSelect = (req: Request, res: Response) => {
             const { _id: _oid, catalogId: _cid, updatedAt: _uAt, ...cleanOffer } = offerFromDb as any;
             acceptedOffer = cleanOffer;
             console.log(`[Select] Found offer in DB: ${offerId}`);
+
+            // ── Gift claim validation ──
+            const giftError = validateGiftClaim(offerFromDb, extractClaimSecret(acceptedOfferFromRequest));
+            if (giftError) {
+              console.log(`[Select] Gift claim rejected: ${offerId} — ${giftError.code}`);
+              await sendRejectionCallback(context, "select", {
+                "@context": BECKN_CONTEXT_ROOT,
+                "@type": "beckn:Order",
+                "beckn:orderStatus": "REJECTED",
+                "beckn:seller": message?.order?.["beckn:seller"] || "unknown",
+                "beckn:buyer": buyer || { "beckn:id": "unknown", "@context": BECKN_CONTEXT_ROOT, "@type": "beckn:Buyer" },
+                "beckn:orderItems": selectedItems.map((si: any) => ({
+                  "beckn:orderedItem": si["beckn:id"] || si["beckn:orderedItem"],
+                  "beckn:quantity": si["beckn:quantity"] || { unitQuantity: 0, unitText: "kWh" },
+                  "beckn:acceptedOffer": si["beckn:acceptedOffer"] || null,
+                })),
+              }, giftError);
+              return;
+            }
           } else {
             console.log(
               `[Select] Offer not found in DB, using from request: ${offerId}`,
@@ -365,6 +403,24 @@ export const onInit = (req: Request, res: Response) => {
           }
         }
 
+        // ── Gift claim validation ──
+        const resolvedOfferId = acceptedOffer?.["beckn:id"];
+        if (resolvedOfferId) {
+          const dbOffer = await catalogStore.getOffer(resolvedOfferId);
+          if (dbOffer?.isGift) {
+            const giftError = validateGiftClaim(dbOffer, extractClaimSecret(item["beckn:acceptedOffer"]));
+            if (giftError) {
+              console.log(`[Init] Gift claim rejected: ${resolvedOfferId} — ${giftError.code}`);
+              await sendRejectionCallback(context, "init", {
+                ...order,
+                "beckn:orderStatus": "REJECTED",
+                "beckn:id": order?.["beckn:id"] || `order-rejected-${uuidv4()}`,
+              }, giftError);
+              return;
+            }
+          }
+        }
+
         totalQuantity += quantity;
         totalEnergyCost += quantity * pricePerUnit;
 
@@ -531,6 +587,21 @@ export const onConfirm = (req: Request, res: Response) => {
         if (offerId && quantity > 0) {
           // Fetch offer from DB for current quantity
           const offer = await catalogStore.getOffer(offerId);
+
+          // ── Gift claim validation (reuse the already-fetched offer) ──
+          if (offer?.isGift) {
+            const giftError = validateGiftClaim(offer, extractClaimSecret(acceptedOffer));
+            if (giftError) {
+              console.log(`[Confirm] Gift claim rejected: ${offerId} — ${giftError.code}`);
+              await sendRejectionCallback(context, "confirm", {
+                ...order,
+                "beckn:orderStatus": "REJECTED",
+                "beckn:id": order?.["beckn:id"] || `order-rejected-${uuidv4()}`,
+              }, giftError);
+              return;
+            }
+          }
+
           const availableQty =
             offer?.["beckn:price"]?.applicableQuantity?.unitQuantity || 0;
 
@@ -613,6 +684,29 @@ export const onConfirm = (req: Request, res: Response) => {
           } else {
             console.warn(`[Confirm] No offer found for item: ${itemId}`);
           }
+        }
+      }
+
+      // ── Atomically claim gift offers ──
+      for (const orderItem of orderItems) {
+        const giftAcceptedOffer = orderItem["beckn:acceptedOffer"];
+        const giftOfferId = giftAcceptedOffer?.["beckn:id"];
+        if (!giftOfferId) continue;
+
+        const buyerId = order?.["beckn:buyer"]?.["beckn:id"] || "unknown";
+        const giftQty = orderItem["beckn:quantity"]?.unitQuantity || 0;
+
+        const claimResult = await getDB().collection("offers").findOneAndUpdate(
+          { "beckn:id": giftOfferId, isGift: true, giftStatus: "UNCLAIMED" },
+          { $set: { giftStatus: "CLAIMED", claimedAt: new Date(), claimedBy: buyerId } },
+          { returnDocument: "after" },
+        );
+
+        if (claimResult) {
+          console.log(
+            `[GIFT] Gift ${giftOfferId} claimed by ${buyerId}. ` +
+            `Quantity: ${giftQty} kWh, transactionId: ${context.transaction_id}`,
+          );
         }
       }
 
