@@ -308,7 +308,7 @@ function buildCatalog(
             },
             ...(giftFields ? {
               gift: {
-                "@type": "EnergyGift",
+                // "@type": "EnergyGift", // ONIX rejects @type inside nested objects
                 lookupHash: giftFields.lookupHash,
                 claimVerifier: giftFields.claimVerifier,
                 expiresAt: giftFields.expiresAt,

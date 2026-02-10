@@ -287,7 +287,7 @@ describe('Gift Publish Integration Tests', () => {
       const gift = offer!['beckn:offerAttributes']?.gift;
 
       expect(gift).toBeDefined();
-      expect(gift['@type']).toBe('EnergyGift');
+      // expect(gift['@type']).toBe('EnergyGift'); // disabled: ONIX rejects @type in nested objects
       expect(gift.lookupHash).toBeDefined();
       expect(gift.claimVerifier).toBeDefined();
       expect(gift.expiresAt).toBeDefined();
