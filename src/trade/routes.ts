@@ -477,8 +477,8 @@ export const tradeRoutes = () => {
         }
 
         for (const offer of catalog["beckn:offers"] || []) {
-          if (gift) Object.assign(offer, gift.db);
-          await catalogStore.saveOffer(catalogId, offer);
+          const offerToSave = gift ? { ...offer, ...gift.db } : offer;
+          await catalogStore.saveOffer(catalogId, offerToSave);
         }
 
         // 7. Forward to ONIX BPP (secondary action - don't fail if this fails)
