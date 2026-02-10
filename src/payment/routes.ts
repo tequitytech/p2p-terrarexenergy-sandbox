@@ -116,7 +116,13 @@ export const paymentRoutes = () => {
         const userId = (req as any)?.user?.userId;
 
         if (!userId && !phone) {
-          return res.status(401).json({ success: false, error: "Unauthorized" });
+          return res.status(401).json({
+            success: false,
+            error: {
+              code: "UNAUTHORIZED",
+              message: "Missing or invalid Authorization header",
+            },
+          });
         }
 
         const db = getDB();

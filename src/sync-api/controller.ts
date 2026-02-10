@@ -703,6 +703,7 @@ export async function syncSelect(req: Request, res: Response) {
     } else if (error.message?.includes('Timeout')) {
       statusCode = 504;
       errorCode = 'TIMEOUT';
+      error.message = "The selected seller is not responding at the moment. Please retry or select another seller."
     } else if (error.statusCode) {
       statusCode = error.statusCode;
     }
