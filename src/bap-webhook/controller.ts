@@ -5,6 +5,7 @@ import { settlementStore } from "../services/settlement-store";
 import { resolvePendingTransaction, hasPendingTransaction } from "../services/transaction-store";
 
 import type { Request, Response } from "express";
+import { OrderStatus } from "../types/order";
 
 export const onSelect = (req: Request, res: Response) => {
   const { context, message, error }: { context: any; message: any; error?: any } = req.body;
@@ -91,7 +92,7 @@ export const onConfirm = (req: Request, res: Response) => {
           await orderService.saveBuyerOrder(transactionId, {
             order: order,
             updatedAt: new Date(),
-            status: 'SCHEDULED',
+            status: OrderStatus.SCHEDULED,
           });
           console.log(`[BAP-Webhook] Buyer Order ${transactionId} updated with full Beckn order details`);
         }
