@@ -200,6 +200,7 @@ export const catalogStore = {
           },
           price: {
             $ifNull: [
+              '$order.beckn:orderItems.beckn:acceptedOffer.beckn:price.schema:price',
               '$order.beckn:orderItems.beckn:acceptedOffer.beckn:offerAttributes.beckn:price.value',
               '$order.beckn:orderItems.beckn:acceptedOffer.beckn:price.value',
               0
@@ -258,16 +259,16 @@ export const catalogStore = {
 
   async getSellerAvailableInventory(sellerId: string): Promise<number> {
     const db = getDB();
-    const result = await db.collection('items').aggregate([
+    const result = await db.collection('offers').aggregate([
       {
         $match: {
-          'beckn:provider.beckn:id': sellerId
+          'beckn:provider': sellerId,
         }
       },
       {
          $group: {
             _id: null,
-            totalAvailable: { $sum: '$beckn:itemAttributes.availableQuantity' }
+            totalAvailable: { $sum: '$beckn:price.applicableQuantity.unitQuantity' }
          }
       }
     ]).toArray();
