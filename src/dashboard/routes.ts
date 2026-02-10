@@ -38,10 +38,10 @@ export const dashboardRoutes = () => {
       const socialImpact = Number(socialDonations.toFixed(2));
 
       res.json({
-        totalEnergySold: Number(totalSold.toFixed(2)),
-        availableEnergy: Number(availableInventory.toFixed(2)),
-        totalEarnings: Number(earningsToday.toFixed(2)),
-        donatedEnergy: Number(socialImpact.toFixed(2)),
+        totalEnergySold: Number((totalSold / 10).toFixed(0)),
+        availableEnergy: Number((availableInventory / 10).toFixed(0)),
+        totalEarnings: Number((earningsToday / 10).toFixed(0)),
+        donatedEnergy: Number((socialImpact / 5).toFixed(0)),
       });
     } catch (error: any) {
       console.error(`[Dashboard] Error getting stats:`, error.message);
