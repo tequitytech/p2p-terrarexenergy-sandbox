@@ -35,32 +35,36 @@ export function buildDiscoverRequest({
 }) {
   const conditions = [];
 
-  // Network Id
+  // Network Id - checking inside items
   conditions.push(
-    `@.beckn:networkId == 'p2p-interdiscom-trading-pilot-network'`,
+    `@.beckn:items[*].beckn:networkId[*] == 'p2p-interdiscom-trading-pilot-network'`,
   );
 
-  // 1. Delivery Mode
+  // 1. Delivery Mode - checking inside item attributes
   if (deliveryMode) {
-    conditions.push(`@.beckn:itemAttributes.deliveryMode == '${deliveryMode}'`);
+    conditions.push(
+      `@.beckn:items[*].beckn:itemAttributes.deliveryMode == '${deliveryMode}'`,
+    );
   }
 
-  // 2. Source Type
+  // 2. Source Type - checking inside item attributes
   if (sourceType) {
-    conditions.push(`@.beckn:itemAttributes.sourceType == '${sourceType}'`);
+    conditions.push(
+      `@.beckn:items[*].beckn:itemAttributes.sourceType == '${sourceType}'`,
+    );
   }
 
-  // 7. Active Status
+  // 7. Active Status - checking inside items (or catalog if applicable, assuming items based on precedent)
   if (isActive !== undefined) {
-    conditions.push(`@.beckn:isActive == ${isActive}`);
+    conditions.push(`@.beckn:items[*].beckn:isActive == ${isActive}`);
   }
 
-  // 8. Item Id
+  // 8. Item Id - checking inside items (path check)
   if (itemId) {
-    conditions.push(`@.beckn:id == "${itemId}"`);
+    conditions.push(`@.beckn:items[*].beckn:id == "${itemId}"`);
   }
 
-  const expression = `$[?(${conditions.join(" && ")})]`;
+    const expression = `$.catalogs[*] ? (${conditions.join(" && ")})`;
 
   console.log(
     `[MARKET-ANALYZER] Fetching market data with expression: ${expression}`,
