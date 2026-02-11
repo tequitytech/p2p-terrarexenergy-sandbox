@@ -118,6 +118,9 @@ export async function queryTradeByTransaction(
     return records[0];
   } catch (error: any) {
     console.error(`[LedgerClient] Query failed: ${error.message}`);
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      throw new Error(`Ledger auth failed (${error.response.status}): Beckn signing required`);
+    }
     return null;
   }
 }
@@ -148,6 +151,10 @@ export async function queryTrades(request: LedgerGetRequest): Promise<LedgerReco
     return records;
   } catch (error: any) {
     console.error(`[LedgerClient] Query failed: ${error.message}`);
+    // Surface auth errors instead of silently returning empty
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      throw new Error(`Ledger auth failed (${error.response.status}): Beckn signing required`);
+    }
     return [];
   }
 }
