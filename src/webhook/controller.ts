@@ -395,8 +395,14 @@ export const onInit = (req: Request, res: Response) => {
             const offers = await catalogStore.getOffersByItemId(itemId);
             if (offers && offers.length > 0) {
               const offer = offers[0];
-              // Remove MongoDB internal fields
-              const { _id: _oid, catalogId: _cid, updatedAt: _uAt, ...cleanOffer } = offer;
+              // Remove MongoDB internal fields + gift DB-only fields
+              const {
+                _id: _oid, catalogId: _cid, updatedAt: _uAt, userId: _uid,
+                isGift: _ig, giftStatus: _gs, claimSecret: _cs, recipientPhone: _rp,
+                expiresAt: _ea, claimedAt: _ca, claimedBy: _cb,
+                lookupHash: _lh, claimVerifier: _cv,
+                ...cleanOffer
+              } = offer;
               acceptedOffer = cleanOffer;
 
               pricePerUnit =
