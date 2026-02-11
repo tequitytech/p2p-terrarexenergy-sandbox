@@ -416,6 +416,7 @@ export const onInit = (req: Request, res: Response) => {
                 ...order,
                 "@context": BECKN_CONTEXT_ROOT,
                 "@type": "beckn:Order",
+                "beckn:id": order?.["beckn:id"] || `order-rejected-${uuidv4()}`,
                 "beckn:orderStatus": "REJECTED",
               }, giftError);
               return;
