@@ -181,3 +181,32 @@ export const generateClaimSecret = (): string =>
   Array.from({ length: CLAIM_SECRET_LEN }, () =>
     ALPHANUMERIC[crypto.randomInt(ALPHANUMERIC.length)],
   ).join('');
+
+// ── Gift Claim Validation ──────────────────────────────────────
+
+export interface GiftClaimError {
+  code: 'GIFT_CLAIM_FAILED' | 'GIFT_EXPIRED' | 'GIFT_REVOKED' | 'GIFT_ALREADY_CLAIMED';
+  message: string;
+}
+
+export function validateGiftClaim(
+  offer: any,
+  claimSecret: string | undefined,
+): GiftClaimError | null {
+  if (!offer.isGift) return null;
+
+  if (offer.giftStatus === 'CLAIMED') {
+    return { code: 'GIFT_ALREADY_CLAIMED', message: 'This gift has already been claimed' };
+  }
+  if (offer.giftStatus === 'REVOKED') {
+    return { code: 'GIFT_REVOKED', message: 'This gift has been revoked by the sender' };
+  }
+  if (offer.expiresAt && new Date(offer.expiresAt) < new Date()) {
+    return { code: 'GIFT_EXPIRED', message: 'This gift has expired' };
+  }
+  if (!claimSecret || claimSecret !== offer.claimVerifier) {
+    return { code: 'GIFT_CLAIM_FAILED', message: 'Invalid claim secret or gift no longer available' };
+  }
+
+  return null;
+}
