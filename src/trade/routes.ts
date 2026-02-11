@@ -25,6 +25,7 @@ import {
 import {
   settlementStore,
 } from "../services/settlement-store";
+import { smsService } from "../services/sms-service";
 import {
   parseError,
   computeLookupHash,
@@ -517,6 +518,18 @@ export const tradeRoutes = () => {
           onix_error: onixError,
           createdAt: new Date(),
         });
+
+        // 9. Send SMS to recipient if it's a gift
+        if (gift) {
+          try {
+            const message = `You have received an energy gift from ${prosumerDetails.fullName}! Use code ${gift.db.claimSecret} to claim it.`;
+            await smsService.sendSms(gift.db.recipientPhone, message);
+            console.log(`[API] SMS sent to ${gift.db.recipientPhone}`);
+          } catch (error: any) {
+            console.error(`[API] Failed to send SMS: ${error.message}`);
+            // Don't fail the request if SMS fails
+          }
+        }
 
         return res.status(200).json({
           success: true,
