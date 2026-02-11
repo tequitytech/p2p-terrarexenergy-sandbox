@@ -143,11 +143,8 @@ export const catalogStore = {
         ...rest
       } = offer;
 
-      // Strip claimVerifier from nested beckn:offerAttributes.gift (lookupHash stays for discovery)
-      if (rest['beckn:offerAttributes']?.gift?.claimVerifier) {
-        const { claimVerifier: _cv2, ...giftRest } = rest['beckn:offerAttributes'].gift;
-        rest['beckn:offerAttributes'] = { ...rest['beckn:offerAttributes'], gift: giftRest };
-      }
+      // Keep claimVerifier in beckn:offerAttributes.gift — it's a hash (not the raw secret)
+      // and ONIX schema validation requires it for gift offer republish
 
       return rest;
     };
