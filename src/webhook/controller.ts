@@ -624,6 +624,21 @@ export const onConfirm = (req: Request, res: Response) => {
       let currency = "INR";
 
       // PRE-CHECK: Validate inventory BEFORE reducing (read from offer's applicableQuantity)
+      // Accumulate total requested per offer to catch multi-item orders against the same offer
+      const requestedPerOffer = new Map<string, number>();
+      for (const orderItem of orderItems) {
+        const quantity =
+          orderItem["beckn:quantity"]?.unitQuantity ||
+          orderItem.quantity?.selected?.count ||
+          orderItem.quantity ||
+          1;
+        const acceptedOffer = orderItem["beckn:acceptedOffer"];
+        const offerId = acceptedOffer?.["beckn:id"];
+        if (offerId && quantity > 0) {
+          requestedPerOffer.set(offerId, (requestedPerOffer.get(offerId) || 0) + quantity);
+        }
+      }
+
       for (const orderItem of orderItems) {
         const itemId =
           orderItem["beckn:orderedItem"] ||
@@ -662,9 +677,11 @@ export const onConfirm = (req: Request, res: Response) => {
           const availableQty =
             offer?.["beckn:price"]?.applicableQuantity?.unitQuantity || 0;
 
-          if (quantity > availableQty) {
+          // Check cumulative quantity across all items referencing this offer
+          const totalRequested = requestedPerOffer.get(offerId) || quantity;
+          if (totalRequested > availableQty) {
             console.log(
-              `[Confirm] ERROR: Insufficient inventory for offer ${offerId} (item ${itemId}): requested ${quantity}, available ${availableQty}`,
+              `[Confirm] ERROR: Insufficient inventory for offer ${offerId} (item ${itemId}): requested ${totalRequested}, available ${availableQty}`,
             );
 
             // Send error callback (include message: {} for ONIX schema compliance)
@@ -687,7 +704,7 @@ export const onConfirm = (req: Request, res: Response) => {
               },
               error: {
                 code: "INSUFFICIENT_INVENTORY",
-                message: `Cannot confirm order: insufficient inventory for offer ${offerId}. Requested ${quantity} kWh, available ${availableQty} kWh`,
+                message: `Cannot confirm order: insufficient inventory for offer ${offerId}. Requested ${totalRequested} kWh, available ${availableQty} kWh`,
               },
             });
             return; // Stop processing - don't confirm the order
@@ -769,6 +786,7 @@ export const onConfirm = (req: Request, res: Response) => {
             console.log(`[Confirm] Inventory reduced for offer ${offerId}, seller: ${sellerUserId || 'UNKNOWN'}`);
           } else {
             console.warn(`[Confirm] Offer not found for inventory reduction: ${offerId}`);
+            totalQuantity += quantity;
           }
         } else if (itemId && quantity > 0) {
           // Fallback: try to find offer by item ID if acceptedOffer not present
