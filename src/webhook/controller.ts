@@ -194,15 +194,10 @@ export const onSelect = (req: Request, res: Response) => {
               lookupHash: _lh, claimVerifier: _cv,
               ...cleanOffer
             } = offerFromDb as any;
-            // Strip claimVerifier/lookupHash from nested gift object too
-            if (cleanOffer['beckn:offerAttributes']?.gift) {
-              const { claimVerifier: _cv2, lookupHash: _lh2, ...giftRest } = cleanOffer['beckn:offerAttributes'].gift;
-              if (Object.keys(giftRest).length > 0) {
-                cleanOffer['beckn:offerAttributes'] = { ...cleanOffer['beckn:offerAttributes'], gift: giftRest };
-              } else {
-                const { gift: _g, ...attrRest } = cleanOffer['beckn:offerAttributes'];
-                cleanOffer['beckn:offerAttributes'] = attrRest;
-              }
+            // Strip claimVerifier from nested gift object (lookupHash stays for discovery)
+            if (cleanOffer['beckn:offerAttributes']?.gift?.claimVerifier) {
+              const { claimVerifier: _cv2, ...giftRest } = cleanOffer['beckn:offerAttributes'].gift;
+              cleanOffer['beckn:offerAttributes'] = { ...cleanOffer['beckn:offerAttributes'], gift: giftRest };
             }
             acceptedOffer = cleanOffer;
             console.log(`[Select] Found offer in DB: ${offerId}`);

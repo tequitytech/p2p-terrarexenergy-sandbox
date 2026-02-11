@@ -143,15 +143,10 @@ export const catalogStore = {
         ...rest
       } = offer;
 
-      // Also strip claimVerifier and lookupHash from nested beckn:offerAttributes.gift
-      if (rest['beckn:offerAttributes']?.gift) {
-        const { claimVerifier: _cv, lookupHash: _lh, ...giftRest } = rest['beckn:offerAttributes'].gift;
-        if (Object.keys(giftRest).length > 0) {
-          rest['beckn:offerAttributes'] = { ...rest['beckn:offerAttributes'], gift: giftRest };
-        } else {
-          const { gift: _g, ...attrRest } = rest['beckn:offerAttributes'];
-          rest['beckn:offerAttributes'] = attrRest;
-        }
+      // Strip claimVerifier from nested beckn:offerAttributes.gift (lookupHash stays for discovery)
+      if (rest['beckn:offerAttributes']?.gift?.claimVerifier) {
+        const { claimVerifier: _cv2, ...giftRest } = rest['beckn:offerAttributes'].gift;
+        rest['beckn:offerAttributes'] = { ...rest['beckn:offerAttributes'], gift: giftRest };
       }
 
       return rest;
