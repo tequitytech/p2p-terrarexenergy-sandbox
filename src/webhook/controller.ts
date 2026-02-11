@@ -151,6 +151,7 @@ export const onSelect = (req: Request, res: Response) => {
       const selectedItems =
         message?.items || message?.order?.["beckn:orderItems"] || [];
       const orderItems: any[] = [];
+      let totalOrderValue = 0;
       let provider: string | null = null;
 
       // Extract buyer from request (required in response)
@@ -296,6 +297,9 @@ export const onSelect = (req: Request, res: Response) => {
           "beckn:acceptedOffer": acceptedOffer,
         });
 
+        const pricePerUnit = acceptedOffer?.["beckn:price"]?.["schema:price"] || 0;
+        totalOrderValue += requestedQty * pricePerUnit;
+
         console.log(
           `[Select] Item ${itemId}: accepted offer ${offerId || "from request"}`,
         );
@@ -321,6 +325,17 @@ export const onSelect = (req: Request, res: Response) => {
               "beckn:orderAttributes": requestOrderAttributes,
             }),
             "beckn:orderItems": orderItems,
+            "beckn:orderValue": {
+              currency: "INR",
+              value: totalOrderValue,
+              description: `Total order value for ${orderItems.length} item(s) at catalog prices`,
+            },
+            "beckn:payment": {
+              "@context": BECKN_CONTEXT_ROOT,
+              "@type": "beckn:Payment",
+              "beckn:paymentStatus": "PENDING",
+              "beckn:acceptedPaymentMethod": ["UPI", "BANK_TRANSFER", "WALLET"],
+            },
           },
         },
       };
