@@ -164,7 +164,7 @@ const catalogBasedSelectSchema = z.object({
       unitText: z.string().default('kWh'),
     }),
     selectedOfferId: z.string().optional(),
-    claimSecret: z.string().optional(),
+    claimVerifier: z.string().optional(),
   }),
 });
 
@@ -338,10 +338,10 @@ function transformCatalogToOrder(
             'beckn:price': selectedOffer['beckn:price'],
             'beckn:offerAttributes': {
               ...selectedOffer['beckn:offerAttributes'],
-              ...(customAttributes.claimSecret && {
+              ...(customAttributes.claimVerifier && {
                 gift: {
                   ...selectedOffer['beckn:offerAttributes']?.gift,
-                  claimVerifier: customAttributes.claimSecret,
+                  claimVerifier: customAttributes.claimVerifier,
                 },
               }),
             },
