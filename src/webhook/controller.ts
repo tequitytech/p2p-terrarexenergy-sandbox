@@ -194,11 +194,7 @@ export const onSelect = (req: Request, res: Response) => {
               lookupHash: _lh, claimVerifier: _cv,
               ...cleanOffer
             } = offerFromDb as any;
-            // Strip claimVerifier from nested gift object (lookupHash stays for discovery)
-            if (cleanOffer['beckn:offerAttributes']?.gift?.claimVerifier) {
-              const { claimVerifier: _cv2, ...giftRest } = cleanOffer['beckn:offerAttributes'].gift;
-              cleanOffer['beckn:offerAttributes'] = { ...cleanOffer['beckn:offerAttributes'], gift: giftRest };
-            }
+            // Note: claimVerifier stays in beckn:offerAttributes.gift — ONIX schema requires it
             acceptedOffer = cleanOffer;
             console.log(`[Select] Found offer in DB: ${offerId}`);
 
