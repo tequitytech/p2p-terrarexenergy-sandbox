@@ -226,14 +226,14 @@ describe("Gift Claim Validation", () => {
       expect(validateGiftClaim(offer, "anything")).toBeNull();
     });
 
-    it("returns null for valid secret + UNCLAIMED + not expired", () => {
+    it("returns null for valid claimVerifier + UNCLAIMED + not expired", () => {
       const offer = {
         isGift: true,
         giftStatus: "UNCLAIMED",
         claimVerifier: KNOWN_VERIFIER,
         expiresAt: new Date("2099-01-01"),
       };
-      expect(validateGiftClaim(offer, KNOWN_SECRET)).toBeNull();
+      expect(validateGiftClaim(offer, KNOWN_VERIFIER)).toBeNull();
     });
 
     it("returns GIFT_CLAIM_FAILED for wrong secret", () => {
@@ -263,7 +263,7 @@ describe("Gift Claim Validation", () => {
         giftStatus: "CLAIMED",
         claimVerifier: KNOWN_VERIFIER,
       };
-      const result = validateGiftClaim(offer, KNOWN_SECRET);
+      const result = validateGiftClaim(offer, KNOWN_VERIFIER);
       expect(result).toEqual({ code: "GIFT_ALREADY_CLAIMED", message: "This gift has already been claimed" });
     });
 
@@ -273,7 +273,7 @@ describe("Gift Claim Validation", () => {
         giftStatus: "REVOKED",
         claimVerifier: KNOWN_VERIFIER,
       };
-      const result = validateGiftClaim(offer, KNOWN_SECRET);
+      const result = validateGiftClaim(offer, KNOWN_VERIFIER);
       expect(result).toEqual({ code: "GIFT_REVOKED", message: "This gift has been revoked by the sender" });
     });
 
@@ -284,7 +284,7 @@ describe("Gift Claim Validation", () => {
         claimVerifier: KNOWN_VERIFIER,
         expiresAt: new Date("2020-01-01"),
       };
-      const result = validateGiftClaim(offer, KNOWN_SECRET);
+      const result = validateGiftClaim(offer, KNOWN_VERIFIER);
       expect(result).toEqual({ code: "GIFT_EXPIRED", message: "This gift has expired" });
     });
 
@@ -334,7 +334,7 @@ describe("Gift Claim Validation", () => {
     it("gift + valid secret returns quote", async () => {
       await seedGiftOffer();
 
-      const req = mockRequest(buildSelectRequest(KNOWN_SECRET));
+      const req = mockRequest(buildSelectRequest(KNOWN_VERIFIER));
       const res = mockResponse();
       onSelect(req as Request, res as Response);
       expect(res.status).toHaveBeenCalledWith(200);
@@ -360,7 +360,7 @@ describe("Gift Claim Validation", () => {
     it("gift + expired sends GIFT_EXPIRED callback", async () => {
       await seedGiftOffer({ expiresAt: new Date("2020-01-01") });
 
-      const req = mockRequest(buildSelectRequest(KNOWN_SECRET));
+      const req = mockRequest(buildSelectRequest(KNOWN_VERIFIER));
       const res = mockResponse();
       onSelect(req as Request, res as Response);
 
@@ -372,7 +372,7 @@ describe("Gift Claim Validation", () => {
     it("gift + already claimed sends GIFT_ALREADY_CLAIMED callback", async () => {
       await seedGiftOffer({ giftStatus: "CLAIMED" });
 
-      const req = mockRequest(buildSelectRequest(KNOWN_SECRET));
+      const req = mockRequest(buildSelectRequest(KNOWN_VERIFIER));
       const res = mockResponse();
       onSelect(req as Request, res as Response);
 
@@ -401,7 +401,7 @@ describe("Gift Claim Validation", () => {
     it("gift + valid secret proceeds with normal init flow", async () => {
       await seedGiftOffer();
 
-      const req = mockRequest(buildInitRequest(KNOWN_SECRET));
+      const req = mockRequest(buildInitRequest(KNOWN_VERIFIER));
       const res = mockResponse();
       onInit(req as Request, res as Response);
 
@@ -426,7 +426,7 @@ describe("Gift Claim Validation", () => {
     it("gift + expired sends GIFT_EXPIRED callback", async () => {
       await seedGiftOffer({ expiresAt: new Date("2020-01-01") });
 
-      const req = mockRequest(buildInitRequest(KNOWN_SECRET));
+      const req = mockRequest(buildInitRequest(KNOWN_VERIFIER));
       const res = mockResponse();
       onInit(req as Request, res as Response);
 
@@ -481,7 +481,7 @@ describe("Gift Claim Validation", () => {
         "beckn:isActive": true,
       });
 
-      const req = mockRequest(buildConfirmRequest(KNOWN_SECRET));
+      const req = mockRequest(buildConfirmRequest(KNOWN_VERIFIER));
       const res = mockResponse();
       onConfirm(req as Request, res as Response);
 
@@ -516,7 +516,7 @@ describe("Gift Claim Validation", () => {
     it("gift + expired sends error callback", async () => {
       await seedGiftOffer({ expiresAt: new Date("2020-01-01") });
 
-      const req = mockRequest(buildConfirmRequest(KNOWN_SECRET));
+      const req = mockRequest(buildConfirmRequest(KNOWN_VERIFIER));
       const res = mockResponse();
       onConfirm(req as Request, res as Response);
 
@@ -537,7 +537,7 @@ describe("Gift Claim Validation", () => {
 
       const consoleSpy = jest.spyOn(console, "log");
 
-      const req = mockRequest(buildConfirmRequest(KNOWN_SECRET));
+      const req = mockRequest(buildConfirmRequest(KNOWN_VERIFIER));
       const res = mockResponse();
       onConfirm(req as Request, res as Response);
 
@@ -600,7 +600,7 @@ describe("Gift Claim Validation", () => {
       });
 
       // First claim
-      const req1 = mockRequest(buildConfirmRequest(KNOWN_SECRET));
+      const req1 = mockRequest(buildConfirmRequest(KNOWN_VERIFIER));
       const res1 = mockResponse();
       onConfirm(req1 as Request, res1 as Response);
       await new Promise((r) => setTimeout(r, 500));
@@ -616,7 +616,7 @@ describe("Gift Claim Validation", () => {
       jest.clearAllMocks();
       mockedAxios.post.mockResolvedValue({ data: { message: { ack: { status: "ACK" } } } });
 
-      const req2 = mockRequest(buildConfirmRequest(KNOWN_SECRET));
+      const req2 = mockRequest(buildConfirmRequest(KNOWN_VERIFIER));
       const res2 = mockResponse();
       onConfirm(req2 as Request, res2 as Response);
       await new Promise((r) => setTimeout(r, 300));
@@ -639,7 +639,7 @@ describe("Gift Claim Validation", () => {
         "beckn:isActive": true,
       });
 
-      const req = mockRequest(buildConfirmRequest(KNOWN_SECRET));
+      const req = mockRequest(buildConfirmRequest(KNOWN_VERIFIER));
       const res = mockResponse();
       onConfirm(req as Request, res as Response);
 

@@ -204,7 +204,7 @@ export function validateGiftClaim(
   if (offer.expiresAt && new Date(offer.expiresAt) < new Date()) {
     return { code: 'GIFT_EXPIRED', message: 'This gift has expired' };
   }
-  if (!claimSecret || computeClaimVerifier(claimSecret) !== offer.claimVerifier) {
+  if (!claimSecret || claimSecret !== offer.claimVerifier) {
     return { code: 'GIFT_CLAIM_FAILED', message: 'Invalid claim secret or gift no longer available' };
   }
 
