@@ -1,9 +1,15 @@
 import axios from 'axios';
+import * as crypto from 'crypto';
 
 const LEDGER_URL = process.env.LEDGER_URL || 'https://34.93.166.38.sslip.io';
 const LEDGER_TIMEOUT = parseInt(process.env.LEDGER_TIMEOUT || '10000', 10);
 const LEDGER_RETRY_COUNT = parseInt(process.env.LEDGER_RETRY_COUNT || '3', 10);
 const LEDGER_RETRY_DELAY = parseInt(process.env.LEDGER_RETRY_DELAY || '1000', 10);
+
+// Beckn signing credentials (same as ONIX BPP config)
+const SUBSCRIBER_ID = process.env.BECKN_SUBSCRIBER_ID || 'p2p.terrarexenergy.com';
+const SIGNING_KEY_ID = process.env.BECKN_SIGNING_KEY_ID || '76EU8tEmt7xkez9GFnnhFWDBkv4SYmy3ox2uva6cGio2m1piPrwyju';
+const SIGNING_PRIVATE_KEY = process.env.BECKN_SIGNING_PRIVATE_KEY || 'Eew6JTzT0yeztWLZghqe6oeveJcyZ2l807DM8ucS2NU=';
 
 export interface LedgerTradeDetail {
   tradeQty: number;
@@ -53,6 +59,43 @@ export interface LedgerGetResponse {
   total: number;
 }
 
+// ── Beckn Protocol Signing ──────────────────────────────────────
+
+// PKCS8 DER prefix for Ed25519 private key (wraps 32-byte seed)
+const ED25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
+
+function createBecknAuthHeader(body: string): string {
+  const created = Math.floor(Date.now() / 1000);
+  const expires = created + 300; // 5-minute validity per Beckn spec
+
+  // BLAKE2b-512 digest of the request body
+  const digest = crypto.createHash('blake2b512').update(body).digest('base64');
+
+  // Build signing string per Beckn protocol spec
+  const signingString = `(created): ${created}\n(expires): ${expires}\ndigest: BLAKE-512=${digest}`;
+
+  // Wrap 32-byte Ed25519 seed in PKCS8 DER format for Node.js crypto
+  const seed = Buffer.from(SIGNING_PRIVATE_KEY, 'base64');
+  const derKey = Buffer.concat([ED25519_PKCS8_PREFIX, seed]);
+  const privateKey = crypto.createPrivateKey({ key: derKey, format: 'der', type: 'pkcs8' });
+
+  // Sign with Ed25519
+  const signature = crypto.sign(null, Buffer.from(signingString), privateKey).toString('base64');
+
+  const keyId = `${SUBSCRIBER_ID}|${SIGNING_KEY_ID}|ed25519`;
+
+  return `Signature keyId="${keyId}", algorithm="ed25519", created="${created}", expires="${expires}", headers="(created) (expires) digest", signature="${signature}"`;
+}
+
+function signedHeaders(body: string): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': createBecknAuthHeader(body),
+  };
+}
+
+// ── Helpers ─────────────────────────────────────────────────────
+
 async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -95,16 +138,18 @@ export async function queryTradeByTransaction(
   console.log(`[LedgerClient] Querying trade: txn=${transactionId}, discom=${discomId}`);
 
   try {
+    const body = JSON.stringify({
+      transactionId,
+      discomIdBuyer: discomId,
+      limit: 1,
+      offset: 0
+    });
+
     const response = await withRetry(async () => {
       return axios.post<LedgerGetResponse>(
         `${LEDGER_URL}/ledger/get`,
-        {
-          transactionId,
-          discomIdBuyer: discomId,
-          limit: 1,
-          offset: 0
-        },
-        { timeout: LEDGER_TIMEOUT }
+        body,
+        { timeout: LEDGER_TIMEOUT, headers: signedHeaders(body) }
       );
     });
 
@@ -119,7 +164,7 @@ export async function queryTradeByTransaction(
   } catch (error: any) {
     console.error(`[LedgerClient] Query failed: ${error.message}`);
     if (error.response?.status === 401 || error.response?.status === 403) {
-      throw new Error(`Ledger auth failed (${error.response.status}): Beckn signing required`);
+      throw new Error(`Ledger auth failed (${error.response.status}): Beckn signing rejected`);
     }
     return null;
   }
@@ -132,17 +177,19 @@ export async function queryTrades(request: LedgerGetRequest): Promise<LedgerReco
   console.log(`[LedgerClient] Querying trades:`, JSON.stringify(request));
 
   try {
+    const body = JSON.stringify({
+      ...request,
+      limit: request.limit || 100,
+      offset: request.offset || 0,
+      sort: request.sort || 'tradeTime',
+      sortOrder: request.sortOrder || 'desc'
+    });
+
     const response = await withRetry(async () => {
       return axios.post<LedgerGetResponse>(
         `${LEDGER_URL}/ledger/get`,
-        {
-          ...request,
-          limit: request.limit || 100,
-          offset: request.offset || 0,
-          sort: request.sort || 'tradeTime',
-          sortOrder: request.sortOrder || 'desc'
-        },
-        { timeout: LEDGER_TIMEOUT }
+        body,
+        { timeout: LEDGER_TIMEOUT, headers: signedHeaders(body) }
       );
     });
 
@@ -153,7 +200,7 @@ export async function queryTrades(request: LedgerGetRequest): Promise<LedgerReco
     console.error(`[LedgerClient] Query failed: ${error.message}`);
     // Surface auth errors instead of silently returning empty
     if (error.response?.status === 401 || error.response?.status === 403) {
-      throw new Error(`Ledger auth failed (${error.response.status}): Beckn signing required`);
+      throw new Error(`Ledger auth failed (${error.response.status}): Beckn signing rejected`);
     }
     return [];
   }
@@ -165,10 +212,11 @@ export async function queryTrades(request: LedgerGetRequest): Promise<LedgerReco
 export async function getLedgerHealth(): Promise<{ ok: boolean; latencyMs: number; error?: string }> {
   const start = Date.now();
   try {
+    const body = JSON.stringify({ limit: 1, offset: 0 });
     await axios.post(
       `${LEDGER_URL}/ledger/get`,
-      { limit: 1, offset: 0 },
-      { timeout: 5000 }
+      body,
+      { timeout: 5000, headers: signedHeaders(body) }
     );
     return { ok: true, latencyMs: Date.now() - start };
   } catch (error: any) {
@@ -181,11 +229,12 @@ export async function getLedgerHealth(): Promise<{ ok: boolean; latencyMs: numbe
  */
 export async function addTrade(trade: LedgerRecord) {
   try {
+    const body = JSON.stringify(trade);
     const response = await withRetry(async () => {
       return axios.post(
         `${LEDGER_URL}/ledger/put`,
-        trade,
-        { timeout: LEDGER_TIMEOUT }
+        body,
+        { timeout: LEDGER_TIMEOUT, headers: signedHeaders(body) }
       );
     });
     return response.data;
@@ -200,11 +249,12 @@ export async function addTrade(trade: LedgerRecord) {
  */
 export async function updateTrade(trade: LedgerRecord) {
   try {
+    const body = JSON.stringify(trade);
     const response = await withRetry(async () => {
       return axios.post(
         `${LEDGER_URL}/ledger/record`,
-        trade,
-        { timeout: LEDGER_TIMEOUT }
+        body,
+        { timeout: LEDGER_TIMEOUT, headers: signedHeaders(body) }
       );
     });
     return response.data;
