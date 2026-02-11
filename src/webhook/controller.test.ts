@@ -813,6 +813,52 @@ describe("Webhook Controller", () => {
       expect(settlement).toBeNull();
     });
 
+    it("should reject when multiple items exceed same offer inventory cumulatively", async () => {
+      // Offer has 10 kWh. Two items request 6 each = 12 total > 10 available.
+      // Each item individually passes (6 <= 10), but combined they exceed.
+      await seedOfferForConfirm("offer-cumul", "item-cumul", 10);
+
+      const req = mockRequest({
+        context: { ...validContext, transaction_id: "txn-cumul-001" },
+        message: {
+          order: {
+            "beckn:id": "order-cumul",
+            "beckn:seller": "seller-001",
+            "beckn:buyer": { "beckn:id": "buyer-001" },
+            "beckn:orderItems": [
+              {
+                "beckn:orderedItem": "item-cumul",
+                "beckn:quantity": { unitQuantity: 6 },
+                "beckn:acceptedOffer": { "beckn:id": "offer-cumul" },
+              },
+              {
+                "beckn:orderedItem": "item-cumul",
+                "beckn:quantity": { unitQuantity: 6 },
+                "beckn:acceptedOffer": { "beckn:id": "offer-cumul" },
+              },
+            ],
+          },
+        },
+      });
+      const res = mockResponse();
+
+      onConfirm(req as Request, res as Response);
+
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+      const callPayload = mockedAxios.post.mock.calls[0][1] as any;
+      expect(callPayload.error.code).toBe("INSUFFICIENT_INVENTORY");
+      expect(callPayload.error.message).toContain("Requested 12");
+      expect(callPayload.error.message).toContain("available 10");
+      expect(callPayload.message.order["beckn:orderStatus"]).toBe("REJECTED");
+
+      // Inventory should NOT have been reduced
+      const db = getTestDB();
+      const offer = await db.collection("offers").findOne({ "beckn:id": "offer-cumul" });
+      expect(offer!["beckn:price"].applicableQuantity.unitQuantity).toBe(10);
+    });
+
     it("should reduce offer inventory and republish catalog after confirm", async () => {
       await seedOfferForConfirm("offer-reduce", "item-reduce", 20, "catalog-reduce");
 
@@ -857,7 +903,12 @@ describe("Webhook Controller", () => {
       );
       expect(confirmCall).toBeDefined();
       const confirmPayload = confirmCall![1] as any;
-      expect(confirmPayload.message.order["beckn:orderStatus"]).toBe("CONFIRMED");
+      expect(confirmPayload.message.order["beckn:orderStatus"]).toBe("CREATED");
+      expect(confirmPayload.message.order["beckn:orderValue"]).toEqual({
+        currency: "INR",
+        value: 52.5, // 7 kWh * 7.5 INR/kWh
+        description: expect.stringContaining("7 kWh"),
+      });
     });
 
     it("should save seller order in DB after confirm", async () => {
@@ -895,7 +946,12 @@ describe("Webhook Controller", () => {
       expect(savedOrder!.type).toBe("seller");
       expect(savedOrder!.orderStatus).toBe("SCHEDULED");
       expect(savedOrder!.userId).toBe("seller-user-id");
-      expect(savedOrder!.order["beckn:orderStatus"]).toBe("CONFIRMED");
+      expect(savedOrder!.order["beckn:orderStatus"]).toBe("CREATED");
+      expect(savedOrder!.order["beckn:orderValue"]).toEqual({
+        currency: "INR",
+        value: 37.5, // 5 kWh * 7.5 INR/kWh
+        description: expect.stringContaining("5 kWh"),
+      });
     });
   });
 });

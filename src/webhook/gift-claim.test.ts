@@ -586,7 +586,12 @@ describe("Gift Claim Validation", () => {
       );
       expect(confirmCalls.length).toBeGreaterThan(0);
       const confirmPayload = confirmCalls[0][1] as any;
-      expect(confirmPayload.message.order["beckn:orderStatus"]).toBe("CONFIRMED");
+      expect(confirmPayload.message.order["beckn:orderStatus"]).toBe("CREATED");
+      expect(confirmPayload.message.order["beckn:orderValue"]).toEqual({
+        currency: "INR",
+        value: 25, // normal offer: 5 kWh * 5.0 INR/kWh
+        description: expect.stringContaining("5 kWh"),
+      });
     });
 
     it("concurrent claims: first succeeds, second gets GIFT_ALREADY_CLAIMED without double inventory reduction", async () => {
@@ -647,7 +652,12 @@ describe("Gift Claim Validation", () => {
 
       const savedOrder = await db.collection("orders").findOne({ transactionId: "txn-gift-001" });
       expect(savedOrder).toBeTruthy();
-      expect(savedOrder?.order["beckn:orderStatus"]).toBe("CONFIRMED");
+      expect(savedOrder?.order["beckn:orderStatus"]).toBe("CREATED");
+      expect(savedOrder?.order["beckn:orderValue"]).toEqual({
+        currency: "INR",
+        value: 0, // gift: 5 kWh * 0 INR/kWh
+        description: expect.stringContaining("5 kWh"),
+      });
     });
   });
 });
