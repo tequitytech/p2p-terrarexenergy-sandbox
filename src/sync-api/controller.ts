@@ -341,7 +341,7 @@ function transformCatalogToOrder(
               ...(customAttributes.claimSecret && {
                 gift: {
                   ...selectedOffer['beckn:offerAttributes']?.gift,
-                  claimSecret: customAttributes.claimSecret,
+                  claimVerifier: customAttributes.claimSecret,
                 },
               }),
             },

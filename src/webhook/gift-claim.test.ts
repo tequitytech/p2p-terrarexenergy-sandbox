@@ -147,7 +147,7 @@ const buildSelectRequest = (claimSecret?: string) => ({
         "beckn:acceptedOffer": {
           "beckn:id": "gift-offer-001",
           ...(claimSecret !== undefined && {
-            "beckn:offerAttributes": { gift: { claimSecret } },
+            "beckn:offerAttributes": { gift: { claimVerifier: claimSecret } },
           }),
         },
       }],
@@ -169,7 +169,7 @@ const buildInitRequest = (claimSecret?: string) => ({
           "beckn:id": "gift-offer-001",
           "beckn:price": { "schema:price": 0, "schema:priceCurrency": "INR" },
           ...(claimSecret !== undefined && {
-            "beckn:offerAttributes": { gift: { claimSecret } },
+            "beckn:offerAttributes": { gift: { claimVerifier: claimSecret } },
           }),
         },
       }],
@@ -192,7 +192,7 @@ const buildConfirmRequest = (claimSecret?: string) => ({
         "beckn:acceptedOffer": {
           "beckn:id": "gift-offer-001",
           ...(claimSecret !== undefined && {
-            "beckn:offerAttributes": { gift: { claimSecret } },
+            "beckn:offerAttributes": { gift: { claimVerifier: claimSecret } },
           }),
         },
       }],

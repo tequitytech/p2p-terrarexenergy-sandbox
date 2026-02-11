@@ -123,9 +123,9 @@ const getPersona = (): string | undefined => {
   return process.env.PERSONA;
 };
 
-/** Extract claimSecret from the Beckn acceptedOffer payload (SPEC 5.3) */
+/** Extract claimVerifier from the Beckn acceptedOffer payload (SPEC 5.3) */
 const extractClaimSecret = (acceptedOffer: any): string | undefined =>
-  acceptedOffer?.["beckn:offerAttributes"]?.gift?.claimSecret;
+  acceptedOffer?.["beckn:offerAttributes"]?.gift?.claimVerifier;
 
 /** Send a REJECTED order callback with an error payload */
 async function sendRejectionCallback(
