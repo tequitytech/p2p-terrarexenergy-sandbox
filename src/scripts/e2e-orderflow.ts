@@ -9,6 +9,7 @@ if (!MONGO_URI) {
 }
 const MONGO_DB = process.env.MONDO_DB ?? "p2p_trading";
 import { calculateTotalAmount } from "../utils";
+import { ledgerClient } from "../services/ledger-client";
 
 const SELLER_ID = "terrarex-provider-001";
 const BUYER_ID = "did:rcw:subject-057";
@@ -344,27 +345,30 @@ const confirmItem = async (transactionId: string, initResponse: any) => {
 };
 
 const findTransactionInLedger = async (transactionId: string) => {
-  let retryCount = 3;
+  let retryCount = 10;
   while (retryCount--) {
-    const response = await axios.post(
-      "https://34.93.166.38.sslip.io/ledger/get",
-      {
+    try {
+      const records = await ledgerClient.queryTrades({
         transactionId,
         limit: 100,
         offset: 0,
         sort: "tradeTime",
         sortOrder: "desc",
-      },
-    );
-    if (response.data.count === 0) {
-      if (retryCount) {
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-        console.log("Failed to find transaction in ledger. Retrying...");
-        continue;
+      });
+
+      if (records.length > 0) {
+        return { count: records.length, records };
       }
+    } catch (e: any) {
+      console.warn(`[Script] Ledger query error: ${e.message}`);
     }
-    return response.data;
+
+    if (retryCount) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      console.log("Transaction not found in ledger yet. Retrying...");
+    }
   }
+  return { count: 0, records: [] };
 };
 
 const main = async () => {
