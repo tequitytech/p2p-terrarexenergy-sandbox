@@ -483,29 +483,36 @@ export const onInit = (req: Request, res: Response) => {
         `[Init] Total: ${totalQuantity} kWh, Energy: ${currency} ${totalEnergyCost.toFixed(2)}, Wheeling: ${currency} ${wheelingCharges.toFixed(2)}, Total: ${currency} ${totalOrderValue.toFixed(2)}`,
       );
 
-      // // Build settlement accounts: BAP account from request + BPP platform account
-      // const requestSettlementAccounts = payment?.["beckn:paymentAttributes"]?.settlementAccounts || [];
-      // const settlementAccounts = [
-      //   ...requestSettlementAccounts,
-      //   BPP_SETTLEMENT_ACCOUNT,
-      // ];
-
-      // // Generate Payment Link
-      // let paymentUri = "";
-      // try {
-      //     const rzpOrder = await paymentService.createOrder(roundedTotalOrderValue, currency);
-      //     const rzpLink = await paymentService.createPaymentLink({
-      //         id: rzpOrder.id,
-      //         amount: rzpOrder.amount,
-      //         currency: rzpOrder.currency,
-      //         name: buyer?.["beckn:id"] || "Energy Buyer",
-      //         contact: "9876543210" // Default contact if not available (must be valid)
-      //     });
-      //     paymentUri = rzpLink.short_url;
-      //     console.log(`[Init] Generated Payment Link: ${paymentUri}`);
-      // } catch (err) {
-      //     console.error("[Init] Failed to generate payment link:", err);
-      // }
+      /*
+       * Removed: Settlement accounts and Razorpay payment link generation.
+       * Reason: DEG spec init-response (select-response.json) does not include
+       * beckn:paymentAttributes, settlementAccounts, or beckn:paymentURL.
+       * Stripped to match spec exactly. Uncomment to re-enable for real payments.
+       *
+       * // Build settlement accounts: BAP account from request + BPP platform account
+       * const requestSettlementAccounts = payment?.["beckn:paymentAttributes"]?.settlementAccounts || [];
+       * const settlementAccounts = [
+       *   ...requestSettlementAccounts,
+       *   BPP_SETTLEMENT_ACCOUNT,
+       * ];
+       *
+       * // Generate Payment Link
+       * let paymentUri = "";
+       * try {
+       *     const rzpOrder = await paymentService.createOrder(roundedTotalOrderValue, currency);
+       *     const rzpLink = await paymentService.createPaymentLink({
+       *         id: rzpOrder.id,
+       *         amount: rzpOrder.amount,
+       *         currency: rzpOrder.currency,
+       *         name: buyer?.["beckn:id"] || "Energy Buyer",
+       *         contact: "9876543210"
+       *     });
+       *     paymentUri = rzpLink.short_url;
+       *     console.log(`[Init] Generated Payment Link: ${paymentUri}`);
+       * } catch (err) {
+       *     console.error("[Init] Failed to generate payment link:", err);
+       * }
+       */
 
       // Build response per P2P Trading implementation guide
       const responsePayload = {
@@ -568,16 +575,21 @@ export const onInit = (req: Request, res: Response) => {
                 currency: currency,
                 value: roundedTotalOrderValue,
               },
-              // "beckn:uri": paymentUri,  // BUG: beckn:uri not in ONIX schema
-              // "beckn:paymentURL": paymentUri,  // Commented: not in DEG spec, uncomment to re-enable Razorpay link
               "beckn:acceptedPaymentMethod": ["UPI", "BANK_TRANSFER", "WALLET"],
               "beckn:beneficiary": "BPP",
               "beckn:paymentStatus": "AUTHORIZED",
-              // "beckn:paymentAttributes": {  // Commented: not in DEG spec, uncomment to re-enable settlement accounts
-              //   "@context": PAYMENT_SETTLEMENT_SCHEMA_CTX,
-              //   "@type": "PaymentSettlement",
-              //   settlementAccounts: settlementAccounts,
-              // },
+              /*
+               * Removed: beckn:paymentURL and beckn:paymentAttributes.
+               * Reason: Not in DEG spec init-response. Stripped to match spec exactly.
+               * Uncomment to re-enable Razorpay payment link and settlement accounts.
+               *
+               * "beckn:paymentURL": paymentUri,
+               * "beckn:paymentAttributes": {
+               *   "@context": PAYMENT_SETTLEMENT_SCHEMA_CTX,
+               *   "@type": "PaymentSettlement",
+               *   settlementAccounts: settlementAccounts,
+               * },
+               */
             },
           },
         },
