@@ -142,6 +142,13 @@ export const catalogStore = {
         lookupHash, claimVerifier,
         ...rest
       } = offer;
+
+      // Strip claimVerifier from nested beckn:offerAttributes.gift (lookupHash stays for discovery)
+      if (rest['beckn:offerAttributes']?.gift?.claimVerifier) {
+        const { claimVerifier: _cv2, ...giftRest } = rest['beckn:offerAttributes'].gift;
+        rest['beckn:offerAttributes'] = { ...rest['beckn:offerAttributes'], gift: giftRest };
+      }
+
       return rest;
     };
 
