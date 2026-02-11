@@ -549,6 +549,11 @@ export const onInit = (req: Request, res: Response) => {
               }),
             },
             "beckn:orderItems": enrichedOrderItems, // Enriched with acceptedOffer from DB lookup
+            "beckn:orderValue": {
+              currency,
+              value: roundedTotalOrderValue,
+              description: `Energy: ${currency} ${totalEnergyCost} + Wheeling: ${currency} ${wheelingCharges} for ${totalQuantity} kWh`,
+            },
             "beckn:fulfillment": {
               "@context": BECKN_CONTEXT_ROOT,
               "@type": "beckn:Fulfillment",
@@ -565,6 +570,7 @@ export const onInit = (req: Request, res: Response) => {
               },
               // "beckn:uri": paymentUri,  // BUG: beckn:uri not in ONIX schema
               "beckn:paymentURL": paymentUri,  // Fixed: use beckn:paymentURL per Beckn v2 Payment schema
+              "beckn:acceptedPaymentMethod": ["UPI", "BANK_TRANSFER", "WALLET"],
               "beckn:beneficiary": "BPP",
               "beckn:paymentStatus": "AUTHORIZED",
               "beckn:paymentAttributes": {
