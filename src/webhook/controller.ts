@@ -186,14 +186,19 @@ export const onSelect = (req: Request, res: Response) => {
           // Fetch offer from DB to get full details
           const offerFromDb = await catalogStore.getOffer(offerId);
           if (offerFromDb) {
-            // Clean offer (remove MongoDB fields)
-            const { _id: _oid, catalogId: _cid, updatedAt: _uAt, ...cleanOffer } = offerFromDb as any;
+            // Clean offer (remove MongoDB fields + gift DB-only fields)
+            const {
+              _id: _oid, catalogId: _cid, updatedAt: _uAt, userId: _uid,
+              isGift: _ig, giftStatus: _gs, claimSecret: _cs, recipientPhone: _rp,
+              expiresAt: _ea, claimedAt: _ca, claimedBy: _cb,
+              lookupHash: _lh, claimVerifier: _cv,
+              ...cleanOffer
+            } = offerFromDb as any;
             acceptedOffer = cleanOffer;
             console.log(`[Select] Found offer in DB: ${offerId}`);
 
             // ── Gift claim validation ──
             const incomingClaimSecret = extractClaimSecret(acceptedOfferFromRequest);
-            console.log(`[Select] Gift debug: incomingClaimSecret=${incomingClaimSecret}, offerAttributes=`, JSON.stringify(acceptedOfferFromRequest?.["beckn:offerAttributes"]));
             const giftError = validateGiftClaim(offerFromDb, incomingClaimSecret);
             if (giftError) {
               console.log(`[Select] Gift claim rejected: ${offerId} — ${giftError.code}`);
