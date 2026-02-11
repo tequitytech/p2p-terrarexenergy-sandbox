@@ -192,7 +192,9 @@ export const onSelect = (req: Request, res: Response) => {
             console.log(`[Select] Found offer in DB: ${offerId}`);
 
             // ── Gift claim validation ──
-            const giftError = validateGiftClaim(offerFromDb, extractClaimSecret(acceptedOfferFromRequest));
+            const incomingClaimSecret = extractClaimSecret(acceptedOfferFromRequest);
+            console.log(`[Select] Gift debug: incomingClaimSecret=${incomingClaimSecret}, offerAttributes=`, JSON.stringify(acceptedOfferFromRequest?.["beckn:offerAttributes"]));
+            const giftError = validateGiftClaim(offerFromDb, incomingClaimSecret);
             if (giftError) {
               console.log(`[Select] Gift claim rejected: ${offerId} — ${giftError.code}`);
               await sendRejectionCallback(context, "select", {
