@@ -169,9 +169,9 @@ export function buildHourlyOffer(params: {
       "settlementType": "HOURLY",
       "sourceMeterId": params.meter_id,
       "wheelingCharges": {
-        "amount": 0.40,
+        "amount": 0,
         "currency": "INR",
-        "description": "BESCOM inter-discom wheeling charge"
+        "description": "Wheeling charge"
       },
       "minimumQuantity": 1.0,  // Hourly minimum is 1 kWh
       "maximumQuantity": params.quantity,

@@ -18,7 +18,7 @@ import type { SettlementDocument} from "../services/settlement-store";
 import type { Request, Response } from "express";
 dotenv.config();
 
-const WHEELING_RATE = parseFloat(process.env.WHEELING_RATE || "1.50"); // INR/kWh
+const WHEELING_RATE = parseFloat(process.env.WHEELING_RATE || "0"); // INR/kWh
 
 // BPP platform settlement account (for on_init/on_confirm responses)
 const BPP_SETTLEMENT_ACCOUNT = {

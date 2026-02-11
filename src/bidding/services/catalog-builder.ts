@@ -115,9 +115,9 @@ export function buildOffer(params: {
       "settlementType": "DAILY",
       "sourceMeterId": params.provider_id,
       "wheelingCharges": {
-        "amount": 0.40,
+        "amount": 0,
         "currency": "INR",
-        "description": "BESCOM inter-discom wheeling charge"
+        "description": "Wheeling charge"
       },
       "minimumQuantity": 5.0,
       "maximumQuantity": params.quantity,

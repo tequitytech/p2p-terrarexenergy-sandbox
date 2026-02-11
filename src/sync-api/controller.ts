@@ -13,7 +13,7 @@ import type { Request, Response, NextFunction } from 'express';
 dotenv.config();
 
 const ONIX_BAP_URL = process.env.ONIX_BAP_URL || 'http://onix-bap:8081';
-const WHEELING_RATE = parseFloat(process.env.WHEELING_RATE || "1.50"); // INR/kWh
+const WHEELING_RATE = parseFloat(process.env.WHEELING_RATE || "0"); // INR/kWh
 
 // --- Zod Schemas (Full Spec Compliance) ---
 // Per: https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/examples/p2p-trading-interdiscom/v2/select-request.json
