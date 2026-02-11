@@ -619,6 +619,10 @@ export const onConfirm = (req: Request, res: Response) => {
 
       console.log(`[Confirm] Processing ${orderItems.length} order items`);
 
+      let totalQuantity = 0;
+      let totalEnergyCost = 0;
+      let currency = "INR";
+
       // PRE-CHECK: Validate inventory BEFORE reducing (read from offer's applicableQuantity)
       for (const orderItem of orderItems) {
         const itemId =
@@ -758,6 +762,10 @@ export const onConfirm = (req: Request, res: Response) => {
           if (offer) {
             await catalogStore.reduceOfferInventory(offerId, quantity);
             affectedCatalogs.add((offer as any).catalogId);
+            const pricePerUnit = offer["beckn:price"]?.["schema:price"] || 0;
+            currency = offer["beckn:price"]?.["schema:priceCurrency"] || currency;
+            totalEnergyCost += quantity * pricePerUnit;
+            totalQuantity += quantity;
             console.log(`[Confirm] Inventory reduced for offer ${offerId}, seller: ${sellerUserId || 'UNKNOWN'}`);
           } else {
             console.warn(`[Confirm] Offer not found for inventory reduction: ${offerId}`);
@@ -771,9 +779,14 @@ export const onConfirm = (req: Request, res: Response) => {
             const fallbackOfferId = offer["beckn:id"];
             await catalogStore.reduceOfferInventory(fallbackOfferId, quantity);
             affectedCatalogs.add((offer as any).catalogId);
+            const pricePerUnit = offer["beckn:price"]?.["schema:price"] || 0;
+            currency = offer["beckn:price"]?.["schema:priceCurrency"] || currency;
+            totalEnergyCost += quantity * pricePerUnit;
+            totalQuantity += quantity;
             console.log(`[Confirm] Inventory reduced for fallback offer ${fallbackOfferId}`);
           } else {
             console.warn(`[Confirm] No offer found for item: ${itemId}`);
+            totalQuantity += quantity;
           }
         }
       }
@@ -817,8 +830,13 @@ export const onConfirm = (req: Request, res: Response) => {
       // This ensures the ledger receives correct buyer/seller/quantity info
       const confirmedOrder = {
         ...order,
-        "beckn:orderStatus": "CONFIRMED",
-        "beckn:id": order?.["beckn:id"] || `order-${uuidv4()}`,
+        "beckn:orderStatus": "CREATED",
+        "beckn:id": order?.["beckn:id"] || `order-${context.transaction_id || uuidv4()}`,
+        "beckn:orderValue": {
+          currency,
+          value: Math.round(totalEnergyCost * 100) / 100,
+          description: `Inter-platform settlement at catalog prices for ${totalQuantity} kWh`,
+        },
       };
 
       const responsePayload = {
@@ -835,15 +853,6 @@ export const onConfirm = (req: Request, res: Response) => {
       };
 
       // Create settlement record for ledger tracking
-      const totalQuantity = orderItems.reduce((sum: number, item: any) => {
-        const qty =
-          item["beckn:quantity"]?.unitQuantity ||
-          item.quantity?.selected?.count ||
-          item.quantity ||
-          0;
-        return sum + qty;
-      }, 0);
-
       const orderItemId =
         orderItems[0]?.["beckn:orderedItem"] ||
         orderItems[0]?.["beckn:id"] ||

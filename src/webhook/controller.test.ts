@@ -857,7 +857,12 @@ describe("Webhook Controller", () => {
       );
       expect(confirmCall).toBeDefined();
       const confirmPayload = confirmCall![1] as any;
-      expect(confirmPayload.message.order["beckn:orderStatus"]).toBe("CONFIRMED");
+      expect(confirmPayload.message.order["beckn:orderStatus"]).toBe("CREATED");
+      expect(confirmPayload.message.order["beckn:orderValue"]).toEqual({
+        currency: "INR",
+        value: 52.5, // 7 kWh * 7.5 INR/kWh
+        description: expect.stringContaining("7 kWh"),
+      });
     });
 
     it("should save seller order in DB after confirm", async () => {
@@ -895,7 +900,12 @@ describe("Webhook Controller", () => {
       expect(savedOrder!.type).toBe("seller");
       expect(savedOrder!.orderStatus).toBe("SCHEDULED");
       expect(savedOrder!.userId).toBe("seller-user-id");
-      expect(savedOrder!.order["beckn:orderStatus"]).toBe("CONFIRMED");
+      expect(savedOrder!.order["beckn:orderStatus"]).toBe("CREATED");
+      expect(savedOrder!.order["beckn:orderValue"]).toEqual({
+        currency: "INR",
+        value: 37.5, // 5 kWh * 7.5 INR/kWh
+        description: expect.stringContaining("5 kWh"),
+      });
     });
   });
 });

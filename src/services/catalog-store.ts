@@ -196,7 +196,7 @@ export const catalogStore = {
         $match: {
           'order.beckn:seller': sellerId,
           'order.beckn:orderStatus': {
-            $in: ['CONFIRMED', 'SCHEDULED']
+            $in: ['CREATED', 'CONFIRMED', 'SCHEDULED']
           },
           confirmedAt,
         }
@@ -247,8 +247,8 @@ export const catalogStore = {
         $match: {
           'order.beckn:seller': sellerId,
           'order.beckn:orderStatus': {
-            $in: ['CONFIRMED', 'SCHEDULED']
-          }, 
+            $in: ['CREATED', 'CONFIRMED', 'SCHEDULED']
+          },
           confirmedAt
         }
       },
@@ -302,7 +302,7 @@ export const catalogStore = {
         {
           $match: {
             'order.beckn:seller': sellerId,
-            'order.beckn:orderStatus': { $in: ['CONFIRMED', 'SCHEDULED', 'COMPLETED'] },
+            'order.beckn:orderStatus': { $in: ['CREATED', 'CONFIRMED', 'SCHEDULED', 'COMPLETED'] },
             'order.beckn:buyer.beckn:id': { $in: Array.from(verifiedAccountIds) }
           }
         }
