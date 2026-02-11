@@ -551,8 +551,8 @@ export const onInit = (req: Request, res: Response) => {
             "beckn:orderItems": enrichedOrderItems, // Enriched with acceptedOffer from DB lookup
             "beckn:orderValue": {
               currency,
-              value: roundedTotalOrderValue,
-              description: `Energy: ${currency} ${totalEnergyCost} + Wheeling: ${currency} ${wheelingCharges} for ${totalQuantity} kWh`,
+              value: Math.round(totalEnergyCost * 100) / 100,
+              description: `Inter-platform settlement at catalog prices for ${totalQuantity} kWh`,
             },
             "beckn:fulfillment": {
               "@context": BECKN_CONTEXT_ROOT,
