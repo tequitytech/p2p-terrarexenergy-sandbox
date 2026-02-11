@@ -201,6 +201,7 @@ export const onSelect = (req: Request, res: Response) => {
                 "beckn:orderStatus": "REJECTED",
                 "beckn:seller": message?.order?.["beckn:seller"] || "unknown",
                 "beckn:buyer": buyer || { "beckn:id": "unknown", "@context": BECKN_CONTEXT_ROOT, "@type": "beckn:Buyer" },
+                ...(requestOrderAttributes && { "beckn:orderAttributes": requestOrderAttributes }),
                 "beckn:orderItems": selectedItems.map((si: any) => ({
                   "beckn:orderedItem": si["beckn:id"] || si["beckn:orderedItem"],
                   "beckn:quantity": si["beckn:quantity"] || { unitQuantity: 0, unitText: "kWh" },
@@ -413,8 +414,9 @@ export const onInit = (req: Request, res: Response) => {
               console.log(`[Init] Gift claim rejected: ${resolvedOfferId} — ${giftError.code}`);
               await sendRejectionCallback(context, "init", {
                 ...order,
+                "@context": BECKN_CONTEXT_ROOT,
+                "@type": "beckn:Order",
                 "beckn:orderStatus": "REJECTED",
-                "beckn:id": order?.["beckn:id"] || `order-rejected-${uuidv4()}`,
               }, giftError);
               return;
             }
@@ -595,8 +597,10 @@ export const onConfirm = (req: Request, res: Response) => {
               console.log(`[Confirm] Gift claim rejected: ${offerId} — ${giftError.code}`);
               await sendRejectionCallback(context, "confirm", {
                 ...order,
-                "beckn:orderStatus": "REJECTED",
+                "@context": BECKN_CONTEXT_ROOT,
+                "@type": "beckn:Order",
                 "beckn:id": order?.["beckn:id"] || `order-rejected-${uuidv4()}`,
+                "beckn:orderStatus": "REJECTED",
               }, giftError);
               return;
             }
@@ -666,8 +670,10 @@ export const onConfirm = (req: Request, res: Response) => {
             console.log(`[Confirm] Gift claim race condition: ${giftOfferId} already claimed`);
             await sendRejectionCallback(context, "confirm", {
               ...order,
-              "beckn:orderStatus": "REJECTED",
+              "@context": BECKN_CONTEXT_ROOT,
+              "@type": "beckn:Order",
               "beckn:id": order?.["beckn:id"] || `order-rejected-${uuidv4()}`,
+              "beckn:orderStatus": "REJECTED",
             }, { code: "GIFT_ALREADY_CLAIMED", message: "This gift has already been claimed" });
             return;
           }
