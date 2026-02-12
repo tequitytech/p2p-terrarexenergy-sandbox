@@ -1,8 +1,110 @@
+import { ObjectId } from "mongodb";
 import { getDB } from "../db";
+import { sendNotification } from "../utils/notifications";
 
 import { emailService } from "./email-service";
+export interface Notification {
+  _id?: ObjectId;
+  userId: ObjectId;
+  type: string; // e.g., 'GIFT_CLAIM_SELLER', 'GIFT_CLAIM_BUYER', 'ORDER_STATUS'
+  title: string;
+  body: string;
+  data?: Record<string, any>; // Flexible payload (e.g., transactionId)
+  isRead: boolean;
+  createdAt: Date;
+}
 
 export const notificationService = {
+  /**
+   * Create a new notification and optionally send a push notification
+   */
+
+  async createNotification(
+    userId: ObjectId,
+    type: string,
+    title: string,
+    body: string,
+    data: Record<string, any> = {}
+  ) {
+    try {
+      const db = getDB();
+
+      // 1. Save to Database
+      const notification: Notification = {
+        userId,
+        type,
+        title,
+        body,
+        data,
+        isRead: false,
+        createdAt: new Date(),
+      };
+
+      const result = await db.collection("notifications").insertOne(notification);
+
+      // 2. Send Push Notification (Fail-safe)
+      // Check if user has an FCM token (assuming it's stored in users collection)
+      const user = await db.collection("users").findOne({ _id: userId });
+      if (user?.fcmToken) {
+        // Run async without awaiting to not block the main flow
+        sendNotification(user.fcmToken, title, body).catch(err =>
+          console.error(`[NotificationService] Failed to send push to ${userId}:`, err)
+        );
+      }
+
+      return result.insertedId;
+    } catch (error) {
+      console.error(`[NotificationService] Error creating notification for ${userId}:`, error);
+      // We might want to throw here if DB write fails, depending on criticality
+      // For now, logging error.
+      return null;
+    }
+  },
+
+  /**
+   * Get notifications for a user with pagination
+   */
+  async getUserNotifications(userId: ObjectId, limit = 20, offset = 0) {
+    const db = getDB();
+    const query = { userId };
+
+    const [notifications, total] = await Promise.all([
+      db.collection("notifications")
+        .find(query)
+        .sort({ createdAt: -1 })
+        .skip(offset)
+        .limit(limit)
+        .toArray(),
+      db.collection("notifications").countDocuments(query)
+    ]);
+
+    // Count unread
+    const unreadCount = await db.collection("notifications").countDocuments({ ...query, isRead: false });
+
+    return { notifications, total, unreadCount };
+  },
+
+  /**
+   * Mark a notification as read
+   */
+  async markAsRead(notificationId: string, userId: ObjectId) {
+    const db = getDB();
+    return db.collection("notifications").updateOne(
+      { _id: new ObjectId(notificationId), userId },
+      { $set: { isRead: true } }
+    );
+  },
+
+  /**
+   * Mark all notifications as read for a user
+   */
+  async markAllAsRead(userId: ObjectId) {
+    const db = getDB();
+    return db.collection("notifications").updateMany(
+      { userId, isRead: false },
+      { $set: { isRead: true } }
+    );
+  },
   /**
    * Sends an order confirmation email to the buyer
    */

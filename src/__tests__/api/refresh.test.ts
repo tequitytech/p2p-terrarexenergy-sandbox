@@ -60,6 +60,31 @@ describe('Refresh Token Flow', () => {
             expect(res.body.refreshToken).not.toBe(refreshToken); // Rotation check
         });
 
+        it('should update fcmToken if provided during refresh', async () => {
+            // 1. Setup User
+            const db = getTestDB();
+            const userRes = await db.collection('users').insertOne({
+                phone: validPhone,
+                name: 'Test User',
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            });
+            const userId = userRes.insertedId.toString();
+
+            // 2. Generate initial Refresh Token
+            const refreshToken = signRefreshToken(validPhone, userId);
+
+            const fcmToken = "mock-refresh-fcm-token";
+            const res = await request(app)
+                .post('/api/auth/refresh-token')
+                .send({ refreshToken, fcmToken });
+
+            expect(res.status).toBe(200);
+
+            const user = await db.collection('users').findOne({ _id: userRes.insertedId });
+            expect(user?.fcmToken).toBe(fcmToken);
+        });
+
         it('should fail with invalid refresh token', async () => {
             const res = await request(app)
                 .post('/api/auth/refresh-token')

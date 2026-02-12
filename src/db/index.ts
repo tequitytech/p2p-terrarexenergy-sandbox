@@ -81,6 +81,11 @@ export async function connectDB(): Promise<Db> {
     db.collection("otps").createIndex({ userId: 1 }),
     // TTL index: automatically delete expired OTPs
     db.collection("otps").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 120 }),
+
+    // Notifications collection
+    db.collection("notifications").createIndex({ userId: 1 }),
+    db.collection("notifications").createIndex({ createdAt: -1 }),
+    db.collection("notifications").createIndex({ isRead: 1 }),
   ]);
   return db;
 }

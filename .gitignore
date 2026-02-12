@@ -122,3 +122,5 @@ Thumbs.db
 *.temp
 temp/
 run*
+# Firebase Service Account Key
+firebase/terra-rex-82a58-firebase-adminsdk-fbsvc-3aa42b9281.json

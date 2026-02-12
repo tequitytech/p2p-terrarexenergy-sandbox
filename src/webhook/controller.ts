@@ -1,6 +1,7 @@
 import axios from "axios";
 import dotenv from "dotenv";
 import { v4 as uuidv4 } from "uuid";
+import { processGiftNotifications } from "./gift-notifications";
 
 import {
   BECKN_CONTEXT_ROOT,
@@ -735,6 +736,19 @@ export const onConfirm = (req: Request, res: Response) => {
             `[GIFT] Gift ${giftOfferId} claimed by ${buyerId}. ` +
             `Quantity: ${giftQty} kWh, transactionId: ${context.transaction_id}`,
           );
+
+          // ── Notification & Certificate Logic (Background) ──
+          // Fire and forget - do not await
+          processGiftNotifications({
+            transactionId: context.transaction_id,
+            claimResult,
+            buyerId,
+            giftQty,
+            giftOfferId,
+          }).catch((err) =>
+            console.error("[GIFT] Background task launch failed:", err),
+          );
+
         } else {
           // Check if this was actually a gift offer that lost the race
           const currentOffer = await catalogStore.getOffer(giftOfferId);
