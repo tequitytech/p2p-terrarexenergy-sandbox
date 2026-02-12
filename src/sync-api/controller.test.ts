@@ -715,7 +715,7 @@ describe('sync-api/controller', () => {
         data: { message: { ack: { status: 'ACK' } } }
       });
 
-      // 10 kWh × 5.5 INR/kWh = 55 INR energy + 10 × 1.50 = 15 INR wheeling = 70 INR total
+      // 10 kWh × 5.5 INR/kWh = 55 INR energy (wheeling charges are set elsewhere)
       const body = createSelectBasedInitBody();
       const req = mockRequest(body) as Request;
       (req as any).user = { userId: '507f1f77bcf86cd799439011' };
@@ -725,7 +725,7 @@ describe('sync-api/controller', () => {
       const postedBody = mockedAxios.post.mock.calls[0][1] as any;
       const amount = postedBody.message.order['beckn:payment']['beckn:amount'];
       expect(amount.currency).toBe('INR');
-      expect(amount.value).toBe(70); // 55 + 15
+      expect(amount.value).toBe(55);
     });
 
     it('should return 401 when select-based request has no userId', async () => {

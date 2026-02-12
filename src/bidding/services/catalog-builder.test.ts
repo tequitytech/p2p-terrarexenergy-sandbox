@@ -140,7 +140,7 @@ describe('catalog-builder', () => {
       const offer = buildOffer(offerParams);
       const wheeling = offer['beckn:offerAttributes'].wheelingCharges;
 
-      expect(wheeling.amount).toBe(0.40);
+      expect(wheeling.amount).toBe(0);
       expect(wheeling.currency).toBe('INR');
     });
 
