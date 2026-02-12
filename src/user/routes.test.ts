@@ -1,5 +1,6 @@
 import express from "express";
 import request from "supertest";
+import { ObjectId } from "mongodb";
 
 import { setupTestDB, teardownTestDB, clearTestDB, getTestDB } from "../test-utils/db";
 import { userRoutes } from "./routes";
@@ -7,6 +8,16 @@ import { userRoutes } from "./routes";
 // Mock the DB module to use test DB
 jest.mock("../db", () => ({
   getDB: () => require("../test-utils/db").getTestDB(),
+}));
+
+jest.mock("../auth/routes", () => ({
+  authMiddleware: (req: any, res: any, next: any) => {
+    req.user = {
+      phone: "1234567890",
+      userId: "123456789012345678901234",
+    };
+    next();
+  },
 }));
 
 describe("User Routes — GET /api/beneficiary-accounts", () => {
@@ -240,5 +251,244 @@ describe("User Routes — GET /api/beneficiary-accounts", () => {
     expect(Object.keys(account).sort()).toEqual(
       ["id", "name", "requiredEnergy", "type", "verified"].sort()
     );
+  });
+
+});
+
+describe("User Routes — GET /api/gifting-beneficiaries", () => {
+  let app: express.Express;
+
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
+
+  beforeEach(async () => {
+    await clearTestDB();
+    app = express();
+    app.use(express.json());
+    app.use("/api", userRoutes());
+  });
+
+
+
+  it("should return verified gifting beneficiaries with full details (in contacts)", async () => {
+    const db = getTestDB();
+    const createdAt = new Date();
+    const phone = "9876543210";
+
+    // 1. Create the beneficiary user
+    const beneficiaryId = await db.collection("users").insertOne({
+      phone,
+      name: "Gifting Beneficiary",
+      vcVerified: true,
+      isVerifiedGiftingBeneficiary: true,
+      createdAt,
+      meters: ["METER123"],
+      profiles: {
+        consumptionProfile: { id: "did:rcw:consumer-001" },
+      },
+    });
+
+    // 2. Add to contacts (User ID 123456789012345678901234 is the mocked auth user)
+    await db.collection("contacts").insertOne({
+      userId: new ObjectId("123456789012345678901234"),
+      contactUserId: beneficiaryId.insertedId
+    });
+
+    const res = await request(app).get("/api/gifting-beneficiaries");
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.accounts).toHaveLength(1);
+
+    const account = res.body.accounts[0];
+
+    // Privacy check: Phone SHOULD be exposed now (as per Contacts feature)
+    expect(account.phone).toBe(phone);
+
+    expect(account.name).toBe("Gifting Beneficiary");
+    expect(account.vcVerified).toBe(true);
+    expect(account.verifiedGiftingBeneficiary).toBe(true);
+    expect(account.role).toBe("consumer"); // No generation profile
+    expect(account.meters).toEqual(["METER123"]);
+    // Matches new structure: id from consumptionProfile
+    expect(account.id).toBe("did:rcw:consumer-001");
+    // Does not contain profiles or memberSince
+    expect(account.profiles).toBeUndefined();
+    expect(account.memberSince).toBeUndefined();
+  });
+
+  it("should correctly derive prosumer role", async () => {
+    const db = getTestDB();
+    const user = await db.collection("users").insertOne({
+      phone: "1234567890",
+      name: "Prosumer User",
+      vcVerified: true, // Required by new query
+      isVerifiedGiftingBeneficiary: true,
+      profiles: {
+        generationProfile: { id: "did:rcw:gen-001" },
+      },
+    });
+
+    await db.collection("contacts").insertOne({
+      userId: new ObjectId("123456789012345678901234"),
+      contactUserId: user.insertedId
+    });
+
+    const res = await request(app).get("/api/gifting-beneficiaries");
+
+    expect(res.status).toBe(200);
+    expect(res.body.accounts).toHaveLength(1);
+    expect(res.body.accounts[0].role).toBe("prosumer");
+  });
+
+  it("should return empty array when no gifting beneficiaries exist", async () => {
+    const res = await request(app).get("/api/gifting-beneficiaries");
+    expect(res.status).toBe(200);
+    expect(res.body.accounts).toEqual([]);
+  });
+
+  it("should strictly filter by isVerifiedGiftingBeneficiary=true AND vcVerified=true", async () => {
+    const db = getTestDB();
+
+    // Not a gifting beneficiary
+    const user1 = await db.collection("users").insertOne({
+      phone: "1111111111",
+      name: "Regular User",
+      vcVerified: true,
+      isVerifiedGiftingBeneficiary: false,
+    });
+
+    // Gifting beneficiary but not vcVerified
+    const user2 = await db.collection("users").insertOne({
+      phone: "3333333333",
+      name: "Unverified User",
+      vcVerified: false,
+      isVerifiedGiftingBeneficiary: true,
+    });
+
+    // Gifting beneficiary and vcVerified
+    const user3 = await db.collection("users").insertOne({
+      phone: "2222222222",
+      name: "Target User",
+      vcVerified: true,
+      isVerifiedGiftingBeneficiary: true,
+    });
+
+    // Add ALL to contacts to ensure filtering happens at the API level based on flags, not just contact existence
+    await db.collection("contacts").insertMany([
+      { userId: new ObjectId("123456789012345678901234"), contactUserId: user1.insertedId },
+      { userId: new ObjectId("123456789012345678901234"), contactUserId: user2.insertedId },
+      { userId: new ObjectId("123456789012345678901234"), contactUserId: user3.insertedId },
+    ]);
+
+    const res = await request(app).get("/api/gifting-beneficiaries");
+
+    expect(res.status).toBe(200);
+    expect(res.body.accounts).toHaveLength(1);
+    expect(res.body.accounts[0].name).toBe("Target User");
+  });
+
+  it("should return 500 when DB query fails", async () => {
+    // Override the DB mock to throw on find
+    const { getDB } = require("../db");
+    const realDb = getDB();
+    const origCollection = realDb.collection.bind(realDb);
+    jest.spyOn(realDb, "collection").mockImplementation((...args: unknown[]) => {
+      const name = args[0] as string;
+      if (name === "users") {
+        return {
+          find: () => {
+            throw new Error("DB connection lost");
+          },
+        };
+      }
+      return origCollection(name);
+    });
+
+    const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+
+    const res = await request(app).get("/api/gifting-beneficiaries");
+
+    expect(res.status).toBe(500);
+    // Step 106 shows explicit returns for failure
+    // return res.status(500).json({ success:false, error: "Failed to fetch gifting beneficiaries" });
+    expect(res.body.error).toBe("Failed to fetch gifting beneficiaries");
+
+    consoleSpy.mockRestore();
+    (realDb.collection as jest.Mock).mockRestore();
+  });
+});
+
+describe("User Routes — POST /api/contacts", () => {
+  let app: express.Express;
+
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
+
+  beforeEach(async () => {
+    await clearTestDB();
+
+    app = express();
+    app.use(express.json());
+    app.use("/api", userRoutes());
+  });
+
+  it("should add a valid contact successfully", async () => {
+    const db = getTestDB();
+    // Create user to be added as contact
+    const contactUser = await db.collection("users").insertOne({
+      phone: "9876543210",
+      name: "Contact User",
+    });
+
+    const res = await request(app)
+      .post("/api/contacts")
+      .send({ phone: "9876543210" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const contact = await db.collection("contacts").findOne({
+      userId: new ObjectId("123456789012345678901234"), // Mocked user ID
+      contactUserId: contactUser.insertedId
+    });
+    expect(contact).toBeDefined();
+  });
+
+  it("should return 404 if user with phone number not found", async () => {
+    const res = await request(app)
+      .post("/api/contacts")
+      .send({ phone: "9999999999" });
+
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+  });
+
+  it("should return 400 if trying to add self", async () => {
+    const db = getTestDB();
+    // Ensure the mocked user exists (though finding by phone relies on the input)
+    // The mock user has phone "1234567890" and ID "...1234"
+    await db.collection("users").insertOne({
+      _id: new ObjectId("123456789012345678901234"),
+      phone: "1234567890",
+      name: "Me"
+    });
+
+    const res = await request(app)
+      .post("/api/contacts")
+      .send({ phone: "1234567890" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Cannot add yourself as a contact");
   });
 });
