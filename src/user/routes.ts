@@ -5,6 +5,8 @@ import { getDB } from "../db";
 import type { Request, Response } from "express";
 import { authMiddleware } from "../auth/routes";
 
+import { ObjectId } from "mongodb";
+
 export function userRoutes(): Router {
   const router = Router();
 
@@ -41,14 +43,21 @@ export function userRoutes(): Router {
   router.get("/gifting-beneficiaries", authMiddleware, async (req: Request, res: Response) => {
     try {
 
-        const user = (req as any).user;
-        if (!user) {
-            return res.status(401).json({ success: false, error: 'Unauthorized' });
-        }
+      const user = (req as any).user;
+      if (!user) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+      }
 
       const db = getDB();
-      // Find all users who are verified gifting beneficiaries
+      const userIdObj = new ObjectId(user.userId);
+
+      // 1. Fetch user's contacts
+      const contacts = await db.collection("contacts").find({ userId: userIdObj }).toArray();
+      const contactUserIds = contacts.map(c => c.contactUserId);
+
+      // 2. Find verified gifting beneficiaries WHO ARE ALSO IN CONTACTS
       const users = await db.collection("users").find({
+        _id: { $in: contactUserIds },
         isVerifiedGiftingBeneficiary: true,
         vcVerified: true
       }).toArray();
@@ -76,7 +85,56 @@ export function userRoutes(): Router {
       });
     } catch (error: any) {
       console.error("[API] Error fetching gifting beneficiaries:", error.message);
-      return res.status(500).json({ success:false, error: "Failed to fetch gifting beneficiaries" });
+      return res.status(500).json({ success: false, error: "Failed to fetch gifting beneficiaries" });
+    }
+  });
+
+  // POST /api/contacts - Add a user to contacts
+  router.post("/contacts", authMiddleware, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!user) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+      }
+
+      const { phone } = req.body;
+      if (!phone) {
+        return res.status(400).json({ success: false, error: "Phone number is required" });
+      }
+
+      const db = getDB();
+
+      // 1. Find the contact user
+      const contactUser = await db.collection("users").findOne({ phone });
+      if (!contactUser) {
+        return res.status(404).json({ success: false, error: "User with this phone number not found" });
+      }
+
+      if (contactUser._id.toString() === user.userId.toString()) {
+        return res.status(400).json({ success: false, error: "Cannot add yourself as a contact" });
+      }
+
+      const userIdObj = new ObjectId(user.userId);
+
+      // 2. Add to contacts collection (upsert to avoid duplicates)
+      await db.collection("contacts").updateOne(
+        { userId: userIdObj, contactUserId: contactUser._id },
+        {
+          $set: {
+            userId: userIdObj,
+            contactUserId: contactUser._id,
+            updatedAt: new Date()
+          },
+          $setOnInsert: { createdAt: new Date() }
+        },
+        { upsert: true }
+      );
+
+      return res.status(200).json({ success: true, message: "Contact added successfully" });
+
+    } catch (error: any) {
+      console.error("[API] Error adding contact:", error.message);
+      return res.status(500).json({ success: false, error: "Failed to add contact" });
     }
   });
 
