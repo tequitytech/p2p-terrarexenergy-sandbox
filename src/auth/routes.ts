@@ -262,11 +262,25 @@ async function sendOtp(req: Request, res: Response) {
   const db = getDB();
 
   try {
-    // 1. Check if user exists, create if not
-    const user = await findOrCreateUser(db, phone);
+    /*
+     * Pilot mode: only pre-approved users can login.
+     * Users must be added directly to the `users` collection in MongoDB
+     * before they can request an OTP. No auto-creation on first request.
+     *
+     * Previously this called findOrCreateUser() which would insert a new
+     * user record for any phone number. That is disabled for the pilot to
+     * restrict access to a curated set of participants.
+     */
+    const user = await db.collection('users').findOne({ phone });
 
     if (!user) {
-      throw new Error("Failed to find or create user");
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'USER_NOT_FOUND',
+          message: 'This phone number is not registered for the pilot program.',
+        },
+      });
     }
 
     const userId = user._id;
