@@ -13,6 +13,7 @@ import { Db, ObjectId } from 'mongodb';
 import { z } from 'zod';
 import { smsService } from '../services/sms-service';
 import crypto from "crypto";
+import { createBecknAuthHeader } from '../services/ledger-client';
 import { otpSendLimiter } from "./rate-limiter";
 
 import { getDB } from '../db';
@@ -508,7 +509,10 @@ async function verifyVc(req: Request, res: Response) {
     try {
       // Call external verify API
       const verifyUrl = `${VC_API_BASE}/${encodeURIComponent(did)}/verify`;
-      const response = await axios.get(verifyUrl, { timeout: VC_TIMEOUT });
+      const response = await axios.get(verifyUrl, {
+        timeout: VC_TIMEOUT,
+        headers: { Authorization: createBecknAuthHeader('') },
+      });
       const { status, checks } = response.data;
 
       // Check verification status

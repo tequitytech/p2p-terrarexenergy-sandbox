@@ -64,7 +64,7 @@ export interface LedgerGetResponse {
 // PKCS8 DER prefix for Ed25519 private key (wraps 32-byte seed)
 const ED25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
 
-function createBecknAuthHeader(body: string): string {
+export function createBecknAuthHeader(body: string): string {
   const created = Math.floor(Date.now() / 1000);
   const expires = created + 300; // 5-minute validity per Beckn spec
 
