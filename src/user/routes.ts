@@ -129,11 +129,11 @@ export function userRoutes(): Router {
       }
 
       if (!contactUser.vcVerified) {
-        return res.status(404).json({ success: false, error: "User with this phone number is not verified" });
+        return res.status(403).json({ success: false, error: "User with this phone number is not verified" });
       }
       
       if (!contactUser.isVerifiedGiftingBeneficiary) {
-        return res.status(404).json({ success: false, error: "User with this phone number is not a gifting beneficiary" });
+        return res.status(403).json({ success: false, error: "User with this phone number is not a gifting beneficiary" });
       }
 
 
