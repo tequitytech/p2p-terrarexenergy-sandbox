@@ -714,6 +714,7 @@ export const onConfirm = (req: Request, res: Response) => {
 
       // ── Atomically claim gift offers BEFORE inventory reduction ──
       // Must happen first to prevent double-reduction in race conditions
+      let isGiftOrder = false;
       for (const orderItem of orderItems) {
         const giftAcceptedOffer = orderItem["beckn:acceptedOffer"];
         const giftOfferId = giftAcceptedOffer?.["beckn:id"];
@@ -729,6 +730,7 @@ export const onConfirm = (req: Request, res: Response) => {
         );
 
         if (claimResult) {
+          isGiftOrder = true;
           console.log(
             `[GIFT] Gift ${giftOfferId} claimed by ${buyerId}. ` +
             `Quantity: ${giftQty} kWh, transactionId: ${context.transaction_id}`,
@@ -899,7 +901,8 @@ export const onConfirm = (req: Request, res: Response) => {
         },
         type: "seller",
         orderStatus: "SCHEDULED",
-        settlementId: savedSettlement?._id?.toString()
+        settlementId: savedSettlement?._id?.toString(),
+        isGift: isGiftOrder
       });
 
       const callbackUrl = getCallbackUrl(context, "confirm");

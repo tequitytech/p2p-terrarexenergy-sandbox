@@ -31,6 +31,7 @@ describe("Dashboard Routes — GET /api/dashboard/stats", () => {
     mockCatalogStore.getSellerTotalSold.mockResolvedValue(340.75);
     mockCatalogStore.getSellerAvailableInventory.mockResolvedValue(120.3);
     mockCatalogStore.getBeneficiaryDonations.mockResolvedValue(45.2);
+    mockCatalogStore.getSellerTotalGifted.mockResolvedValue(12.5);
 
     const res = await request(app)
       .get("/api/dashboard/stats")
@@ -42,6 +43,7 @@ describe("Dashboard Routes — GET /api/dashboard/stats", () => {
       availableEnergy: 120.3,
       totalEarnings: 1250.5,
       donatedEnergy: 45.2,
+      totalGifted: 12.5,
     });
 
     expect(mockCatalogStore.getSellerEarnings).toHaveBeenCalledWith(
@@ -56,6 +58,9 @@ describe("Dashboard Routes — GET /api/dashboard/stats", () => {
     expect(mockCatalogStore.getBeneficiaryDonations).toHaveBeenCalledWith(
       "seller-001"
     );
+    expect(mockCatalogStore.getSellerTotalGifted).toHaveBeenCalledWith(
+      "seller-001"
+    );
   });
 
   it("should return all values rounded to 2 decimal places", async () => {
@@ -63,6 +68,7 @@ describe("Dashboard Routes — GET /api/dashboard/stats", () => {
     mockCatalogStore.getSellerTotalSold.mockResolvedValue(50.789);
     mockCatalogStore.getSellerAvailableInventory.mockResolvedValue(25.1234);
     mockCatalogStore.getBeneficiaryDonations.mockResolvedValue(10.999);
+    mockCatalogStore.getSellerTotalGifted.mockResolvedValue(5.555);
 
     const res = await request(app)
       .get("/api/dashboard/stats")
@@ -74,6 +80,7 @@ describe("Dashboard Routes — GET /api/dashboard/stats", () => {
       availableEnergy: 25.12,
       totalEarnings: 100.46,
       donatedEnergy: 11,
+      totalGifted: 5.55,
     });
   });
 
@@ -82,6 +89,7 @@ describe("Dashboard Routes — GET /api/dashboard/stats", () => {
     mockCatalogStore.getSellerTotalSold.mockResolvedValue(0);
     mockCatalogStore.getSellerAvailableInventory.mockResolvedValue(0);
     mockCatalogStore.getBeneficiaryDonations.mockResolvedValue(0);
+    mockCatalogStore.getSellerTotalGifted.mockResolvedValue(0);
 
     const res = await request(app)
       .get("/api/dashboard/stats")
@@ -93,6 +101,7 @@ describe("Dashboard Routes — GET /api/dashboard/stats", () => {
       availableEnergy: 0,
       totalEarnings: 0,
       donatedEnergy: 0,
+      totalGifted: 0,
     });
   });
 

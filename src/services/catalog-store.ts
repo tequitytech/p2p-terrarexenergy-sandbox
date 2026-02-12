@@ -268,6 +268,43 @@ export const catalogStore = {
     return result[0]?.totalQuantity || 0;
   },
 
+  async getSellerTotalGifted(sellerId: string, from?: Date, to: Date = new Date()): Promise<number> {
+    const db = getDB();
+
+    const confirmedAt: { $gte?: Date, $lte?: Date } = {};
+    if (from) confirmedAt['$gte'] = from;
+    if (to) confirmedAt['$lte'] = to;
+
+    const pipeline = [
+      {
+        $match: {
+          'order.beckn:seller': sellerId,
+          isGift: true,
+          'order.beckn:orderStatus': {
+            $in: ['CREATED', 'CONFIRMED', 'SCHEDULED', 'COMPLETED']
+          },
+          confirmedAt
+        }
+      },
+      {
+        $unwind: '$order.beckn:orderItems'
+      },
+      {
+        $group: {
+          _id: null,
+          totalQuantity: {
+            $sum: {
+              $ifNull: ['$order.beckn:orderItems.beckn:quantity.unitQuantity', 0]
+            }
+          }
+        }
+      }
+    ];
+
+    const result = await db.collection('orders').aggregate(pipeline).toArray();
+    return result[0]?.totalQuantity || 0;
+  },
+
   async getSellerAvailableInventory(sellerId: string): Promise<number> {
     const db = getDB();
     const result = await db.collection('offers').aggregate([
