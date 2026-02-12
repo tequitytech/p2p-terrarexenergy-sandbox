@@ -252,139 +252,148 @@ describe("User Routes — GET /api/beneficiary-accounts", () => {
     );
   });
 
-  describe("User Routes — GET /api/gifting-beneficiaries", () => {
-    let app: express.Express;
+});
 
-    beforeEach(async () => {
-      await clearTestDB();
-      app = express();
-      app.use(express.json());
-      app.use("/api", userRoutes());
+describe("User Routes — GET /api/gifting-beneficiaries", () => {
+  let app: express.Express;
+
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
+
+  beforeEach(async () => {
+    await clearTestDB();
+    app = express();
+    app.use(express.json());
+    app.use("/api", userRoutes());
+  });
+
+  it("should return verified gifting beneficiaries with full details", async () => {
+    const db = getTestDB();
+    const createdAt = new Date();
+    await db.collection("users").insertOne({
+      phone: "9876543210",
+      name: "Gifting Beneficiary",
+      vcVerified: true,
+      isVerifiedGiftingBeneficiary: true,
+      createdAt,
+      meters: ["METER123"],
+      profiles: {
+        consumptionProfile: { id: "did:rcw:consumer-001" },
+      },
+
     });
 
-    it("should return verified gifting beneficiaries with full details", async () => {
-      const db = getTestDB();
-      const createdAt = new Date();
-      await db.collection("users").insertOne({
-        phone: "9876543210",
-        name: "Gifting Beneficiary",
-        vcVerified: true,
-        isVerifiedGiftingBeneficiary: true,
-        createdAt,
-        meters: ["METER123"],
-        profiles: {
-          consumptionProfile: { id: "did:rcw:consumer-001" },
-        },
+    const res = await request(app).get("/api/gifting-beneficiaries");
 
-      });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.accounts).toHaveLength(1);
 
-      const res = await request(app).get("/api/gifting-beneficiaries");
+    const account = res.body.accounts[0];
+    expect(account.phone).toBe("9876543210");
+    expect(account.name).toBe("Gifting Beneficiary");
+    expect(account.vcVerified).toBe(true);
+    expect(account.verifiedGiftingBeneficiary).toBe(true);
+    expect(account.role).toBe("consumer"); // No generation profile
+    expect(account.meters).toEqual(["METER123"]);
+    // Matches new structure: id from consumptionProfile
+    expect(account.id).toBe("did:rcw:consumer-001");
+    // Does not contain profiles or memberSince
+    expect(account.profiles).toBeUndefined();
+    expect(account.memberSince).toBeUndefined();
+  });
 
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(res.body.accounts).toHaveLength(1);
-
-      const account = res.body.accounts[0];
-      expect(account.phone).toBe("9876543210");
-      expect(account.name).toBe("Gifting Beneficiary");
-      expect(account.vcVerified).toBe(true);
-      expect(account.verifiedGiftingBeneficiary).toBe(true);
-      expect(account.role).toBe("consumer"); // No generation profile
-      expect(account.meters).toEqual(["METER123"]);
-      // Matches new structure: id from consumptionProfile
-      expect(account.id).toBe("did:rcw:consumer-001");
-      // Does not contain profiles or memberSince
-      expect(account.profiles).toBeUndefined();
-      expect(account.memberSince).toBeUndefined();
+  it("should correctly derive prosumer role", async () => {
+    const db = getTestDB();
+    await db.collection("users").insertOne({
+      phone: "1234567890",
+      name: "Prosumer User",
+      vcVerified: true, // Required by new query
+      isVerifiedGiftingBeneficiary: true,
+      profiles: {
+        generationProfile: { id: "did:rcw:gen-001" },
+      },
     });
 
-    it("should correctly derive prosumer role", async () => {
-      const db = getTestDB();
-      await db.collection("users").insertOne({
-        phone: "1234567890",
-        name: "Prosumer User",
-        vcVerified: true, // Required by new query
-        isVerifiedGiftingBeneficiary: true,
-        profiles: {
-          generationProfile: { id: "did:rcw:gen-001" },
-        },
-      });
+    const res = await request(app).get("/api/gifting-beneficiaries");
 
-      const res = await request(app).get("/api/gifting-beneficiaries");
+    expect(res.status).toBe(200);
+    expect(res.body.accounts).toHaveLength(1);
+    expect(res.body.accounts[0].role).toBe("prosumer");
+  });
 
-      expect(res.status).toBe(200);
-      expect(res.body.accounts).toHaveLength(1);
-      expect(res.body.accounts[0].role).toBe("prosumer");
+  it("should return empty array when no gifting beneficiaries exist", async () => {
+    const res = await request(app).get("/api/gifting-beneficiaries");
+    expect(res.status).toBe(200);
+    expect(res.body.accounts).toEqual([]);
+  });
+
+  it("should strictly filter by isVerifiedGiftingBeneficiary=true AND vcVerified=true", async () => {
+    const db = getTestDB();
+
+    // Not a gifting beneficiary
+    await db.collection("users").insertOne({
+      phone: "1111111111",
+      name: "Regular User",
+      vcVerified: true,
+      isVerifiedGiftingBeneficiary: false,
     });
 
-    it("should return empty array when no gifting beneficiaries exist", async () => {
-      const res = await request(app).get("/api/gifting-beneficiaries");
-      expect(res.status).toBe(200);
-      expect(res.body.accounts).toEqual([]);
+    // Gifting beneficiary but not vcVerified
+    await db.collection("users").insertOne({
+      phone: "3333333333",
+      name: "Unverified User",
+      vcVerified: false,
+      isVerifiedGiftingBeneficiary: true,
     });
 
-    it("should strictly filter by isVerifiedGiftingBeneficiary=true AND vcVerified=true", async () => {
-      const db = getTestDB();
-
-      // Not a gifting beneficiary
-      await db.collection("users").insertOne({
-        phone: "1111111111",
-        name: "Regular User",
-        vcVerified: true,
-        isVerifiedGiftingBeneficiary: false,
-      });
-
-      // Gifting beneficiary but not vcVerified
-      await db.collection("users").insertOne({
-        phone: "3333333333",
-        name: "Unverified User",
-        vcVerified: false,
-        isVerifiedGiftingBeneficiary: true,
-      });
-
-      // Gifting beneficiary and vcVerified
-      await db.collection("users").insertOne({
-        phone: "2222222222",
-        name: "Target User",
-        vcVerified: true,
-        isVerifiedGiftingBeneficiary: true,
-      });
-
-      const res = await request(app).get("/api/gifting-beneficiaries");
-
-      expect(res.status).toBe(200);
-      expect(res.body.accounts).toHaveLength(1);
-      expect(res.body.accounts[0].name).toBe("Target User");
+    // Gifting beneficiary and vcVerified
+    await db.collection("users").insertOne({
+      phone: "2222222222",
+      name: "Target User",
+      vcVerified: true,
+      isVerifiedGiftingBeneficiary: true,
     });
 
-    it("should return 500 when DB query fails", async () => {
-      // Override the DB mock to throw on find
-      const { getDB } = require("../db");
-      const realDb = getDB();
-      const origCollection = realDb.collection.bind(realDb);
-      jest.spyOn(realDb, "collection").mockImplementation((...args: unknown[]) => {
-        const name = args[0] as string;
-        if (name === "users") {
-          return {
-            find: () => {
-              throw new Error("DB connection lost");
-            },
-          };
-        }
-        return origCollection(name);
-      });
+    const res = await request(app).get("/api/gifting-beneficiaries");
 
-      const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+    expect(res.status).toBe(200);
+    expect(res.body.accounts).toHaveLength(1);
+    expect(res.body.accounts[0].name).toBe("Target User");
+  });
 
-      const res = await request(app).get("/api/gifting-beneficiaries");
-
-      expect(res.status).toBe(500);
-      // Step 106 shows explicit returns for failure
-      // return res.status(500).json({ success:false, error: "Failed to fetch gifting beneficiaries" });
-      expect(res.body.error).toBe("Failed to fetch gifting beneficiaries");
-
-      consoleSpy.mockRestore();
-      (realDb.collection as jest.Mock).mockRestore();
+  it("should return 500 when DB query fails", async () => {
+    // Override the DB mock to throw on find
+    const { getDB } = require("../db");
+    const realDb = getDB();
+    const origCollection = realDb.collection.bind(realDb);
+    jest.spyOn(realDb, "collection").mockImplementation((...args: unknown[]) => {
+      const name = args[0] as string;
+      if (name === "users") {
+        return {
+          find: () => {
+            throw new Error("DB connection lost");
+          },
+        };
+      }
+      return origCollection(name);
     });
+
+    const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+
+    const res = await request(app).get("/api/gifting-beneficiaries");
+
+    expect(res.status).toBe(500);
+    // Step 106 shows explicit returns for failure
+    // return res.status(500).json({ success:false, error: "Failed to fetch gifting beneficiaries" });
+    expect(res.body.error).toBe("Failed to fetch gifting beneficiaries");
+
+    consoleSpy.mockRestore();
+    (realDb.collection as jest.Mock).mockRestore();
   });
 });
