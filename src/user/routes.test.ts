@@ -449,6 +449,8 @@ describe("User Routes — POST /api/contacts", () => {
     const contactUser = await db.collection("users").insertOne({
       phone: "9876543210",
       name: "Contact User",
+      vcVerified: true,
+      isVerifiedGiftingBeneficiary: true
     });
 
     const res = await request(app)
@@ -481,7 +483,9 @@ describe("User Routes — POST /api/contacts", () => {
     await db.collection("users").insertOne({
       _id: new ObjectId("123456789012345678901234"),
       phone: "1234567890",
-      name: "Me"
+      name: "Me",
+      vcVerified: true,
+      isVerifiedGiftingBeneficiary: true
     });
 
     const res = await request(app)
@@ -490,5 +494,157 @@ describe("User Routes — POST /api/contacts", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("Cannot add yourself as a contact");
+  });
+});
+
+describe("User Routes — Gifting Options", () => {
+  let app: express.Express;
+
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
+
+  beforeEach(async () => {
+    await clearTestDB();
+
+    app = express();
+    app.use(express.json());
+    app.use("/api", userRoutes());
+  });
+
+  it("should create a gifting option successfully with new UI fields", async () => {
+    const db = getTestDB();
+    // Create verified beneficiary
+    const beneficiary = await db.collection("users").insertOne({
+      phone: "9876543210",
+      name: "Beneficiary",
+      isVerifiedGiftingBeneficiary: true,
+      vcVerified: true
+    });
+
+    const res = await request(app)
+      .post("/api/gifting-options")
+      .send({
+        beneficiaryUserId: beneficiary.insertedId.toString(),
+        badge: "Good for running a school",
+        deliveryDescription: "5 units daily",
+        quantity: 30,
+        price: 0,
+        contributionAmount: 150,
+        startHour: 10,
+        duration: 12,
+        sourceType: "SOLAR",
+        deliveryDate: "2026-02-13"
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.giftingOption).toBeDefined();
+    expect(res.body.giftingOption.badge).toBe("Good for running a school");
+    expect(res.body.giftingOption.contributionAmount).toBe(150);
+
+    const inDb = await db.collection("gifting_options").findOne({ _id: new ObjectId(res.body.giftingOption._id) });
+    expect(inDb).toBeDefined();
+    expect(inDb?.quantity).toBe(30);
+    expect(inDb?.price).toBe(0);
+  });
+
+  it("should fail validation with invalid data", async () => {
+    const res = await request(app)
+      .post("/api/gifting-options")
+      .send({
+        beneficiaryUserId: "invalid-id", // Invalid format
+        badge: "", // Empty
+        quantity: -5 // Negative
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Validation failed");
+  });
+
+  it("should fail to create option with missing fields", async () => {
+    const db = getTestDB();
+    const beneficiary = await db.collection("users").insertOne({
+      phone: "9876543210",
+      isVerifiedGiftingBeneficiary: true,
+      vcVerified: true
+    });
+
+    const res = await request(app)
+      .post("/api/gifting-options")
+      .send({
+        beneficiaryUserId: beneficiary.insertedId.toString(),
+        // Missing badge, etc.
+        quantity: 10
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Validation failed");
+  });
+
+  it("should fetch gifting options for a beneficiary with full details", async () => {
+    const db = getTestDB();
+    const beneficiaryId = new ObjectId();
+
+    // Setup: User A (Me) needs to have Beneficiary (User B) in contacts to view options
+    // The test helper `setupTestDB` creates a default user.
+    // We need to ensure that the default user has `beneficiaryId` in contacts.
+
+    // We use the mock ID defined in the auth middleware mock
+    const myId = new ObjectId("123456789012345678901234");
+
+    // 2. Add Beneficiary to contacts
+    await db.collection("contacts").insertOne({
+      userId: myId,
+      contactUserId: beneficiaryId,
+      createdAt: new Date()
+    });
+
+    await db.collection("gifting_options").insertMany([
+      {
+        beneficiaryUserId: beneficiaryId,
+        badge: "Option 1",
+        deliveryDescription: "Desc 1",
+        quantity: 10,
+        price: 0,
+        contributionAmount: 50,
+        isActive: true,
+        startHour: 10, duration: 1, sourceType: "SOLAR"
+      },
+      {
+        beneficiaryUserId: beneficiaryId,
+        badge: "Option 2",
+        deliveryDescription: "Desc 2",
+        quantity: 20,
+        price: 0,
+        contributionAmount: 100,
+        isActive: true,
+        startHour: 10, duration: 1, sourceType: "SOLAR"
+      }
+    ]);
+
+    const res = await request(app).get(`/api/gifting-options/${beneficiaryId.toString()}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.options).toHaveLength(2);
+    expect(res.body.options[0].contributionAmount).toBeDefined();
+    expect(res.body.options[0].badge).toBeDefined();
+  });
+
+  it("should fail to fetch options if user is not in contacts", async () => {
+    const db = getTestDB();
+    const strangerId = new ObjectId();
+
+    // Do NOT add strangerId to contacts
+
+    const res = await request(app).get(`/api/gifting-options/${strangerId.toString()}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("User is not in your contacts");
   });
 });

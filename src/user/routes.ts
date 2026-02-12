@@ -6,6 +6,24 @@ import type { Request, Response } from "express";
 import { authMiddleware } from "../auth/routes";
 
 import { ObjectId } from "mongodb";
+import { z } from "zod";
+
+const createGiftingOptionSchema = z.object({
+  beneficiaryUserId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId"),
+  badge: z.string().min(1, "Badge is required"),
+  deliveryDescription: z.string().min(1, "Delivery description is required"),
+  quantity: z.number().positive().max(1000), // kWh
+  price: z.number().min(0, "Price cannot be negative"),
+  contributionAmount: z.number().min(0, "Contribution amount cannot be negative"),
+  startHour: z.number().int().min(0).max(23).default(10),
+  duration: z.number().int().min(1).max(12).default(1),
+  sourceType: z.enum(["SOLAR", "WIND", "HYDRO"]).default("SOLAR"),
+  deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+const getGiftingOptionsSchema = z.object({
+  userId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId")
+});
 
 export function userRoutes(): Router {
   const router = Router();
@@ -107,8 +125,17 @@ export function userRoutes(): Router {
       // 1. Find the contact user
       const contactUser = await db.collection("users").findOne({ phone });
       if (!contactUser) {
-        return res.status(404).json({ success: false, error: "User with this phone number not found" });
+        return res.status(404).json({ success: false, error: "User with this phone number not found on our system" });
       }
+
+      if (!contactUser.vcVerified) {
+        return res.status(404).json({ success: false, error: "User with this phone number is not verified" });
+      }
+      
+      if (!contactUser.isVerifiedGiftingBeneficiary) {
+        return res.status(404).json({ success: false, error: "User with this phone number is not a gifting beneficiary" });
+      }
+
 
       if (contactUser._id.toString() === user.userId.toString()) {
         return res.status(400).json({ success: false, error: "Cannot add yourself as a contact" });
@@ -135,6 +162,121 @@ export function userRoutes(): Router {
     } catch (error: any) {
       console.error("[API] Error adding contact:", error.message);
       return res.status(500).json({ success: false, error: "Failed to add contact" });
+    }
+  });
+
+  // POST /api/gifting-options - Create a new gifting option
+  router.post("/gifting-options", authMiddleware, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!user) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+      }
+
+      const validationResult = createGiftingOptionSchema.safeParse(req.body);
+
+      if (!validationResult.success) {
+        return res.status(400).json({ success: false, error: "Validation failed", details: validationResult.error.issues });
+      }
+
+      const {
+        beneficiaryUserId,
+        badge,
+        deliveryDescription,
+        quantity,
+        price,
+        contributionAmount,
+        startHour,
+        duration,
+        sourceType,
+        deliveryDate
+      } = validationResult.data;
+
+      const db = getDB();
+
+      // 1. Validate beneficiary
+      const beneficiary = await db.collection("users").findOne({ _id: new ObjectId(beneficiaryUserId) });
+      if (!beneficiary) {
+        return res.status(404).json({ success: false, error: "Beneficiary not found" });
+      }
+
+      if (!beneficiary.isVerifiedGiftingBeneficiary) {
+        return res.status(400).json({ success: false, error: "User is not a verified gifting beneficiary" });
+      }
+
+      // 2. Create gifting option
+      const giftingOption = {
+        beneficiaryUserId: new ObjectId(beneficiaryUserId),
+        badge,
+        beneficiaryName: beneficiary.name,
+        deliveryDescription,
+        quantity: Number(quantity || 5),
+        price: Number(price || 0), // Order price (e.g., 0)
+        contributionAmount: Number(contributionAmount), // UI price
+        startHour: Number(startHour || 11),
+        duration: Number(duration || 1),
+        sourceType: sourceType || "SOLAR",
+        isGift: true,
+        isActive: true,
+        deliveryDate: new Date(deliveryDate),
+        createdBy: new ObjectId(user.userId),
+        createdAt: new Date()
+      };
+
+      const result = await db.collection("gifting_options").insertOne(giftingOption);
+
+      return res.status(201).json({
+        success: true,
+        message: "Gifting option created successfully",
+        giftingOption: { ...giftingOption, _id: result.insertedId }
+      });
+
+    } catch (error: any) {
+      console.error("[API] Error creating gifting option:", error.message);
+      return res.status(500).json({ success: false, error: "Failed to create gifting option" });
+    }
+  });
+
+  // GET /api/gifting-options/:userId - Get gifting options for a beneficiary
+  router.get("/gifting-options/:userId", authMiddleware, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!user) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+      }
+
+      const validationResult = getGiftingOptionsSchema.safeParse(req.params);
+
+      if (!validationResult.success) {
+        return res.status(400).json({ success: false, error: "Invalid User ID format" });
+      }
+
+      const { userId } = validationResult.data;
+      const db = getDB();
+
+      // Security Check: Ensure the requested beneficiary (userId) is in the requester's (user.userId) contacts
+      const contactEntry = await db.collection("contacts").findOne({
+        userId: new ObjectId(user.userId),
+        contactUserId: new ObjectId(userId)
+      });
+
+      if (!contactEntry) {
+        return res.status(403).json({ success: false, error: "User is not in your contacts" });
+      }
+
+      const options = await db.collection("gifting_options").find({
+        beneficiaryUserId: new ObjectId(userId),
+        isActive: true
+      }).toArray();
+
+      return res.status(200).json({
+        success: true,
+        options
+      });
+
+    } catch (error: any) {
+      console.error("[API] Error fetching gifting options:", error.message);
+      return res.status(500).json({ success: false, error: "Failed to fetch gifting options" });
     }
   });
 
