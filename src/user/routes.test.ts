@@ -526,6 +526,12 @@ describe("User Routes — Gifting Options", () => {
       vcVerified: true
     });
 
+    // Add to contacts
+    await db.collection("contacts").insertOne({
+      userId: new ObjectId("123456789012345678901234"),
+      contactUserId: beneficiary.insertedId
+    });
+
     const res = await request(app)
       .post("/api/gifting-options")
       .send({
@@ -584,6 +590,33 @@ describe("User Routes — Gifting Options", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("Validation failed");
+  });
+
+  it("should fail to create gifting option if beneficiary is not in contacts", async () => {
+    const db = getTestDB();
+    const beneficiary = await db.collection("users").insertOne({
+      phone: "9876543211",
+      isVerifiedGiftingBeneficiary: true,
+      vcVerified: true
+    });
+
+    const res = await request(app)
+      .post("/api/gifting-options")
+      .send({
+        beneficiaryUserId: beneficiary.insertedId.toString(),
+        badge: "Gift",
+        deliveryDescription: "Desc",
+        quantity: 10,
+        price: 0,
+        contributionAmount: 50,
+        startHour: 10,
+        duration: 1,
+        sourceType: "SOLAR",
+        deliveryDate: "2026-02-13"
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("Beneficiary is not in your contacts");
   });
 
   it("should fetch gifting options for a beneficiary with full details", async () => {

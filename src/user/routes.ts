@@ -204,7 +204,17 @@ export function userRoutes(): Router {
         return res.status(400).json({ success: false, error: "User is not a verified gifting beneficiary" });
       }
 
-      // 2. Create gifting option
+      // 2. Security Check: Ensure the beneficiary is in the requester's contacts
+      const contactEntry = await db.collection("contacts").findOne({
+        userId: new ObjectId(user.userId),
+        contactUserId: new ObjectId(beneficiaryUserId)
+      });
+
+      if (!contactEntry) {
+        return res.status(403).json({ success: false, error: "Beneficiary is not in your contacts" });
+      }
+
+      // 3. Create gifting option
       const giftingOption = {
         beneficiaryUserId: new ObjectId(beneficiaryUserId),
         badge,
