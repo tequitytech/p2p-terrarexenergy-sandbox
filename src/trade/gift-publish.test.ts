@@ -61,6 +61,12 @@ jest.mock('../auth/routes', () => {
   };
 });
 
+jest.mock('../services/sms-service', () => ({
+  smsService: {
+    sendSms: jest.fn().mockResolvedValue('msg-id'),
+  },
+}));
+
 import axios from 'axios';
 
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -399,6 +405,24 @@ describe('Gift Publish Integration Tests', () => {
       const db = getTestDB();
       const offer = await db.collection('offers').findOne({ 'beckn:id': res.body.offer_id });
       expect(offer!.isGift).toBe(true);
+    });
+    it('should send SMS with correct message format', async () => {
+      const { smsService } = require('../services/sms-service');
+      const sendSmsSpy = smsService.sendSms;
+      sendSmsSpy.mockClear();
+
+      await request(app)
+        .post('/api/publish')
+        .send(validGiftInput)
+        .expect(200);
+
+      expect(sendSmsSpy).toHaveBeenCalledTimes(1);
+      const [phone, message] = sendSmsSpy.mock.calls[0];
+
+      expect(phone).toBe('+919123456789');
+      expect(message).toMatch(
+        /^You have received 5 units energy as gift from Gift Prosumer\. To claim use code [A-Za-z0-9]{8} on your preferred p2p energy app\.$/,
+      );
     });
   });
 

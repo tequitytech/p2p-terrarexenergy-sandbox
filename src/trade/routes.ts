@@ -522,7 +522,7 @@ export const tradeRoutes = () => {
         // 9. Send SMS to recipient if it's a gift
         if (gift) {
           try {
-            const message = `You have received an energy gift from ${prosumerDetails.fullName}! Use code ${gift.db.claimSecret} to claim it.`;
+            const message = `You have received ${input.quantity} units energy as gift from ${prosumerDetails.fullName}. To claim use code ${gift.db.claimSecret} on your preferred p2p energy app.`;
             await smsService.sendSms(gift.db.recipientPhone, message);
             console.log(`[API] SMS sent to ${gift.db.recipientPhone}`);
           } catch (error: any) {
@@ -545,6 +545,7 @@ export const tradeRoutes = () => {
           },
           onix_forwarded: onixError === null,
           onix_response: onixResponse,
+          claimSecret: gift?.db.claimSecret,
         });
       } catch (error: any) {
         console.error(`[API] Error:`, error.message);
