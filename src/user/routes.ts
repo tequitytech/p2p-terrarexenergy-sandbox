@@ -3,6 +3,7 @@ import { Router } from "express";
 import { getDB } from "../db";
 
 import type { Request, Response } from "express";
+import { authMiddleware } from "../auth/routes";
 
 export function userRoutes(): Router {
   const router = Router();
@@ -33,6 +34,49 @@ export function userRoutes(): Router {
     } catch (error: any) {
       console.error("[API] Error fetching beneficiary accounts:", error);
       res.status(500).json({ error: "Failed to fetch accounts" });
+    }
+  });
+
+  // GET /api/gifting-beneficiaries
+  router.get("/gifting-beneficiaries", authMiddleware, async (req: Request, res: Response) => {
+    try {
+
+        const user = (req as any).user;
+        if (!user) {
+            return res.status(401).json({ success: false, error: 'Unauthorized' });
+        }
+
+      const db = getDB();
+      // Find all users who are verified gifting beneficiaries
+      const users = await db.collection("users").find({
+        isVerifiedGiftingBeneficiary: true,
+        vcVerified: true
+      }).toArray();
+
+      const result = users.map(user => {
+        // Derive role based on generationProfile
+        const role = user.profiles?.generationProfile ? 'prosumer' : 'consumer';
+
+        return {
+          id: user.profiles?.consumptionProfile?.id,
+          userId: user._id,
+          phone: user.phone,
+          name: user.name,
+          vcVerified: user.vcVerified || false,
+          verifiedGiftingBeneficiary: user.isVerifiedGiftingBeneficiary || false,
+          type: "Gifting Beneficiary",
+          role,
+          meters: user.meters || []
+        };
+      });
+
+      return res.status(200).json({
+        success: true,
+        accounts: result
+      });
+    } catch (error: any) {
+      console.error("[API] Error fetching gifting beneficiaries:", error.message);
+      return res.status(500).json({ success:false, error: "Failed to fetch gifting beneficiaries" });
     }
   });
 
