@@ -3,11 +3,23 @@ import { Router } from "express";
 import { getDB } from "../db";
 
 import type { Request, Response } from "express";
-import { authMiddleware } from "../auth/routes";
+import { authMiddleware, normalizeIndianPhone } from "../auth/routes";
 
 import { ObjectId } from "mongodb";
 import { z } from "zod";
+import multer from "multer";
+import { S3Service } from "../services/s3-service";
 
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  fileFilter: (_req, file, cb) => {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
+      return cb(new Error('Only JPEG, PNG, and WebP images are allowed'));
+    }
+    cb(null, true);
+  },
+});
 const createGiftingOptionSchema = z.object({
   beneficiaryUserId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId"),
   badge: z.string().min(1, "Badge is required"),
@@ -84,6 +96,9 @@ export function userRoutes(): Router {
         // Derive role based on generationProfile
         const role = user.profiles?.generationProfile ? 'prosumer' : 'consumer';
 
+        // Find specific contact details for this user
+        const contact = contacts.find(c => c.contactUserId.toString() === user._id.toString());
+
         return {
           id: user.profiles?.consumptionProfile?.id,
           userId: user._id,
@@ -93,7 +108,9 @@ export function userRoutes(): Router {
           verifiedGiftingBeneficiary: user.isVerifiedGiftingBeneficiary || false,
           type: "Gifting Beneficiary",
           role,
-          meters: user.meters || []
+          meters: user.meters || [],
+          imageKey: contact?.imageKey || "",
+          contactType: contact?.contactType || ""
         };
       });
 
@@ -108,19 +125,28 @@ export function userRoutes(): Router {
   });
 
   // POST /api/contacts - Add a user to contacts
-  router.post("/contacts", authMiddleware, async (req: Request, res: Response) => {
+  router.post("/contacts", authMiddleware, (req: Request, res: Response, next: any) => {
+    upload.single("image")(req, res, (err: any) => {
+      if (err) {
+        return res.status(400).json({ success: false, error: err.message });
+      }
+      next();
+    });
+  }, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
       if (!user) {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
       }
 
-      const { phone } = req.body;
-      if (!phone) {
+      const { phone:phoneNumber, contactType, isImageRemove } = req.body;
+      if (!phoneNumber) {
         return res.status(400).json({ success: false, error: "Phone number is required" });
       }
 
       const db = getDB();
+
+      const phone = normalizeIndianPhone(phoneNumber);
 
       // 1. Find the contact user
       const contactUser = await db.collection("users").findOne({ phone });
@@ -142,22 +168,49 @@ export function userRoutes(): Router {
       }
 
       const userIdObj = new ObjectId(user.userId);
+      let key = "";
+
+      // Handle image upload if present
+      if (req.file) {
+        try {
+          key = await S3Service.uploadFile(req.file.buffer, req.file.mimetype);
+        } catch (error) {
+          console.error("Failed to upload image:", error);
+          return res.status(500).json({ success: false, error: "Failed to upload image" });          
+        }
+      }
 
       // 2. Add to contacts collection (upsert to avoid duplicates)
+      const updateData: any = {
+        userId: userIdObj,
+        contactUserId: contactUser._id,
+        updatedAt: new Date()
+      };
+
+      if (contactType !== undefined) {
+          updateData.contactType = contactType; // can be null
+      }
+
+      if (key) {
+        updateData.imageKey = key;
+      } else if (isImageRemove === 'true' || isImageRemove === true) {
+        updateData.imageKey = null;
+      }
+
+
       await db.collection("contacts").updateOne(
         { userId: userIdObj, contactUserId: contactUser._id },
         {
-          $set: {
-            userId: userIdObj,
-            contactUserId: contactUser._id,
-            updatedAt: new Date()
-          },
+          $set: updateData,
           $setOnInsert: { createdAt: new Date() }
         },
         { upsert: true }
       );
 
-      return res.status(200).json({ success: true, message: "Contact added successfully" });
+      return res.status(200).json({
+        success: true,
+        message: "Contact added successfully",
+      });
 
     } catch (error: any) {
       console.error("[API] Error adding contact:", error.message);
@@ -287,6 +340,27 @@ export function userRoutes(): Router {
     } catch (error: any) {
       console.error("[API] Error fetching gifting options:", error.message);
       return res.status(500).json({ success: false, error: "Failed to fetch gifting options" });
+    }
+  });
+
+  // GET /loan - return loan flow URL
+  router.get("/loan", (req: Request, res: Response) => {
+    try {
+      const loanUrl = process.env.LOAN_URL;
+
+      if (!loanUrl) {
+        throw new Error("LOAN_URL not configured");
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          url: loanUrl
+        }
+      });
+    } catch (error: any) {
+      console.error("[API] Error fetching loan URL:", error);
+      return res.status(500).json({ success: false, error: "Failed to fetch loan URL" });
     }
   });
 
