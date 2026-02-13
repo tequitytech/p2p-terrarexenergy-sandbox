@@ -125,7 +125,14 @@ export function userRoutes(): Router {
   });
 
   // POST /api/contacts - Add a user to contacts
-  router.post("/contacts", authMiddleware, upload.single("image"), async (req: Request, res: Response) => {
+  router.post("/contacts", authMiddleware, (req: Request, res: Response, next: any) => {
+    upload.single("image")(req, res, (err: any) => {
+      if (err) {
+        return res.status(400).json({ success: false, error: err.message });
+      }
+      next();
+    });
+  }, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
       if (!user) {
