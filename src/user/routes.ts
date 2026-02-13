@@ -3,7 +3,7 @@ import { Router } from "express";
 import { getDB } from "../db";
 
 import type { Request, Response } from "express";
-import { authMiddleware } from "../auth/routes";
+import { authMiddleware, normalizeIndianPhone } from "../auth/routes";
 
 import { ObjectId } from "mongodb";
 import { z } from "zod";
@@ -132,12 +132,14 @@ export function userRoutes(): Router {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
       }
 
-      const { phone, contactType, isImageRemove } = req.body;
-      if (!phone) {
+      const { phone:phoneNumber, contactType, isImageRemove } = req.body;
+      if (!phoneNumber) {
         return res.status(400).json({ success: false, error: "Phone number is required" });
       }
 
       const db = getDB();
+
+      const phone = normalizeIndianPhone(phoneNumber);
 
       // 1. Find the contact user
       const contactUser = await db.collection("users").findOne({ phone });
