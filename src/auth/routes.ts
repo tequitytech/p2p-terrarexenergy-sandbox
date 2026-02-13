@@ -426,10 +426,7 @@ async function verifyOtp(req: Request, res: Response) {
       }
     );
 
-    // Update FCM Token if provided
-    if (fcmToken) {
-      await updateFcmToken(db, otpRecord.userId, fcmToken);
-    }
+    await updateFcmToken(db, otpRecord.userId, fcmToken);
 
     const user = await db.collection('users').findOne({ _id: otpRecord.userId });
 
@@ -707,10 +704,7 @@ async function refreshTokenHandler(req: Request, res: Response) {
       });
     }
 
-    // Update FCM Token if provided
-    if (fcmToken) {
-      await updateFcmToken(db, user._id, fcmToken);
-    }
+    await updateFcmToken(db, user._id, fcmToken);
 
     // 3. Issue new tokens (Sliding Expiration: new RT has fresh 30d)
     const newAccessToken = signAccessToken(user.phone, user._id.toString());
