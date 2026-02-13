@@ -500,7 +500,7 @@ export const tradeRoutes = () => {
 
         for (const offer of catalog["beckn:offers"] || []) {
           const offerToSave = gift ? { ...offer, ...gift.db } : offer;
-          await catalogStore.saveOffer(catalogId, offerToSave,userId, input?.giftingOptionId);
+          await catalogStore.saveOffer(catalogId, offerToSave, userId, input?.giftingOptionId);
         }
 
         // 7. Forward to ONIX BPP (secondary action - don't fail if this fails)

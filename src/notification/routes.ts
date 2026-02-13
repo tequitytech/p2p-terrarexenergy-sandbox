@@ -6,8 +6,8 @@ import { authMiddleware } from "../auth/routes";
 export const notificationRoutes = () => {
   const router = Router();
 
-  router.post("/notification/sms", sendSmsHandler);
-  router.post("/notification/email", sendEmailHandler);
+  router.post("/notification/sms",authMiddleware, sendSmsHandler);
+  router.post("/notification/email",authMiddleware, sendEmailHandler);
 
   // In-App Notifications
   router.get("/notifications", authMiddleware, getNotificationsHandler);

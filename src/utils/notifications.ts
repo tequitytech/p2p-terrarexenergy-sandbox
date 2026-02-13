@@ -18,13 +18,13 @@ export async function sendNotification(token: string, title: string, body: strin
 
     try {
         const response = await admin.messaging().send(message);
-        console.log('NOTIFICATION_SENT', {
-            message: 'Notification send',
+        console.log('PUSH_NOTIFICATION_SENT', {
+            message: 'Push notification send',
             response
         })
     } catch (error) {
-        console.error('NOTIFICATION_SENT_ERROR', {
-            message: 'Notification send error',
+        console.error('PUSH_NOTIFICATION_SENT_ERROR', {
+            message: 'Push notification send error',
             error
         })
     }

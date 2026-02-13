@@ -54,9 +54,8 @@ export const notificationService = {
 
       return result.insertedId;
     } catch (error) {
-      console.error(`[NotificationService] Error creating notification for ${userId}:`, error);
-      // We might want to throw here if DB write fails, depending on criticality
       // For now, logging error.
+      console.error(`[NotificationService] Error creating notification for ${userId}:`, error);
       return null;
     }
   },

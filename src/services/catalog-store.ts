@@ -1,14 +1,15 @@
 import { getDB } from '../db';
+import { ObjectId } from 'mongodb';
 
 export const catalogStore = {
   async saveCatalog(catalog: any, userId?: string, giftOptionId?: string) {
     const db = getDB();
     const catalogId = catalog['beckn:id'];
     const usrId = userId || null;
-    const giftingOptionId = giftOptionId || null;
+    const giftingOptionId = giftOptionId ? new ObjectId(giftOptionId) : null;
     await db.collection('catalogs').updateOne(
       { 'beckn:id': catalogId },
-      { $set: { ...catalog, updatedAt: new Date(), userId: usrId, giftingOptionId } },
+      { $set: { ...catalog, updatedAt: new Date(), userId: usrId, ...(giftingOptionId && { giftingOptionId }) } },
       { upsert: true }
     );
 
@@ -20,10 +21,10 @@ export const catalogStore = {
     const db = getDB();
     const itemId = item['beckn:id'];
     const usrId = userId || null;
-    const giftingOptionId = giftOptionId || null;
+    const giftingOptionId = giftOptionId ? new ObjectId(giftOptionId) : null;
     await db.collection('items').updateOne(
       { 'beckn:id': itemId },
-      { $set: { ...item, catalogId, updatedAt: new Date(), userId: usrId, giftingOptionId } },
+      { $set: { ...item, catalogId, updatedAt: new Date(), userId: usrId, ...(giftingOptionId && { giftingOptionId }) } },
       { upsert: true }
     );
 
@@ -34,10 +35,10 @@ export const catalogStore = {
     const db = getDB();
     const offerId = offer['beckn:id'];
     const usrId = userId || null;
-    const giftingOptionId = giftOptionId || null;
+    const giftingOptionId = giftOptionId ? new ObjectId(giftOptionId) : null;
     await db.collection('offers').updateOne(
       { 'beckn:id': offerId },
-      { $set: { ...offer, catalogId, updatedAt: new Date(), userId: usrId, giftingOptionId } },
+      { $set: { ...offer, catalogId, updatedAt: new Date(), userId: usrId, ...(giftingOptionId && { giftingOptionId }) } },
       { upsert: true }
     );
 

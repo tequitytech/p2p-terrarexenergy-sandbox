@@ -13,6 +13,12 @@ const sendSmsSchema = z.object({
 });
 
 export const sendSmsHandler = async (req: Request, res: Response) => {
+
+  const user = (req as any).user;
+  if (!user) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
+
   const validationResult = sendSmsSchema.parse(req.body);
   try {
     const { phone, message } = validationResult;
@@ -36,19 +42,31 @@ const sendEmailSchema = z.object({
 });
 
 export const sendEmailHandler = async (req: Request, res: Response) => {
-  const { to, subject, body } = sendEmailSchema.parse(req.body);
   
+  const user = (req as any).user;
+  if (!user) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
+
+  const { to, subject, body } = sendEmailSchema.parse(req.body);
+
   try {
     const success = await emailService.sendEmail(to, subject, body);
 
     if (success) {
-      return res.status(200).json({ success: true, message: "Email is sent successfully" });
+      return res
+        .status(200)
+        .json({ success: true, message: "Email is sent successfully" });
     } else {
-      return res.status(500).json({ success: false, error: "Failed to send email" });
+      return res
+        .status(500)
+        .json({ success: false, error: "Failed to send email" });
     }
   } catch (error) {
     console.error("[NotificationController] Error sending Email:", error);
-    return res.status(500).json({ success: false, error: "Internal Server Error" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Internal Server Error" });
   }
 };
 
