@@ -10,8 +10,16 @@ import { z } from "zod";
 import multer from "multer";
 import { S3Service } from "../services/s3-service";
 
-const upload = multer({ storage: multer.memoryStorage() });
-
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  fileFilter: (_req, file, cb) => {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
+      return cb(new Error('Only JPEG, PNG, and WebP images are allowed'));
+    }
+    cb(null, true);
+  },
+});
 const createGiftingOptionSchema = z.object({
   beneficiaryUserId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId"),
   badge: z.string().min(1, "Badge is required"),
@@ -124,7 +132,7 @@ export function userRoutes(): Router {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
       }
 
-      const { phone, contactType } = req.body;
+      const { phone, contactType, isImageRemove } = req.body;
       if (!phone) {
         return res.status(400).json({ success: false, error: "Phone number is required" });
       }
@@ -170,8 +178,15 @@ export function userRoutes(): Router {
         updatedAt: new Date()
       };
 
-      if (contactType) updateData.contactType = contactType;
-      if (key) updateData.imageKey = key;
+      if (contactType !== undefined) {
+          updateData.contactType = contactType; // can be null
+      }
+
+      if (key) {
+        updateData.imageKey = key;
+      } else if (isImageRemove === 'true' || isImageRemove === true) {
+        updateData.imageKey = null;
+      }
 
 
       await db.collection("contacts").updateOne(
@@ -186,10 +201,6 @@ export function userRoutes(): Router {
       return res.status(200).json({
         success: true,
         message: "Contact added successfully",
-        data: {
-          ...updateData,
-          imageKey: key || undefined
-        }
       });
 
     } catch (error: any) {

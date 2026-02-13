@@ -66,7 +66,10 @@ describe("Contact Routes with S3 and Types", () => {
 
         expect(res.status).toBe(200);
         expect(res.body.success).toBe(true);
-        expect(S3Service.uploadFile).toHaveBeenCalled();
+        expect(S3Service.uploadFile).toHaveBeenCalledWith(
+            expect.any(Buffer),
+            expect.stringMatching(/^image\//)
+        );
 
         const contact = await db.collection("contacts").findOne({
             userId: new ObjectId("123456789012345678901234"),
@@ -106,7 +109,114 @@ describe("Contact Routes with S3 and Types", () => {
         expect(res.status).toBe(200);
         expect(res.body.accounts).toHaveLength(1);
         expect(res.body.accounts[0].contactType).toBe("Clinic");
-        // Expect 'imageKey' in the response
         expect(res.body.accounts[0].imageKey).toBe("contacts/images/existing-key-456");
+    });
+
+    it("should allow adding a contact without an image", async () => {
+        const db = getTestDB();
+        await db.collection("users").insertOne({
+            phone: "5555555555",
+            name: "No Image User",
+            vcVerified: true,
+            isVerifiedGiftingBeneficiary: true
+        });
+
+        const res = await request(app)
+            .post("/api/contacts")
+            .field("phone", "5555555555")
+            .field("contactType", "Friend");
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+
+
+        const contact = await db.collection("contacts").findOne({
+            userId: new ObjectId("123456789012345678901234")
+        });
+        expect(contact).toBeDefined();
+        expect(contact?.imageKey).toBeUndefined();
+        expect(contact?.contactType).toBe("Friend");
+    });
+
+    it("should handle S3 upload failure", async () => {
+        const db = getTestDB();
+        await db.collection("users").insertOne({
+            phone: "1112223333",
+            name: "Upload Fail User",
+            vcVerified: true,
+            isVerifiedGiftingBeneficiary: true
+        });
+
+        // Mock upload failure
+        (S3Service.uploadFile as jest.Mock).mockRejectedValueOnce(new Error("S3 Error"));
+
+        const res = await request(app)
+            .post("/api/contacts")
+            .field("phone", "1112223333")
+            .attach("image", Buffer.from("fail"), "fail.jpg");
+
+        expect(res.status).toBe(500);
+        expect(res.body.success).toBe(false);
+        expect(res.body.error).toBe("Failed to upload image");
+    });
+
+    it("should allow adding contact without contactType", async () => {
+        const db = getTestDB();
+        await db.collection("users").insertOne({
+            phone: "9988776655",
+            name: "No Type User",
+            vcVerified: true,
+            isVerifiedGiftingBeneficiary: true
+        });
+
+        const res = await request(app)
+            .post("/api/contacts")
+            .field("phone", "9988776655");
+
+        expect(res.status).toBe(200);
+
+        const contact = await db.collection("contacts").findOne({
+            userId: new ObjectId("123456789012345678901234")
+        });
+        expect(contact?.contactType).toBeUndefined();
+    });
+
+    it("should update existing contact with new image and type", async () => {
+        const db = getTestDB();
+        const myId = new ObjectId("123456789012345678901234");
+
+        const contactUser = await db.collection("users").insertOne({
+            phone: "1231231234",
+            name: "Update User",
+            vcVerified: true,
+            isVerifiedGiftingBeneficiary: true
+        });
+
+        // Pre-existing contact
+        await db.collection("contacts").insertOne({
+            userId: myId,
+            contactUserId: contactUser.insertedId,
+            contactType: "OldType",
+            imageKey: "old-key"
+        });
+
+        // Mock new upload
+        (S3Service.uploadFile as jest.Mock).mockResolvedValueOnce("new-key-789");
+
+        const res = await request(app)
+            .post("/api/contacts")
+            .field("phone", "1231231234")
+            .field("contactType", "NewType")
+            .attach("image", Buffer.from("new"), "new.jpg");
+
+        expect(res.status).toBe(200);
+
+        const updatedContact = await db.collection("contacts").findOne({
+            userId: myId,
+            contactUserId: contactUser.insertedId
+        });
+
+        expect(updatedContact?.contactType).toBe("NewType");
+        expect(updatedContact?.imageKey).toBe("new-key-789");
     });
 });

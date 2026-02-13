@@ -1,20 +1,22 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import dotenv from "dotenv";
 import { v4 as uuidv4 } from "uuid";
-
-dotenv.config();
 
 const BUCKET_NAME = process.env.AWS_BUCKET_NAME || "";
 const REGION = process.env.AWS_REGION || "us-east-1";
 
 // Initialize S3 Client
-const s3Client = new S3Client({
+const s3Config: any = {
     region: REGION,
-    credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
-    },
-});
+};
+
+if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+    s3Config.credentials = {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    };
+}
+
+const s3Client = new S3Client(s3Config);
 
 export const S3Service = {
     /**

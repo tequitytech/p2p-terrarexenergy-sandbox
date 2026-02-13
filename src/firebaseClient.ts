@@ -1,8 +1,5 @@
 import admin from "firebase-admin";
 import fs from 'fs';
-import dotenv from "dotenv";
-
-dotenv.config();
 
 const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
 if (serviceAccountPath) {
