@@ -74,6 +74,7 @@ export const processGiftNotifications = async ({
                     sellerId: sellerUser?._id,
                     sellerName,
                     giftQty,
+                    giftingOptionId: claimResult?.giftingOptionId,
                 },
             );
         }
@@ -93,6 +94,7 @@ export const processGiftNotifications = async ({
                     giftQty,
                     buyerUserId: buyerUser?._id,
                     buyerName,
+                    giftingOptionId: claimResult?.giftingOptionId,
                 },
             );
         }

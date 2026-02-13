@@ -92,6 +92,42 @@ export const notificationService = {
     const total = result.total[0]?.count || 0;
     const unreadCount = result.unreadCount[0]?.count || 0;
 
+    // Enrichment: Attach Gifting Option details
+    const giftingOptionIds = new Set(
+      notifications
+        .map((n: any) => n.data?.giftingOptionId)
+        .filter(Boolean)
+    );
+
+    const objectIds = Array.from(giftingOptionIds)
+      .map((id) => {
+        if (id instanceof ObjectId) return id;
+        if (typeof id === "string" && ObjectId.isValid(id)) {
+          return new ObjectId(id);
+        }
+        return null;
+      })
+      .filter(Boolean) as ObjectId[];
+
+    if (objectIds.length > 0) {
+      const giftingOptions = await db
+        .collection("gifting_options")
+        .find({ _id: { $in: objectIds } })
+        .toArray();
+
+      const optionsMap = new Map(
+        giftingOptions.map((opt: any) => [opt._id.toString(), opt])
+      );
+
+      notifications.forEach((n: any) => {
+        const id = n.data?.giftingOptionId;
+        if (id) {
+          n.giftingOption = optionsMap.get(id.toString()) ?? null;
+        }
+      });
+
+    }
+
     return { notifications, total, unreadCount };
   },
 

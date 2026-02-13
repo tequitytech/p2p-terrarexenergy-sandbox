@@ -68,6 +68,7 @@ const publishInputSchema = z
       .string()
       .regex(/^[6-9]\d{9}$/, 'Must be a 10-digit Indian mobile number starting with 6-9')
       .optional(),
+    giftingOptionId: z.string().optional(),
   })
   .refine((d) => !d.isGift || d.recipientPhone, {
     message: 'Recipient phone is required for gift offers',
@@ -450,6 +451,26 @@ export const tradeRoutes = () => {
           });
         }
 
+        // 3.1 Validate Gifting Option ID if provided
+        if (input?.giftingOptionId) {
+          try {
+            const giftingOption = await db.collection("gifting_options").findOne({
+              _id: new ObjectId(input.giftingOptionId),
+            });
+            if (!giftingOption) {
+              return res.status(404).json({
+                error: "GIFTING_OPTION_NOT_FOUND",
+                message: `Gifting option not found: ${input.giftingOptionId}`,
+              });
+            }
+          } catch (error) {
+            return res.status(400).json({
+              error: "INVALID_GIFTING_OPTION_ID",
+              message: "Invalid Gifting Option ID format",
+            });
+          }
+        }
+
         console.log(
           `[API] POST /publish - User: ${prosumerDetails.fullName}, Meter: ${prosumerDetails.meterId}`,
         );
@@ -471,15 +492,15 @@ export const tradeRoutes = () => {
           buildPublishRequest(catalog);
 
         // 6. Store in MongoDB (primary action)
-        await catalogStore.saveCatalog(catalog, userId);
+        await catalogStore.saveCatalog(catalog, userId, input?.giftingOptionId);
 
         for (const item of catalog["beckn:items"] || []) {
-          await catalogStore.saveItem(catalogId, item, userId);
+          await catalogStore.saveItem(catalogId, item, userId, input?.giftingOptionId);
         }
 
         for (const offer of catalog["beckn:offers"] || []) {
           const offerToSave = gift ? { ...offer, ...gift.db } : offer;
-          await catalogStore.saveOffer(catalogId, offerToSave);
+          await catalogStore.saveOffer(catalogId, offerToSave,userId, input?.giftingOptionId);
         }
 
         // 7. Forward to ONIX BPP (secondary action - don't fail if this fails)
