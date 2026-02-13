@@ -681,3 +681,54 @@ describe("User Routes — Gifting Options", () => {
     expect(res.body.error).toBe("User is not in your contacts");
   });
 });
+
+describe("User Routes — GET /api/loan", () => {
+  let app: express.Express;
+
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
+
+  const originalEnv = process.env;
+
+  beforeEach(async () => {
+    jest.resetModules();
+    process.env = { ...originalEnv };
+    await clearTestDB();
+    app = express();
+    app.use(express.json());
+    app.use("/api", userRoutes());
+  });
+
+  afterAll(async () => {
+    process.env = originalEnv;
+    await teardownTestDB();
+  });
+
+  it("should return the loan URL when LOAN_URL env var is set", async () => {
+    process.env.LOAN_URL = "https://test-loan-url.com";
+
+    // Check if process.env.LOAN_URL is picked up. 
+    // Since userRoutes() is called in beforeEach, it should pick up the modified env if it reads inside the request handler.
+
+    const res = await request(app).get("/api/loan");
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.url).toBe("https://test-loan-url.com");
+  });
+
+  it("should return 500 when LOAN_URL env var is missing", async () => {
+    delete process.env.LOAN_URL;
+
+    const res = await request(app).get("/api/loan");
+
+    expect(res.status).toBe(500);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toBe("Failed to fetch loan URL");
+  });
+});

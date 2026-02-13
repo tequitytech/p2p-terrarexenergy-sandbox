@@ -334,5 +334,26 @@ export function userRoutes(): Router {
     }
   });
 
+  // GET /loan - return loan flow URL
+  router.get("/loan", (req: Request, res: Response) => {
+    try {
+      const loanUrl = process.env.LOAN_URL;
+
+      if (!loanUrl) {
+        throw new Error("LOAN_URL not configured");
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          url: loanUrl
+        }
+      });
+    } catch (error: any) {
+      console.error("[API] Error fetching loan URL:", error);
+      return res.status(500).json({ success: false, error: "Failed to fetch loan URL" });
+    }
+  });
+
   return router;
 }
