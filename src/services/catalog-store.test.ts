@@ -501,18 +501,18 @@ describe('catalog-store', () => {
   });
 
   describe('getSellerAvailableInventory', () => {
-    it('should sum availableQuantity from items collection', async () => {
+    it('should sum availableQuantity from offers collection', async () => {
       const db = getTestDB();
-      await db.collection('items').insertMany([
+      await db.collection('offers').insertMany([
         {
-          'beckn:id': 'inv-item-1',
-          'beckn:provider': { 'beckn:id': 'seller-inv-A' },
-          'beckn:itemAttributes': { availableQuantity: 10 }
+          'beckn:id': 'inv-offer-1',
+          'beckn:provider': 'seller-inv-A',
+          'beckn:price': { applicableQuantity: { unitQuantity: 10 } }
         },
         {
-          'beckn:id': 'inv-item-2',
-          'beckn:provider': { 'beckn:id': 'seller-inv-A' },
-          'beckn:itemAttributes': { availableQuantity: 25 }
+          'beckn:id': 'inv-offer-2',
+          'beckn:provider': 'seller-inv-A',
+          'beckn:price': { applicableQuantity: { unitQuantity: 25 } }
         }
       ]);
 
@@ -529,16 +529,16 @@ describe('catalog-store', () => {
 
     it('should not include items from other sellers', async () => {
       const db = getTestDB();
-      await db.collection('items').insertMany([
+      await db.collection('offers').insertMany([
         {
-          'beckn:id': 'inv-item-3',
-          'beckn:provider': { 'beckn:id': 'seller-inv-B' },
-          'beckn:itemAttributes': { availableQuantity: 10 }
+          'beckn:id': 'inv-offer-3',
+          'beckn:provider': 'seller-inv-B',
+          'beckn:price': { applicableQuantity: { unitQuantity: 10 } }
         },
         {
-          'beckn:id': 'inv-item-4',
-          'beckn:provider': { 'beckn:id': 'seller-inv-C' },
-          'beckn:itemAttributes': { availableQuantity: 50 }
+          'beckn:id': 'inv-offer-4',
+          'beckn:provider': 'seller-inv-C',
+          'beckn:price': { applicableQuantity: { unitQuantity: 50 } }
         }
       ]);
 
