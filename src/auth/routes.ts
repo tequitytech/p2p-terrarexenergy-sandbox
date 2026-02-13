@@ -62,6 +62,7 @@ const loginSchema = z.object({
     .string()
     .length(6, 'PIN must be exactly 6 digits')
     .regex(/^\d{6}$/, 'PIN must be 6 digits'),
+  fcmToken: z.string().optional(),
 });
 
 const vcDocumentSchema = z.object({
@@ -98,10 +99,12 @@ const sendOtpSchema = z.object({
 const verifyOtpInputSchema = z.object({
   phone: z.string().regex(/^\d{10}$/, "Phone number must be exactly 10 digits"), // only digits, exactly 10,
   otp: z.string().regex(/^\d{6}$/, "OTP must be exactly 6 digits"), // only digits, exactly 6,
+  fcmToken: z.string().optional(),
 });
 
 const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1, "Refresh token is required"),
+  fcmToken: z.string().optional(),
 });
 
 // --- JWT Utilities (RS256) ---
@@ -207,6 +210,15 @@ function authMiddleware(req: Request, res: Response, next: NextFunction) {
 }
 
 // --- Handlers ---
+
+async function updateFcmToken(db: Db, userId: ObjectId, fcmToken?: string) {
+  if (fcmToken) {
+    await db.collection("users").updateOne(
+      { _id: userId },
+      { $set: { fcmToken, updatedAt: new Date() } }
+    );
+  }
+}
 
 function generateOtp(): string {
   return crypto.randomInt(100000, 999999).toString();
@@ -343,7 +355,7 @@ async function sendOtp(req: Request, res: Response) {
 }
 
 async function verifyOtp(req: Request, res: Response) {
-  let { phone: phoneNumber, otp } = req.body;
+  let { phone: phoneNumber, otp, fcmToken } = req.body;
   const db = getDB();
 
   const phone = normalizeIndianPhone(phoneNumber);
@@ -414,6 +426,8 @@ async function verifyOtp(req: Request, res: Response) {
       }
     );
 
+    await updateFcmToken(db, otpRecord.userId, fcmToken);
+
     const user = await db.collection('users').findOne({ _id: otpRecord.userId });
 
     if (!user) {
@@ -457,7 +471,7 @@ async function verifyOtp(req: Request, res: Response) {
  * This method is kept only for backward compatibility.
  */
 async function login(req: Request, res: Response) {
-  const { phone, pin } = req.body;
+  const { phone, pin, fcmToken } = req.body;
 
   // Normalize phone (keep spaces for now, just use as-is for lookup)
   const db = getDB();
@@ -471,6 +485,11 @@ async function login(req: Request, res: Response) {
         message: 'Invalid phone number or PIN',
       },
     });
+  }
+
+  // Update FCM Token if provided
+  if (fcmToken) {
+    await updateFcmToken(db, user._id, fcmToken);
   }
 
   const token = signAccessToken(phone, user._id.toString());
@@ -653,7 +672,7 @@ async function verifyVc(req: Request, res: Response) {
 }
 
 async function refreshTokenHandler(req: Request, res: Response) {
-  const { refreshToken } = req.body;
+  const { refreshToken, fcmToken } = req.body;
 
   try {
     // 1. Verify the refresh token
@@ -684,6 +703,8 @@ async function refreshTokenHandler(req: Request, res: Response) {
         },
       });
     }
+
+    await updateFcmToken(db, user._id, fcmToken);
 
     // 3. Issue new tokens (Sliding Expiration: new RT has fresh 30d)
     const newAccessToken = signAccessToken(user.phone, user._id.toString());

@@ -122,3 +122,5 @@ Thumbs.db
 *.temp
 temp/
 run*
+# Firebase Service Account Key
+firebase/*.json

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { ObjectId } from "mongodb";
 
 import { computeClaimVerifier, validateGiftClaim } from "../utils";
 import { setupTestDB, teardownTestDB, clearTestDB, getTestDB } from "../test-utils/db";
@@ -43,6 +44,13 @@ jest.mock("../services/settlement-store", () => ({
   settlementStore: {
     createSettlement: jest.fn().mockResolvedValue(undefined),
     getSettlement: jest.fn().mockResolvedValue(null),
+  },
+}));
+
+// Mock Notification Service
+jest.mock("../services/notification-service", () => ({
+  notificationService: {
+    createNotification: jest.fn().mockResolvedValue("mock-notification-id"),
   },
 }));
 
@@ -634,14 +642,22 @@ describe("Gift Claim Validation", () => {
       expect(offerAfterSecond?.["beckn:price"]?.applicableQuantity?.unitQuantity).toBe(inventoryAfterFirst);
     });
 
-    it("order is saved correctly after gift claim", async () => {
+    it("saves the order in the database after successful gift claim", async () => {
       await seedGiftOffer();
       const db = getTestDB();
+      // Seed catalog with userId for seller identification
       await db.collection("catalogs").insertOne({
         "beckn:id": "catalog-001",
         "beckn:descriptor": { "schema:name": "Gift Catalog" },
         "beckn:bppId": "test-bpp",
         "beckn:isActive": true,
+        userId: "507f1f77bcf86cd799439011"
+      });
+      // Seed seller user
+      await db.collection("users").insertOne({
+        _id: new ObjectId("507f1f77bcf86cd799439011"),
+        name: "Test Seller",
+        phone: "+919999988888"
       });
 
       const req = mockRequest(buildConfirmRequest(KNOWN_VERIFIER));
@@ -650,14 +666,80 @@ describe("Gift Claim Validation", () => {
 
       await new Promise((r) => setTimeout(r, 500));
 
-      const savedOrder = await db.collection("orders").findOne({ transactionId: "txn-gift-001" });
-      expect(savedOrder).toBeTruthy();
-      expect(savedOrder?.order["beckn:orderStatus"]).toBe("CREATED");
-      expect(savedOrder?.order["beckn:orderValue"]).toEqual({
-        currency: "INR",
-        value: 0, // gift: 5 kWh * 0 INR/kWh
-        description: expect.stringContaining("5 kWh"),
+      // Verify order persistence in DB
+      // Note: catalogStore.saveOrder saves the order wrapped in an 'order' field, keyed by transactionId
+      const orderDoc = await db.collection("orders").findOne({ transactionId: "txn-gift-001" });
+      expect(orderDoc).not.toBeNull();
+      expect(orderDoc?.order?.["beckn:orderStatus"]).toBe("CREATED");
+      expect(orderDoc?.isGift).toBe(true);
+      // Ensure the seller ID from catalog is linked
+      expect(orderDoc?.order?.["beckn:seller"]).toBe("did:example:gifter");
+    });
+
+    it("sends notifications with correct content on successful claim", async () => {
+      await seedGiftOffer();
+      const db = getTestDB();
+      // Need a catalog for seller lookup/republish
+      await db.collection("catalogs").insertOne({
+        "beckn:id": "catalog-001",
+        "beckn:descriptor": { "schema:name": "Gift Catalog" },
+        "beckn:bppId": "test-bpp",
+        "beckn:isActive": true,
+        // Ensure catalog has userId for fallback logic (though offer has provider DID, we need internal userId)
+        userId: "507f1f77bcf86cd799439011" // mock seller user ID
       });
+      // Ensure seedGiftOffer created an item that links to this catalog
+      // seedGiftOffer uses catalogId: "catalog-001" by default
+
+      // We need a user for the seller to exist in DB for notification to be sent
+      // The offer created by seedGiftOffer doesn't explicitly set userId, so it might rely on catalog fallback
+      // But let's check seedGiftOffer... it doesn't set userId on offer.
+      // So logic will fallback to catalog.userId.
+      // We need to seed a user with that ID.
+      await db.collection("users").insertOne({
+        _id: new ObjectId("507f1f77bcf86cd799439011"),
+        name: "Test Seller",
+        phone: "+919999988888"
+      });
+
+      // Also need a buyer user
+      await db.collection("users").insertOne({
+        _id: new ObjectId("507f1f77bcf86cd799439012"), // mock buyer ID
+        name: "Test Buyer",
+        profiles: {
+          consumptionProfile: { id: "did:example:recipient" }
+        }
+      });
+
+      const req = mockRequest(buildConfirmRequest(KNOWN_VERIFIER));
+      const res = mockResponse();
+
+      // Spy on notification service
+      const { notificationService } = require("../services/notification-service");
+
+      await onConfirm(req as Request, res as Response);
+
+      await new Promise((r) => setTimeout(r, 600)); // Wait for background task
+
+      expect(notificationService.createNotification).toHaveBeenCalledTimes(2);
+
+      // Verify Seller Notification
+      expect(notificationService.createNotification).toHaveBeenCalledWith(
+        expect.anything(), // seller ID (ObjectId)
+        "GIFT_CLAIM_SELLER",
+        "Gifting Successful",
+        expect.stringContaining("Test Buyer"),
+        expect.any(Object)
+      );
+
+      // Verify Buyer Notification
+      expect(notificationService.createNotification).toHaveBeenCalledWith(
+        expect.anything(), // buyer ID (ObjectId)
+        "GIFT_CLAIM_BUYER",
+        "Gift Claimed",
+        expect.stringContaining("Test Seller"),
+        expect.any(Object)
+      );
     });
   });
 });
