@@ -642,6 +642,40 @@ describe("Gift Claim Validation", () => {
       expect(offerAfterSecond?.["beckn:price"]?.applicableQuantity?.unitQuantity).toBe(inventoryAfterFirst);
     });
 
+    it("saves the order in the database after successful gift claim", async () => {
+      await seedGiftOffer();
+      const db = getTestDB();
+      // Seed catalog with userId for seller identification
+      await db.collection("catalogs").insertOne({
+        "beckn:id": "catalog-001",
+        "beckn:descriptor": { "schema:name": "Gift Catalog" },
+        "beckn:bppId": "test-bpp",
+        "beckn:isActive": true,
+        userId: "507f1f77bcf86cd799439011"
+      });
+      // Seed seller user
+      await db.collection("users").insertOne({
+        _id: new ObjectId("507f1f77bcf86cd799439011"),
+        name: "Test Seller",
+        phone: "+919999988888"
+      });
+
+      const req = mockRequest(buildConfirmRequest(KNOWN_VERIFIER));
+      const res = mockResponse();
+      onConfirm(req as Request, res as Response);
+
+      await new Promise((r) => setTimeout(r, 500));
+
+      // Verify order persistence in DB
+      // Note: catalogStore.saveOrder saves the order wrapped in an 'order' field, keyed by transactionId
+      const orderDoc = await db.collection("orders").findOne({ transactionId: "txn-gift-001" });
+      expect(orderDoc).not.toBeNull();
+      expect(orderDoc?.order?.["beckn:orderStatus"]).toBe("CREATED");
+      expect(orderDoc?.isGift).toBe(true);
+      // Ensure the seller ID from catalog is linked
+      expect(orderDoc?.order?.["beckn:seller"]).toBe("did:example:gifter");
+    });
+
     it("sends notifications with correct content on successful claim", async () => {
       await seedGiftOffer();
       const db = getTestDB();
@@ -693,7 +727,7 @@ describe("Gift Claim Validation", () => {
       expect(notificationService.createNotification).toHaveBeenCalledWith(
         expect.anything(), // seller ID (ObjectId)
         "GIFT_CLAIM_SELLER",
-        "Gifting Successfull",
+        "Gifting Successful",
         expect.stringContaining("Test Buyer"),
         expect.any(Object)
       );

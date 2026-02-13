@@ -1,4 +1,4 @@
-import admin from "../filebaseClient";
+import admin from "../firebaseClient";
 
 export async function sendNotification(token: string, title: string, body: string) {
     const message = {
@@ -23,7 +23,7 @@ export async function sendNotification(token: string, title: string, body: strin
             response
         })
     } catch (error) {
-        console.log('NOTIFICATION_SENT_ERROR', {
+        console.error('NOTIFICATION_SENT_ERROR', {
             message: 'Notification send error',
             error
         })

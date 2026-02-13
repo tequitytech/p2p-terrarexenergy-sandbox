@@ -63,7 +63,7 @@ export const processGiftNotifications = async ({
             await notificationService.createNotification(
                 sellerUser._id,
                 "GIFT_CLAIM_SELLER",
-                "Gifting Successfull",
+                "Gifting Successful",
                 `The gift of ${giftQty} units of energy to ${buyerName} has been claimed.`,
                 {
                     transactionId,
@@ -78,7 +78,7 @@ export const processGiftNotifications = async ({
             );
         }
 
-        // 3. Notify Buyer
+        // 2. Notify Buyer
         if (buyerUser) {
             await notificationService.createNotification(
                 buyerUser._id,

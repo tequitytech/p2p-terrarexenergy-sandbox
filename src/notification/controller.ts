@@ -88,6 +88,10 @@ export const markAsReadHandler = async (req: Request, res: Response) => {
     const { id } = req.params;
     const userId = new ObjectId(user.userId);
 
+    if (typeof id !== "string" || (id !== "all" && !ObjectId.isValid(id))) {
+      return res.status(400).json({ success: false, error: "Invalid notification ID" });
+    }
+
     if (id === "all") {
       await notificationService.markAllAsRead(userId);
     } else {

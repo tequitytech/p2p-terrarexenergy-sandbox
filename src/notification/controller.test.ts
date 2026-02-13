@@ -4,8 +4,9 @@ import { ZodError } from "zod";
 
 import { smsService } from "../services/sms-service";
 import { emailService } from "../services/email-service";
+import { notificationService } from "../services/notification-service";
 
-import { sendSmsHandler, sendEmailHandler } from "./controller";
+import { sendSmsHandler, sendEmailHandler, markAsReadHandler } from "./controller";
 
 // Mock the smsService
 jest.mock("../services/sms-service", () => ({
@@ -21,6 +22,13 @@ jest.mock("../services/email-service", () => ({
   },
 }));
 
+jest.mock("../services/notification-service", () => ({
+  notificationService: {
+    markAsRead: jest.fn(),
+    markAllAsRead: jest.fn(),
+  },
+}));
+
 /**
  * sendSmsHandler and sendEmailHandler call schema.parse() OUTSIDE their try/catch block,
  * so ZodError propagates as an unhandled exception. In production, the
@@ -32,6 +40,14 @@ function createTestApp() {
   app.use(express.json());
   app.post("/notification/sms", sendSmsHandler);
   app.post("/notification/email", sendEmailHandler);
+
+  // Mock authentication middleware
+  app.use((req: any, _res, next) => {
+    req.user = { userId: "507f1f77bcf86cd799439011" }; // Valid ObjectId
+    next();
+  });
+
+  app.put("/notification/:id/read", markAsReadHandler);
 
   // Replicate the global ZodError handler from app.ts
   app.use((err: any, _req: any, res: any, _next: any) => {
@@ -294,6 +310,32 @@ describe("Notification Controller", () => {
       expect(res.body.error.code).toBe("VALIDATION_ERROR");
       const bodyError = res.body.error.details.find((d: any) => d.field === "body");
       expect(bodyError).toBeDefined();
+    });
+  });
+
+  describe("markAsReadHandler", () => {
+    it("should mark all as read when id is 'all'", async () => {
+      const res = await request(app).put("/notification/all/read");
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(notificationService.markAllAsRead).toHaveBeenCalled();
+    });
+
+    it("should mark specific notification as read when id is valid ObjectId", async () => {
+      const validId = "609c15d482271844b829c66e";
+      const res = await request(app).put(`/notification/${validId}/read`);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(notificationService.markAsRead).toHaveBeenCalledWith(validId, expect.anything());
+    });
+
+    it("should return 400 when id is invalid ObjectId", async () => {
+      const invalidId = "invalid-id";
+      const res = await request(app).put(`/notification/${invalidId}/read`);
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBe("Invalid notification ID");
+      expect(notificationService.markAsRead).not.toHaveBeenCalled();
     });
   });
 });

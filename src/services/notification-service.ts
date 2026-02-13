@@ -68,18 +68,29 @@ export const notificationService = {
     const db = getDB();
     const query = { userId };
 
-    const [notifications, total] = await Promise.all([
-      db.collection("notifications")
-        .find(query)
-        .sort({ createdAt: -1 })
-        .skip(offset)
-        .limit(limit)
-        .toArray(),
-      db.collection("notifications").countDocuments(query)
-    ]);
+    const [result] = await db.collection("notifications").aggregate([
+      { $match: query },
+      {
+        $facet: {
+          notifications: [
+            { $sort: { createdAt: -1 } },
+            { $skip: offset },
+            { $limit: limit }
+          ],
+          total: [
+            { $count: "count" }
+          ],
+          unreadCount: [
+            { $match: { isRead: false } }, // distinct from global query if needed, but here it refines
+            { $count: "count" }
+          ]
+        }
+      }
+    ]).toArray();
 
-    // Count unread
-    const unreadCount = await db.collection("notifications").countDocuments({ ...query, isRead: false });
+    const notifications = result.notifications || [];
+    const total = result.total[0]?.count || 0;
+    const unreadCount = result.unreadCount[0]?.count || 0;
 
     return { notifications, total, unreadCount };
   },
