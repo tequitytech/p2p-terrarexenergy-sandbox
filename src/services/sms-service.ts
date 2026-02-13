@@ -20,17 +20,15 @@ export const twilio_sender = process.env.TWILIO_SENDER;
 export const sms_provider = process.env.SMS_PROVIDER || "twilio";
 
 if (sms_provider === "aws" && (!aws_access_key_id || !aws_secret_access_key)) {
-  console.error(
+  console.warn(
     "[SNS] AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY is missing. SMS features may not work."
   );
-  process.exit(1);
 }
 
 if (sms_provider === "twilio" && (!twilio_sid || !twilio_auth_token)) {
-  console.error(
+  console.warn(
     "[Twilio] TWILIO_SID or TWILIO_AUTH_TOKEN is missing. SMS features may not work."
   );
-  process.exit(1);
 }
 
 export const snsClient = new SNSClient({

@@ -67,7 +67,7 @@ describe('ledger-client', () => {
 
       expect(mockedAxios.post).toHaveBeenCalledWith(
         expect.stringContaining('/ledger/get'),
-        expect.objectContaining({
+        JSON.stringify({
           transactionId: 'txn-query-001',
           discomIdBuyer: 'BESCOM',
           limit: 1,
@@ -205,7 +205,8 @@ describe('ledger-client', () => {
 
       expect(mockedAxios.post).toHaveBeenCalledWith(
         expect.any(String),
-        expect.objectContaining({
+        JSON.stringify({
+          transactionId: 'txn-001',
           limit: 100,
           offset: 0,
           sort: 'tradeTime',
@@ -229,7 +230,7 @@ describe('ledger-client', () => {
 
       expect(mockedAxios.post).toHaveBeenCalledWith(
         expect.any(String),
-        expect.objectContaining({
+        JSON.stringify({
           limit: 50,
           offset: 10,
           sort: 'deliveryStartTime',
@@ -303,7 +304,7 @@ describe('ledger-client', () => {
 
       expect(mockedAxios.post).toHaveBeenCalledWith(
         expect.any(String),
-        expect.any(Object),
+        expect.any(String),
         expect.objectContaining({ timeout: 5000 })
       );
     });
