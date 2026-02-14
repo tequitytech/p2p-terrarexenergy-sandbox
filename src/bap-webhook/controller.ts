@@ -110,6 +110,20 @@ export const onConfirm = (req: Request, res: Response) => {
 
         // --- Send Email Notification ---
         await notificationService.sendOrderConfirmation(transactionId, order);
+
+        // --- Send App Notification (Purchase Success) ---
+        const notificationOrderItems = order['beckn:orderItems'] || [];
+        const notificationTotalQty = notificationOrderItems.reduce((sum: number, item: any) => sum + (item['beckn:quantity']?.unitQuantity || 0), 0);
+        const notificationAmount = order['beckn:payment']?.['beckn:amount']?.value || 0;
+
+         notificationService.handleTransactionNotification('ORDER_PURCHASE_SUCCESS', {
+          transactionId,
+          orderId: order['beckn:id'],
+          buyerId: order['beckn:buyer']?.['beckn:id'],
+          sellerId: order['beckn:seller']?.['beckn:id'] || order['beckn:seller'],
+          quantity: notificationTotalQty,
+          amount: notificationAmount
+        });
         // -------------------------------
 
 

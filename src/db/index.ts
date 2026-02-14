@@ -57,6 +57,12 @@ export async function connectDB(): Promise<Db> {
     // Users collection for authentication
     db.collection("users").createIndex({ phone: 1 }, { unique: true }),
     db.collection("users").createIndex({ meters: 1 }),
+    // Indexes for Beckn profile lookups (notification service optimization)
+    db.collection("users").createIndex({ "profiles.consumptionProfile.id": 1 }),
+    db.collection("users").createIndex({ "profiles.consumptionProfile.did": 1 }),
+    db.collection("users").createIndex({ "profiles.generationProfile.id": 1 }),
+    db.collection("users").createIndex({ "profiles.generationProfile.did": 1 }),
+    db.collection("users").createIndex({ "profiles.utilityCustomer.did": 1 }),
 
     // Payments collection for Razorpay integration
     db.collection("payments").createIndex({ orderId: 1 }),

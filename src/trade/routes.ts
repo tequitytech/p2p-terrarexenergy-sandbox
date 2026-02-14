@@ -26,6 +26,7 @@ import {
   settlementStore,
 } from "../services/settlement-store";
 import { smsService } from "../services/sms-service";
+import { notificationService } from "../services/notification-service";
 import {
   parseError,
   computeLookupHash,
@@ -70,6 +71,7 @@ const publishInputSchema = z
       .transform((val) => val.replace(/^\+91/, ''))
       .optional(),
     giftingOptionId: z.string().optional(),
+    skipNotification: z.boolean().optional(),
   })
   .refine((d) => !d.isGift || d.recipientPhone, {
     message: 'Recipient phone is required for gift offers',
@@ -540,6 +542,16 @@ export const tradeRoutes = () => {
           onix_error: onixError,
           createdAt: new Date(),
         });
+
+        // 8.5 Notify Seller (Publish Success)
+        if (!req.body.skipNotification) {
+           notificationService.handleTransactionNotification('PUBLISH_SUCCESS', {
+            transactionId,
+            sellerId: userId, // Mongo ID
+            quantity: input.quantity,
+            itemName: catalog["beckn:items"]?.[0]?.["beckn:descriptor"]?.["schema:name"]
+          });
+        }
 
         // 9. Send SMS to recipient if it's a gift
         if (gift) {

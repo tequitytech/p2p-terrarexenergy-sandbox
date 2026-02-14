@@ -2,6 +2,7 @@ import axios from "axios";
 import dotenv from "dotenv";
 import { v4 as uuidv4 } from "uuid";
 import { processGiftNotifications } from "./gift-notifications";
+import { notificationService } from "../services/notification-service";
 
 import {
   BECKN_CONTEXT_ROOT,
@@ -15,7 +16,7 @@ import { paymentService } from "../services/payment-service";
 import { settlementStore } from "../services/settlement-store";
 import { parseError, readDomainResponse, validateGiftClaim } from "../utils";
 
-import type { SettlementDocument} from "../services/settlement-store";
+import type { SettlementDocument } from "../services/settlement-store";
 import type { Request, Response } from "express";
 dotenv.config();
 
@@ -560,7 +561,7 @@ export const onInit = (req: Request, res: Response) => {
               // Use EnergyTradeOrderInterUtility for inter-discom trades, EnergyTradeOrder otherwise
               "@type":
                 orderAttributes?.utilityIdBuyer &&
-                orderAttributes?.utilityIdSeller
+                  orderAttributes?.utilityIdSeller
                   ? "EnergyTradeOrderInterUtility"
                   : "EnergyTradeOrder",
               bap_id: context.bap_id,
@@ -819,6 +820,17 @@ export const onConfirm = (req: Request, res: Response) => {
             const pricePerUnit = offer["beckn:price"]?.["schema:price"] || 0;
             currency = offer["beckn:price"]?.["schema:priceCurrency"] || currency;
             totalEnergyCost += quantity * pricePerUnit;
+            // Notify seller when it's not a gift claim
+            if (!isGiftOrder) {
+              notificationService.handleTransactionNotification('ORDER_SOLD', {
+                transactionId: context.transaction_id,
+                orderId: order['beckn:id'],
+                buyerId: order['beckn:buyer']?.['beckn:id'],
+                sellerId: order['beckn:seller']?.['beckn:id'] || order['beckn:seller'] || sellerUserId,
+                quantity: quantity,
+                amount: quantity * pricePerUnit
+              });
+            }
             totalQuantity += quantity;
             console.log(`[Confirm] Inventory reduced for offer ${offerId}, seller: ${sellerUserId || 'UNKNOWN'}`);
           } else {
@@ -921,8 +933,8 @@ export const onConfirm = (req: Request, res: Response) => {
       console.log(
         `[Confirm] Settlement record created: txn=${context.transaction_id}, qty=${totalQuantity}`,
       );
-        const db = getDB();
-        const savedSettlement = await db.collection<SettlementDocument>('settlements')
+      const db = getDB();
+      const savedSettlement = await db.collection<SettlementDocument>('settlements')
         .findOne({ transactionId: context.transaction_id, role: "SELLER" });
 
       // Save order to MongoDB for status tracking
