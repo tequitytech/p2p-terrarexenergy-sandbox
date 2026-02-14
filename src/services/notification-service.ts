@@ -203,5 +203,136 @@ export const notificationService = {
     } catch (error) {
       console.error(`[NotificationService] Error processing order confirmation:`, error);
     }
+  },
+
+  /**
+   * Helper to find user by any Beckn Profile ID or mongo id
+   */
+  async findUserByBecknId(becknId: string) {
+    if (!becknId || becknId === 'unknown') return null;
+    const db = getDB();
+    const query: any[] = [
+      { "profiles.consumptionProfile.id": becknId },
+      { "profiles.consumptionProfile.did": becknId },
+      { "profiles.generationProfile.id": becknId },
+      { "profiles.generationProfile.did": becknId },
+      { "profiles.utilityCustomer.did": becknId }
+    ];
+    // Only add _id lookup if it's a valid ObjectId
+    if (ObjectId.isValid(becknId)) {
+      query.push({ _id: new ObjectId(becknId) });
+    }
+    return db.collection("users").findOne({ $or: query });
+  },
+
+  /**
+   * Unified handler for transaction-related notifications
+   */
+  async handleTransactionNotification(
+    type: 'ORDER_PURCHASE_SUCCESS' | 'ORDER_SOLD' | 'GIFT_CLAIM' | 'PUBLISH_SUCCESS' | 'AUTO_BID_PLACED',
+    details: {
+      transactionId: string;
+      orderId?: string;
+      buyerId?: string; // Beckn ID
+      sellerId?: string; // Beckn ID
+      quantity?: number;
+      amount?: number;
+      itemName?: string;
+      giftingOptionId?: string;
+      giftOfferId?: string;
+      date?: string; // For auto-bid
+    }
+  ) {
+    try {
+      const { transactionId, buyerId, sellerId, quantity, amount } = details;
+
+      // Resolve Users
+      const buyerUser = await this.findUserByBecknId(buyerId || '');
+      const sellerUser = await this.findUserByBecknId(sellerId || '');
+
+      console.log(`[NotificationService] Resolved Users: Buyer=${buyerUser?._id}, Seller=${sellerUser?._id} for txn ${transactionId}`);
+
+      const buyerName = buyerUser?.name || buyerId || "Buyer";
+      const sellerName = sellerUser?.name || sellerId || "Seller";
+
+      // Dispatch based on Type
+      switch (type) {
+        case 'ORDER_PURCHASE_SUCCESS':
+          if (buyerUser) {
+            await this.createNotification(
+              buyerUser._id,
+              type,
+              "Purchase Successful",
+              `Your purchase of ${quantity} units from ${sellerName} was successful.`,
+              { ...details, buyerName, sellerName }
+            );
+          }
+          break;
+
+        case 'ORDER_SOLD':
+          if (sellerUser) {
+            await this.createNotification(
+              sellerUser._id,
+              type,
+              "Energy Sold",
+              `You have sold ${quantity} units to ${buyerName}.`,
+              { ...details, buyerName, sellerName }
+            );
+          }
+          break;
+
+        case 'GIFT_CLAIM':
+          // Notify Seller (Gifting Successful)
+          if (sellerUser) {
+            await this.createNotification(
+              sellerUser._id,
+              "GIFT_CLAIM_SELLER",
+              "Gift Claimed",
+              `The gift of ${quantity} units of energy to ${buyerName} has been claimed.`,
+              { ...details, buyerName, sellerName }
+            );
+          }
+          // Notify Buyer (Gift Claimed)
+          if (buyerUser) {
+            await this.createNotification(
+              buyerUser._id,
+              "GIFT_CLAIM_BUYER",
+              "Gift Claimed",
+              `You have successfully claimed a gift of ${quantity} units of energy from ${sellerName}.`,
+              { ...details, buyerName, sellerName }
+            );
+          }
+          break;
+
+        case 'PUBLISH_SUCCESS':
+          if (sellerUser) {
+            await this.createNotification(
+              sellerUser._id,
+              type,
+              "Catalog Published",
+              `Your catalog with ${quantity} units has been successfully published.`,
+              { ...details, sellerName }
+            );
+          }
+          break;
+
+        case 'AUTO_BID_PLACED':
+          if (sellerUser) {
+            await this.createNotification(
+              sellerUser._id,
+              type,
+              "Auto-Bid Placed",
+              `Auto-bid successfully placed for ${details.date}. Total quantity: ${quantity} units.`,
+              { ...details, sellerName }
+            );
+          }
+          break;
+      }
+
+      console.log(`[NotificationService] Handled ${type} for txn ${transactionId}`);
+
+    } catch (error) {
+      console.error(`[NotificationService] Error handling ${type}:`, error);
+    }
   }
 };

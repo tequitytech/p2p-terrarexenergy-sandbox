@@ -1,4 +1,5 @@
 import { getDB } from '../db';
+import { notificationService } from '../services/notification-service';
 
 import { preview, confirm } from './services/hourly-optimizer';
 
@@ -107,6 +108,20 @@ export async function confirmSellerBid(req: Request, res: Response) {
       meter_id,
       source_type: validation.source_type as SellerBidRequest['source_type']
     }, authorizationToken);
+
+    if (result.success && result.placed_bids.length > 0) {
+      const totalQty = result.placed_bids.reduce((sum: number, b: any) => sum + b.quantity_kwh, 0);
+      const totalRevenue = result.placed_bids.reduce((sum: number, b: any) => sum + (b.quantity_kwh * b.price_inr), 0);
+
+      // Notify seller about auto-bid success
+      await notificationService.handleTransactionNotification('AUTO_BID_PLACED', {
+        transactionId: `${provider_id}-${meter_id}-${Date.now()}`,
+        sellerId: provider_id,
+        quantity: Math.round(totalQty * 100) / 100,
+        amount: Math.round(totalRevenue * 100) / 100,
+        date: result.target_date
+      });
+    }
 
     return res.status(200).json(result);
 

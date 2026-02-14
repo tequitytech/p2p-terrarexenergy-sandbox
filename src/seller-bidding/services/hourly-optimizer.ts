@@ -259,7 +259,8 @@ export async function confirm(
         deliveryDate: targetDate,
         startHour: hourNum,
         duration: 1, // Hourly bids are always 1 hour duration
-        sourceType: request.source_type
+        sourceType: request.source_type,
+        skipNotification: true // Suppress individual notifications for auto-bid
       };
 
       // 2. POST to internal publish API

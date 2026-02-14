@@ -2,6 +2,7 @@ import axios from "axios";
 import dotenv from "dotenv";
 import { v4 as uuidv4 } from "uuid";
 import { processGiftNotifications } from "./gift-notifications";
+import { notificationService } from "../services/notification-service";
 
 import {
   BECKN_CONTEXT_ROOT,
@@ -798,6 +799,17 @@ export const onConfirm = (req: Request, res: Response) => {
             const pricePerUnit = offer["beckn:price"]?.["schema:price"] || 0;
             currency = offer["beckn:price"]?.["schema:priceCurrency"] || currency;
             totalEnergyCost += quantity * pricePerUnit;
+            // Notify seller when it's not a gift claim
+            if (!isGiftOrder) {
+              notificationService.handleTransactionNotification('ORDER_SOLD', {
+                transactionId: context.transaction_id,
+                orderId: order['beckn:id'],
+                buyerId: order['beckn:buyer']?.['beckn:id'],
+                sellerId: order['beckn:seller']?.['beckn:id'] || order['beckn:seller'] || sellerUserId,
+                quantity: quantity,
+                amount: quantity * pricePerUnit
+            });
+          }
             totalQuantity += quantity;
             console.log(`[Confirm] Inventory reduced for offer ${offerId}, seller: ${sellerUserId || 'UNKNOWN'}`);
           } else {
