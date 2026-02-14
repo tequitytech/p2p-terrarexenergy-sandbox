@@ -131,15 +131,25 @@ export const catalogStore = {
     const items = await this.getItemsByCatalog(catalogId);
     const offers = await this.getOffersByCatalog(catalogId);
 
-    // Remove MongoDB fields and rebuild catalog structure
+    /*
+     * IMPORTANT: Strip internal/MongoDB fields before republishing to ONIX.
+     * ONIX Beckn schema uses `additionalProperties: false` on Item and Offer
+     * objects — any non-spec field causes a 400 validation error.
+     *
+     * If you add a new internal field to saveItem/saveOffer/saveCatalog,
+     * you MUST add it to both cleanItem and cleanOffer below.
+     *
+     * See also: onSelect and onInit cleanup in webhook/controller.ts —
+     * all three locations must stay in sync.
+     */
     const cleanItem = (item: any) => {
-      const { _id, catalogId, updatedAt, userId, ...rest } = item;
+      const { _id, catalogId, updatedAt, userId, giftingOptionId, ...rest } = item;
       return rest;
     };
 
     const cleanOffer = (offer: any) => {
       const {
-        _id, catalogId, updatedAt, userId,
+        _id, catalogId, updatedAt, userId, giftingOptionId,
         // Gift DB-only fields — must not leak into ONIX publish payload
         isGift, giftStatus, claimSecret, recipientPhone,
         expiresAt, claimedAt, claimedBy,
