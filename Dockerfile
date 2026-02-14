@@ -30,6 +30,9 @@ COPY --from=builder /app/src/webhook/jsons ./dist/webhook/jsons
 # Copy data folder for forecast files
 COPY data ./data
 
+# Copy firebase folder for push notifications
+COPY firebase ./firebase
+
 EXPOSE 3000
 
 CMD ["node", "dist/index.js"]
