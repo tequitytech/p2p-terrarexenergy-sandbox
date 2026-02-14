@@ -329,6 +329,7 @@ export function userRoutes(): Router {
 
       const options = await db.collection("gifting_options").find({
         beneficiaryUserId: new ObjectId(userId),
+        createdBy: new ObjectId(user.userId),
         isActive: true
       }).toArray();
 
