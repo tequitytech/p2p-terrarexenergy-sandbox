@@ -66,7 +66,8 @@ const publishInputSchema = z
     isGift: z.boolean().default(false),
     recipientPhone: z
       .string()
-      .regex(/^[6-9]\d{9}$/, 'Must be a 10-digit Indian mobile number starting with 6-9')
+      .regex(/^(\+91)?[6-9]\d{9}$/, 'Must be a valid Indian mobile number (e.g., 9000000000 or +919000000000)')
+      .transform((val) => val.replace(/^\+91/, ''))
       .optional(),
     giftingOptionId: z.string().optional(),
   })
