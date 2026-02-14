@@ -188,12 +188,24 @@ export const onSelect = (req: Request, res: Response) => {
           // Fetch offer from DB to get full details
           const offerFromDb = await catalogStore.getOffer(offerId);
           if (offerFromDb) {
-            // Clean offer (remove MongoDB fields + gift DB-only fields)
+            /*
+             * IMPORTANT: Strip all internal/MongoDB fields before returning the offer
+             * in the Beckn response. ONIX validates against the Beckn Offer schema
+             * which has `additionalProperties: false` — any field not in the spec
+             * will cause a schema validation failure (400 error).
+             *
+             * If you add a new field to catalog-store.ts (saveOffer/saveItem),
+             * you MUST add it here too, otherwise it will leak into the Beckn
+             * response and break ONIX validation.
+             *
+             * See also: onInit cleanup (~line 416) and buildCatalogForPublish
+             * in catalog-store.ts — all three must stay in sync.
+             */
             const {
               _id: _oid, catalogId: _cid, updatedAt: _uAt, userId: _uid,
               isGift: _ig, giftStatus: _gs, claimSecret: _cs, recipientPhone: _rp,
               expiresAt: _ea, claimedAt: _ca, claimedBy: _cb,
-              lookupHash: _lh, claimVerifier: _cv,
+              lookupHash: _lh, claimVerifier: _cv, giftingOptionId: _goid,
               ...cleanOffer
             } = offerFromDb as any;
             // Note: claimVerifier stays in beckn:offerAttributes.gift — ONIX schema requires it
@@ -412,12 +424,21 @@ export const onInit = (req: Request, res: Response) => {
             const offers = await catalogStore.getOffersByItemId(itemId);
             if (offers && offers.length > 0) {
               const offer = offers[0];
-              // Remove MongoDB internal fields + gift DB-only fields
+              /*
+               * IMPORTANT: Strip all internal/MongoDB fields before returning the offer
+               * in the Beckn response. ONIX validates with `additionalProperties: false`.
+               *
+               * If you add a new field to catalog-store.ts (saveOffer/saveItem),
+               * you MUST add it here too.
+               *
+               * See also: onSelect cleanup (~line 192) and buildCatalogForPublish
+               * in catalog-store.ts — all three must stay in sync.
+               */
               const {
                 _id: _oid, catalogId: _cid, updatedAt: _uAt, userId: _uid,
                 isGift: _ig, giftStatus: _gs, claimSecret: _cs, recipientPhone: _rp,
                 expiresAt: _ea, claimedAt: _ca, claimedBy: _cb,
-                lookupHash: _lh, claimVerifier: _cv,
+                lookupHash: _lh, claimVerifier: _cv, giftingOptionId: _goid,
                 ...cleanOffer
               } = offer;
               // Note: claimVerifier stays in beckn:offerAttributes.gift — ONIX schema requires it
