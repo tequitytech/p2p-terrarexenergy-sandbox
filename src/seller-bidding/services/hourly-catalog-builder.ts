@@ -28,14 +28,12 @@ function generateOfferId(providerId: string, date: string, hour: string): string
 }
 
 /**
- * Build delivery window for a 1-hour slot
- * e.g., hour "12:00" on 2026-01-28 → 12:00-13:00 IST
+ * Build delivery window for a 1-hour slot in UTC
+ * e.g., hour "12:00" on 2026-01-28 → 12:00-13:00 UTC
  */
 export function buildDeliveryWindow(date: string, hour: string): { start: string; end: string } {
-  const [_hourNum] = hour.split(':').map(Number);
-
-  // Start of hour
-  const start = new Date(`${date}T${hour.padStart(5, '0')}:00+05:30`);
+  // Start of hour in UTC
+  const start = new Date(`${date}T${hour.padStart(5, '0')}:00Z`);
 
   // End of hour (1 hour later)
   const end = new Date(start.getTime() + 60 * 60 * 1000);
@@ -47,20 +45,20 @@ export function buildDeliveryWindow(date: string, hour: string): { start: string
 }
 
 /**
- * Build validity window: starts "now", expires 4 hours before delivery start
- * This means buyers can accept the offer from creation until 4 hours before delivery.
+ * Build validity window: starts at midnight UTC of delivery date,
+ * expires VALIDITY_BUFFER_HOURS before delivery start (per DEG spec).
  */
 export function buildValidityWindow(date: string, hour: string): { start: string; end: string } {
   const delivery = buildDeliveryWindow(date, hour);
 
-  // Validity starts now (when offer is created)
-  const validityStart = new Date();
+  // Validity starts at midnight UTC of delivery date (per DEG spec)
+  const validityStart = `${date}T00:00:00Z`;
 
-  // Validity ends 4 hours before delivery starts (offer expires then)
+  // Validity ends VALIDITY_BUFFER_HOURS before delivery starts
   const validityEnd = new Date(new Date(delivery.start).getTime() - VALIDITY_BUFFER_HOURS * 60 * 60 * 1000);
 
   return {
-    start: validityStart.toISOString(),
+    start: validityStart,
     end: validityEnd.toISOString()
   };
 }
