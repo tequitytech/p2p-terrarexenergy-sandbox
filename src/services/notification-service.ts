@@ -211,6 +211,12 @@ export const notificationService = {
   async findUserByBecknId(becknId: string) {
     if (!becknId || becknId === 'unknown') return null;
     const db = getDB();
+    // Optimization: If it's a valid Mongo ObjectId, try to find by _id first
+    if (ObjectId.isValid(becknId)) {
+      const user = await db.collection("users").findOne({ _id: new ObjectId(becknId) });
+      if (user) return user;
+    }
+
     const query: any[] = [
       { "profiles.consumptionProfile.id": becknId },
       { "profiles.consumptionProfile.did": becknId },
@@ -218,10 +224,7 @@ export const notificationService = {
       { "profiles.generationProfile.did": becknId },
       { "profiles.utilityCustomer.did": becknId }
     ];
-    // Only add _id lookup if it's a valid ObjectId
-    if (ObjectId.isValid(becknId)) {
-      query.push({ _id: new ObjectId(becknId) });
-    }
+
     return db.collection("users").findOne({ $or: query });
   },
 
@@ -229,7 +232,7 @@ export const notificationService = {
    * Unified handler for transaction-related notifications
    */
   async handleTransactionNotification(
-    type: 'ORDER_PURCHASE_SUCCESS' | 'ORDER_SOLD' | 'GIFT_CLAIM' | 'PUBLISH_SUCCESS' | 'AUTO_BID_PLACED',
+    type: 'ORDER_PURCHASE_SUCCESS' | 'ORDER_SOLD' | 'PUBLISH_SUCCESS' | 'AUTO_BID_PLACED',
     details: {
       transactionId: string;
       orderId?: string;
@@ -276,29 +279,6 @@ export const notificationService = {
               type,
               "Energy Sold",
               `You have sold ${quantity} units to ${buyerName}.`,
-              { ...details, buyerName, sellerName }
-            );
-          }
-          break;
-
-        case 'GIFT_CLAIM':
-          // Notify Seller (Gifting Successful)
-          if (sellerUser) {
-            await this.createNotification(
-              sellerUser._id,
-              "GIFT_CLAIM_SELLER",
-              "Gift Claimed",
-              `The gift of ${quantity} units of energy to ${buyerName} has been claimed.`,
-              { ...details, buyerName, sellerName }
-            );
-          }
-          // Notify Buyer (Gift Claimed)
-          if (buyerUser) {
-            await this.createNotification(
-              buyerUser._id,
-              "GIFT_CLAIM_BUYER",
-              "Gift Claimed",
-              `You have successfully claimed a gift of ${quantity} units of energy from ${sellerName}.`,
               { ...details, buyerName, sellerName }
             );
           }

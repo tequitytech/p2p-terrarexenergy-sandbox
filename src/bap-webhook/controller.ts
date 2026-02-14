@@ -116,7 +116,7 @@ export const onConfirm = (req: Request, res: Response) => {
         const notificationTotalQty = notificationOrderItems.reduce((sum: number, item: any) => sum + (item['beckn:quantity']?.unitQuantity || 0), 0);
         const notificationAmount = order['beckn:payment']?.['beckn:amount']?.value || 0;
 
-        await notificationService.handleTransactionNotification('ORDER_PURCHASE_SUCCESS', {
+         notificationService.handleTransactionNotification('ORDER_PURCHASE_SUCCESS', {
           transactionId,
           orderId: order['beckn:id'],
           buyerId: order['beckn:buyer']?.['beckn:id'],

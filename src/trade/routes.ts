@@ -545,7 +545,7 @@ export const tradeRoutes = () => {
 
         // 8.5 Notify Seller (Publish Success)
         if (!req.body.skipNotification) {
-          await notificationService.handleTransactionNotification('PUBLISH_SUCCESS', {
+           notificationService.handleTransactionNotification('PUBLISH_SUCCESS', {
             transactionId,
             sellerId: userId, // Mongo ID
             quantity: input.quantity,

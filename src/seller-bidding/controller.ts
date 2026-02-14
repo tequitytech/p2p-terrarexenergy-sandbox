@@ -114,7 +114,7 @@ export async function confirmSellerBid(req: Request, res: Response) {
       const totalRevenue = result.placed_bids.reduce((sum: number, b: any) => sum + (b.quantity_kwh * b.price_inr), 0);
 
       // Notify seller about auto-bid success
-      await notificationService.handleTransactionNotification('AUTO_BID_PLACED', {
+      notificationService.handleTransactionNotification('AUTO_BID_PLACED', {
         transactionId: `${provider_id}-${meter_id}-${Date.now()}`,
         sellerId: provider_id,
         quantity: Math.round(totalQty * 100) / 100,

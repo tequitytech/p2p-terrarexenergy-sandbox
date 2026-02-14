@@ -16,7 +16,7 @@ import { paymentService } from "../services/payment-service";
 import { settlementStore } from "../services/settlement-store";
 import { parseError, readDomainResponse, validateGiftClaim } from "../utils";
 
-import type { SettlementDocument} from "../services/settlement-store";
+import type { SettlementDocument } from "../services/settlement-store";
 import type { Request, Response } from "express";
 dotenv.config();
 
@@ -540,7 +540,7 @@ export const onInit = (req: Request, res: Response) => {
               // Use EnergyTradeOrderInterUtility for inter-discom trades, EnergyTradeOrder otherwise
               "@type":
                 orderAttributes?.utilityIdBuyer &&
-                orderAttributes?.utilityIdSeller
+                  orderAttributes?.utilityIdSeller
                   ? "EnergyTradeOrderInterUtility"
                   : "EnergyTradeOrder",
               bap_id: context.bap_id,
@@ -808,8 +808,8 @@ export const onConfirm = (req: Request, res: Response) => {
                 sellerId: order['beckn:seller']?.['beckn:id'] || order['beckn:seller'] || sellerUserId,
                 quantity: quantity,
                 amount: quantity * pricePerUnit
-            });
-          }
+              });
+            }
             totalQuantity += quantity;
             console.log(`[Confirm] Inventory reduced for offer ${offerId}, seller: ${sellerUserId || 'UNKNOWN'}`);
           } else {
@@ -912,8 +912,8 @@ export const onConfirm = (req: Request, res: Response) => {
       console.log(
         `[Confirm] Settlement record created: txn=${context.transaction_id}, qty=${totalQuantity}`,
       );
-        const db = getDB();
-        const savedSettlement = await db.collection<SettlementDocument>('settlements')
+      const db = getDB();
+      const savedSettlement = await db.collection<SettlementDocument>('settlements')
         .findOne({ transactionId: context.transaction_id, role: "SELLER" });
 
       // Save order to MongoDB for status tracking
