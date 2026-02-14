@@ -353,10 +353,132 @@ export function userRoutes(): Router {
         throw new Error("LOAN_URL not configured");
       }
 
+      const solarPay = [
+        {
+          title: "₹0 installation cost",
+          description: "We install a premium 10kW solar system with digital backed financing. No upfront payment required."
+        },
+        {
+          title: "Energy sales repay your EMI",
+          description: "70% of our electricity is sold in our marketplace at a guaranteed buyback price that covers your EMI."
+        },
+        {
+          title: "You own the system fully",
+          description: "After the 5–7 year loan tenure, 100% of the electricity and savings are yours for the remaining 15–20+ years."
+        }
+      ];
+
+      const knowMore = `
+<div>
+  <h3>Terra Rex Energy</h3>
+  <p>Zero Upfront Solar Ownership Model (Become Urjadata)</p>
+
+  <h4>1. The Big Idea</h4>
+  <p>Install a 10kW rooftop solar system at zero upfront cost. Use part of the electricity for your home. Sell the remaining electricity through our energy marketplace. The earnings from the sale automatically repay your loan. After the loan ends, you own 100% of the solar system.</p>
+
+  <h4>2. How It Works (Simple 4 Steps)</h4>
+  <p><strong>Step 1 – Instant Loan Approval</strong><br>
+  We arrange digital financing through our NBFC partner.<br>
+  No heavy paperwork. Fast approval.</p>
+
+  <p><strong>Step 2 – Professional Installation</strong><br>
+  We install a premium 10kW solar system at your home.<br>
+  You pay nothing upfront.</p>
+
+  <p><strong>Step 3 – Energy Split Model</strong><br>
+  Your system generates approximately 1,200 units per month on average.<br>
+  Energy split:<br>
+  • 30% → Used at home<br>
+  • 70% → Sold through our energy marketplace</p>
+
+  <p><strong>Step 4 – Loan Repayment Through Energy Sales</strong><br>
+  We guarantee a minimum buyback price for your 70% energy.<br>
+  This guaranteed payout covers your EMI.<br>
+  If market price goes higher, you keep the extra profit.</p>
+
+  <h4>3. Real Example (North India – 10kW System)</h4>
+  <p>Average generation: 1,200 units per month</p>
+  
+  <p><strong>Your Share (30%)</strong><br>
+  360 units used at home<br>
+  If electricity rate = ₹8 per unit<br>
+  Savings = ₹2,880 per month</p>
+
+  <p><strong>Marketplace Share (70%)</strong><br>
+  840 units sold<br>
+  If guaranteed rate = ₹6 per unit<br>
+  Guaranteed payout = ₹5,040 per month</p>
+
+  <p><strong>Total Monthly Impact</strong><br>
+  ₹2,880 savings + ₹5,040 payout = ₹7,920 benefit<br>
+  If EMI = ₹5,000<br>
+  You are still positive.</p>
+
+  <h4>4. What Happens After Loan Completion?</h4>
+  <p>After loan tenure, typically 5–7 years:<br>
+  • 100% of electricity is yours<br>
+  • No EMI<br>
+  • No sharing<br>
+  • Full savings or full earning</p>
+
+  <p>Solar panels last 25+ years.<br>
+  That means 15–20 years of pure benefit after loan closure.</p>
+
+  <h4>5. Why This Model Works</h4>
+  <ul>
+    <li>No upfront investment</li>
+    <li>Immediate electricity savings</li>
+    <li>Guaranteed minimum payout</li>
+    <li>Upside when energy prices rise</li>
+    <li>Long-term asset ownership</li>
+    <li>25+ year system life</li>
+  </ul>
+
+  <h4>6. Who Is This Ideal For?</h4>
+  <p>Best suited for homeowners who:</p>
+  <ul>
+    <li>Have ₹8,000+ monthly electricity bill</li>
+    <li>Have shadow-free rooftop space</li>
+    <li>Want long-term energy security</li>
+    <li>Prefer asset creation over expense</li>
+  </ul>
+
+  <h4>7. Risk Protection</h4>
+  <p><strong>What if energy prices fall?</strong><br>
+  Minimum price guarantee protects EMI.</p>
+  
+  <p><strong>What if generation is lower?</strong><br>
+  System designed conservatively with buffer.</p>
+
+  <p><strong>What if the market fluctuates?</strong><br>
+  Floor price structure ensures stability.</p>
+
+  <h4>8. Why Terra Rex Energy?</h4>
+  <ul>
+    <li>NBFC-backed digital financing</li>
+    <li>Professional installation team</li>
+    <li>Real-time monitoring app</li>
+    <li>Guaranteed minimum buyback structure</li>
+    <li>Long-term service support</li>
+  </ul>
+
+  <h4>9. The Long-Term Value</h4>
+  <p>Solar is not an expense.<br>
+  It is a 25-year energy asset.</p>
+  <p>With this model:<br>
+  • You start saving immediately<br>
+  • You do not pay upfront<br>
+  • The system pays itself<br>
+  • You own it fully after loan</p>
+</div>
+`;
+
       return res.status(200).json({
         success: true,
         data: {
-          url: loanUrl
+          url: loanUrl,
+          solarPay,
+          knowMore
         }
       });
     } catch (error: any) {
