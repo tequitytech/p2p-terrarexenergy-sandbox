@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import twilio from "twilio";
 
 import type { PublishCommandInput } from "@aws-sdk/client-sns";
+import { normalizeIndianPhone } from "../auth/routes";
 
 dotenv.config();
 
@@ -46,8 +47,11 @@ export const smsService = {
   /**
    * Send an SMS using AWS SNS or Twilio based on configuration
    */
-  async sendSms(phoneNumber: string, message: string): Promise<string | undefined> {
+  async sendSms(phone: string, message: string): Promise<string | undefined> {
     try {
+      //we can normalize the phone number
+      const phoneNumber = normalizeIndianPhone(phone);
+
       console.log(`Sending SMS via ${sms_provider} to ${phoneNumber}`);
       if (sms_provider === "twilio") {
         if (!twilioClient) {

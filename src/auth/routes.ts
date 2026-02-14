@@ -481,7 +481,9 @@ async function verifyOtp(req: Request, res: Response) {
  * This method is kept only for backward compatibility.
  */
 async function login(req: Request, res: Response) {
-  const { phone, pin, fcmToken } = req.body;
+  const { phone:phoneNumber, pin, fcmToken } = req.body;
+  
+  const phone = normalizeIndianPhone(phoneNumber);
 
   // Normalize phone (keep spaces for now, just use as-is for lookup)
   const db = getDB();
