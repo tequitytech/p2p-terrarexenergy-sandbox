@@ -205,27 +205,21 @@ function buildCatalog(
   const itemId = `item-${prosumer.meterId}-${timestamp}`;
   const offerId = `offer-${prosumer.meterId}-${timestamp}`;
 
-  // Build time windows - Convert IST input to UTC (IST = UTC + 5:30)
-  const deliveryStartIST = new Date(`${input.deliveryDate}T${String(input.startHour).padStart(2, "0")}:00:00+05:30`);
-  const deliveryStart = deliveryStartIST.toISOString();
+  // Build time windows in UTC (per DEG spec)
+  const deliveryStart = `${input.deliveryDate}T${String(input.startHour).padStart(2, "0")}:00:00Z`;
+  const deliveryEnd = `${input.deliveryDate}T${String(input.startHour + input.duration).padStart(2, "0")}:00:00Z`;
 
-  const deliveryEndIST = new Date(`${input.deliveryDate}T${String(input.startHour + input.duration).padStart(2, "0")}:00:00+05:30`);
-  const deliveryEnd = deliveryEndIST.toISOString();
-
-  const validityStart = now.toISOString();
-
-  // Handle edge case where validity end crosses to previous day
+  // Validity starts at midnight UTC of delivery date, ends 1 hour before delivery
   let validityEndHour = input.startHour - 1;
   let validityEndDate = input.deliveryDate;
   if (validityEndHour < 0) {
     validityEndHour = 23;
-    // Subtract one day from deliveryDate
     const prevDay = new Date(input.deliveryDate);
     prevDay.setDate(prevDay.getDate() - 1);
     validityEndDate = prevDay.toISOString().split('T')[0];
   }
-  const validityEndIST = new Date(`${validityEndDate}T${String(validityEndHour).padStart(2, "0")}:00:00+05:30`);
-  const validityEnd = validityEndIST.toISOString();
+  const validityStart = `${input.deliveryDate}T00:00:00Z`;
+  const validityEnd = `${validityEndDate}T${String(validityEndHour).padStart(2, "0")}:00:00Z`;
 
   return {
     catalogId,
