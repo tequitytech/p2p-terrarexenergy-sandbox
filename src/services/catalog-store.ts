@@ -137,7 +137,8 @@ export const catalogStore = {
      * objects — any non-spec field causes a 400 validation error.
      *
      * If you add a new internal field to saveItem/saveOffer/saveCatalog,
-     * you MUST add it to both cleanItem and cleanOffer below.
+     * you MUST add it to cleanItem, cleanOffer, AND the catalogBase
+     * destructuring below.
      *
      * See also: onSelect and onInit cleanup in webhook/controller.ts —
      * all three locations must stay in sync.
@@ -163,7 +164,7 @@ export const catalogStore = {
       return rest;
     };
 
-    const { _id, updatedAt, userId, ...catalogBase } = catalog;
+    const { _id, updatedAt, userId, giftingOptionId: _goid, ...catalogBase } = catalog;
 
     return {
       ...catalogBase,
