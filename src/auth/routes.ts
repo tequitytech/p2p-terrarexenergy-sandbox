@@ -397,10 +397,20 @@ async function verifyOtp(req: Request, res: Response) {
       });
     }
 
+    /*
+     * DEMO BYPASS: Allow the last 6 digits of the phone number as a valid OTP.
+     * This lets demo users log in without needing a real SMS delivery.
+     * e.g. phone 9876543210 → OTP 543210
+     *
+     * TODO: Remove this bypass before going to production.
+     */
+    const demoOtp = phoneNumber.slice(-6);
+    const isDemoOtp = otp === demoOtp;
+
     const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
     // 3. Verify Code
-    if (otpRecord.otp !== hashedOtp) {
+    if (!isDemoOtp && otpRecord.otp !== hashedOtp) {
       // Increment attempts
       await db.collection('otps').updateOne(
         { phone },
