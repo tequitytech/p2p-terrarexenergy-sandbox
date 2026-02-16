@@ -71,8 +71,8 @@ SELL vs GIFT RULE (CRITICAL):
   - "send 50 units" → gifting_energy
   - "gift 100 kWh" → gifting_energy
   - "bhet dena hai" → gifting_energy
+  - "I want to gift energy" → gifting_energy
   - "sell 50 units" → sell_energy
-  - "I want to gift energy" → sell_energy
 
 ENTITY VALUE RULES (CRITICAL):
 - Return ONLY the raw value, NEVER include units in the value
