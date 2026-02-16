@@ -24,6 +24,15 @@ jest.mock('../bidding/services/market-analyzer', () => ({
   buildDiscoverRequest: jest.fn().mockReturnValue({ mock: 'discover-payload' }),
 }));
 
+// Mock S3Service
+jest.mock('../services/s3-service', () => ({
+  S3Service: {
+    uploadFile: jest.fn(),
+  },
+}));
+import { S3Service } from '../services/s3-service';
+const mockUploadFile = S3Service.uploadFile as jest.Mock;
+
 // Mock the service module (executeDirectTransaction, discoverBestSeller)
 jest.mock('./service');
 import { executeDirectTransaction, discoverBestSeller } from './service';
@@ -71,6 +80,7 @@ describe('EnergyRequest Controller', () => {
     consumptionProfileId?: string;
     generationProfileId?: string;
     utilityCustomerDid?: string;
+    imgUri?: string;
   }) {
     const db = getTestDB();
     return db.collection('users').insertOne({
@@ -93,6 +103,7 @@ describe('EnergyRequest Controller', () => {
         programEnrollment: null,
       },
       meters: [],
+      imgUri: data.imgUri,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -228,6 +239,32 @@ describe('EnergyRequest Controller', () => {
       expect(responseData.data.isVerifiedBeneficiary).toBe(true);
       expect(responseData.data.beneficiaryType).toBe('social');
     });
+
+    it('should use image from user profile if available', async () => {
+      await seedUser({
+        phone: '1234567890',
+        name: 'User with Image',
+        isVerifiedBeneficiary: true,
+        imgUri: 'existing/profile/image.jpg'
+      });
+
+      const req = mockRequest({
+        requiredEnergy: 5,
+        purpose: 'With Image',
+        startTime: '2026-02-10T08:00:00Z',
+        endTime: '2026-02-10T17:00:00Z',
+      });
+      (req as any).user = { phone: '1234567890' };
+
+      const { res, status, json } = mockResponse();
+
+      await createEnergyRequest(req as any, res as any);
+
+      expect(status).toHaveBeenCalledWith(201);
+
+      const responseData = json.mock.calls[0][0];
+      expect(responseData.data.imgUri).toBe('existing/profile/image.jpg');
+    });
   });
 
   // ============================================
@@ -285,6 +322,30 @@ describe('EnergyRequest Controller', () => {
 
       expect(status).toHaveBeenCalledWith(200);
       expect(json.mock.calls[0][0]).toEqual([]);
+    });
+
+    it('should include typetag in the response matching beneficiaryType', async () => {
+      const db = getTestDB();
+      await db.collection('energy_requests').insertOne({
+        userId: 'user-typetag',
+        userName: 'Typetag User',
+        requiredEnergy: 5,
+        beneficiaryType: 'SOCIAL_IMPACT',
+        status: 'PENDING',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const req = mockRequest();
+      const { res, status, json } = mockResponse();
+
+      await getEnergyRequests(req as any, res as any);
+
+      expect(status).toHaveBeenCalledWith(200);
+      const data = json.mock.calls[0][0];
+      expect(data).toHaveLength(1);
+      expect(data[0].beneficiaryType).toBe('SOCIAL_IMPACT');
+      expect(data[0].typetag).toBe('SOCIAL_IMPACT');
     });
   });
 

@@ -42,6 +42,7 @@ export async function createEnergyRequest(req: Request, res: Response) {
       purpose,
       startTime,
       endTime,
+      imgUri: userProfile?.imgUri, // Add image URI
       status: 'PENDING',
       createdAt: new Date(),
       updatedAt: new Date()
@@ -74,7 +75,12 @@ export async function getEnergyRequests(req: Request, res: Response) {
       .sort({ createdAt: -1 })
       .toArray();
 
-    return res.status(200).json(requests);
+        const responseData = requests.map(request => ({
+            ...request,
+            typetag: request.beneficiaryType // requested field as FE needs it
+        }));
+
+        return res.status(200).json(responseData);
 
   } catch (error: any) {
     console.error('[EnergyRequest] Get Requests Error:', error);

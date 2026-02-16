@@ -173,7 +173,7 @@ export function userRoutes(): Router {
       // Handle image upload if present
       if (req.file) {
         try {
-          key = await S3Service.uploadFile(req.file.buffer, req.file.mimetype);
+          key = await S3Service.uploadFile(req.file.buffer, req.file.mimetype,"contacts");
         } catch (error) {
           console.error("Failed to upload image:", error);
           return res.status(500).json({ success: false, error: "Failed to upload image" });          
@@ -487,5 +487,75 @@ export function userRoutes(): Router {
     }
   });
 
+  // POST /api/profile-image - Add a user profile image
+  router.post(
+    "/profile-image",
+    authMiddleware,
+    (req: Request, res: Response, next: any) => {
+      upload.single("image")(req, res, (err: any) => {
+        if (err) {
+          return res.status(400).json({ success: false, error: err.message });
+        }
+        next();
+      });
+    },
+    async (req: Request, res: Response) => {
+      try {
+        const user = (req as any).user;
+        if (!user) {
+          return res
+            .status(401)
+            .json({ success: false, error: "Unauthorized" });
+        }
+        const db = getDB();
+        const userProfile = await db
+          .collection("users")
+          .findOne({ phone: user.phone });
+
+        if (!userProfile) {
+          return res
+            .status(404)
+            .json({ success: false, error: "User profile not found" });
+        }
+        let imgUri = "";
+        if (req.file) {
+          try {
+            // Upload to S3 with 'donate' folder
+            imgUri = await S3Service.uploadFile(
+              req.file.buffer,
+              req.file.mimetype,
+              "user",
+            );
+          } catch (error) {
+            console.error("[EnergyRequest] S3 Upload Error:", error);
+            return res
+              .status(500)
+              .json({ success: false, error: "Failed to upload image" });
+          }
+          await db.collection("users").updateOne(
+            { _id: userProfile._id},
+            {
+              $set: {imgUri}
+            }
+          );
+
+          return res.status(200).json({
+            success: true,
+            message: "Image added successfully",
+          });
+        }else{
+            return res.status(404).json({
+            success: false,
+            message: "Image Not Found",
+          });
+        }
+      } catch (error) {
+                   console.error("Failed to upload profile image:", error);
+            return res
+              .status(500)
+              .json({ success: false, error: "Failed to profile image" });
+      }
+    },
+  );
   return router;
 }
