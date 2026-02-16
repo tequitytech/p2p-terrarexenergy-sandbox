@@ -791,10 +791,11 @@ async function getMe(req: Request, res: Response) {
 
   // Derive role based on generationProfile
   const role = user.profiles?.generationProfile ? 'prosumer' : 'consumer';
-
+  const DISCOM_WHEELING_RATE = process.env.DISCOM_WHEELING_RATE
   return res.json({
     success: true,
     user: {
+      discom_wheeling_rate: DISCOM_WHEELING_RATE,
       phone: user.phone,
       name: user.name,
       vcVerified: user.vcVerified || false,
