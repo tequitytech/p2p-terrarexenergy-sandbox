@@ -487,5 +487,22 @@ export function userRoutes(): Router {
     }
   });
 
+  // GET /discoms - Get list of discoms
+  router.get("/discoms", async (req: Request, res: Response) => {
+    try {
+      const db = getDB();
+      // const discoms = await db.collection("discoms").find({}, { projection: { _id: 0, name: 1, link: 1 } }).toArray();
+      const discoms = await db.collection("discoms").find({}).toArray();
+      console.log("discome length>>", discoms.length)
+      return res.status(200).json({
+        success: true,
+        discoms
+      });
+    } catch (error: any) {
+      console.error("[API] Error fetching discoms:", error);
+      return res.status(500).json({ success: false, error: "Failed to fetch discoms" });
+    }
+  });
+
   return router;
 }
