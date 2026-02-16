@@ -575,7 +575,22 @@ async function verifyVc(req: Request, res: Response) {
       for (const check of checks || []) {
         if (check.revoked && check.revoked !== 'OK') failedChecks.push('revoked');
         if (check.expired && check.expired !== 'OK') failedChecks.push('expired');
-        if (check.proof && check.proof !== 'OK') failedChecks.push('proof');
+        /*
+         * PROOF CHECK DISABLED (Feb 2026)
+         *
+         * The VC verification service has a known bug in its revocation-checking
+         * library that causes it to return proof: "NOK" for valid, untampered
+         * credentials — specifically PVVNL-issued VCs.
+         *
+         * This was blocking customer onboarding. Confirmed with Anusree (VC team)
+         * that the credential data is intact and this is a false negative on their
+         * end. She recommended using the "get credential by ID" endpoint as the
+         * primary source of truth for onboarding until the fix is deployed.
+         *
+         * TODO: Re-enable this check once the VC service ships the library fix
+         * (planned for next phase).
+         */
+        // if (check.proof && check.proof !== 'OK') failedChecks.push('proof');
       }
 
       if (failedChecks.length > 0) {
