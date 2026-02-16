@@ -550,6 +550,10 @@ async function verifyVc(req: Request, res: Response) {
     const did = vc.id;
     const vcType = vc.type.find((t: string) => VALID_VC_TYPES.includes(t as VCType)) as VCType;
     const profileField = VC_TYPE_TO_PROFILE[vcType];
+    console.log("did>>>",did)
+    console.log("vcType>>>",vcType)
+    console.log("profileField>>>",profileField)
+
 
     try {
       // Call external verify API
@@ -558,6 +562,9 @@ async function verifyVc(req: Request, res: Response) {
         timeout: VC_TIMEOUT,
         headers: { Authorization: createBecknAuthHeader('') },
       });
+
+      console.log("vc check response>>>",response.data);
+
       const { status, checks } = response.data;
 
       // Check verification status
@@ -584,6 +591,7 @@ async function verifyVc(req: Request, res: Response) {
           type: vcType,
           reason: `Verification failed: ${failedChecks.join(', ')} check failed`,
         });
+        console.log('some checks failed>>>',failed)
         continue;
       }
 
@@ -651,6 +659,7 @@ async function verifyVc(req: Request, res: Response) {
     }
   }
 
+  console.log("loop completed>>>>")
   // Update user in database
   const hasVerifiedAny = Object.keys(verified).length > 0;
   const updateDoc: any = {
@@ -670,7 +679,7 @@ async function verifyVc(req: Request, res: Response) {
 
   // Fetch updated user
   const updatedUser = await db.collection('users').findOne({ phone });
-
+  console.log("ve verify response>>>",{verified,failed})
   return res.json({
     success: true,
     verified,
