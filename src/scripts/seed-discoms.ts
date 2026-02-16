@@ -36,9 +36,10 @@ async function seedDiscoms() {
                 { $setOnInsert: discom },
                 { upsert: true }
             );
-            console.log(`Seeded ${result} discoms.`);
+            console.log(`Seeded ${discom.name} discom.`);
         }
-        console.log("Seeding completed ");
+        
+        console.log("Seeding completed");
 
     } catch (error) {
         console.error("Error seeding discoms:", error);

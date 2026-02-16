@@ -491,9 +491,8 @@ export function userRoutes(): Router {
   router.get("/discoms", async (req: Request, res: Response) => {
     try {
       const db = getDB();
-      // const discoms = await db.collection("discoms").find({}, { projection: { _id: 0, name: 1, link: 1 } }).toArray();
-      const discoms = await db.collection("discoms").find({}).toArray();
-      console.log("discome length>>", discoms.length)
+      const discoms = await db.collection("discoms").find({}, { projection: { _id: 0, name: 1, link: 1 } }).toArray();
+      console.log("[API Discom List Length]", discoms.length)
       return res.status(200).json({
         success: true,
         discoms
