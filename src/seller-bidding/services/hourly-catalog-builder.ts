@@ -3,7 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   BECKN_CONTEXT_ROOT,
   ENERGY_RESOURCE_SCHEMA_CTX,
-  ENERGY_TRADE_OFFER_SCHEMA_CTX
+  ENERGY_TRADE_OFFER_SCHEMA_CTX,
+  NETWORK_ID
 } from '../../constants/schemas';
 import { VALIDITY_BUFFER_HOURS } from '../types';
 
@@ -83,7 +84,7 @@ export function buildHourlyItem(params: {
     "@context": BECKN_CONTEXT_ROOT,
     "@type": "beckn:Item",
     "beckn:id": itemId,
-    "beckn:networkId": ["p2p-interdiscom-trading-pilot-network"],
+    "beckn:networkId": [NETWORK_ID],
     "beckn:isActive": true,
     "beckn:descriptor": {
       "@type": "beckn:Descriptor",

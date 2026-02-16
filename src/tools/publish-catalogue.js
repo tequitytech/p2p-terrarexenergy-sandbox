@@ -19,6 +19,8 @@ const SCHEMA = {
   energy: "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld"
 };
 
+const NETWORK_ID = process.env.NETWORK_ID || "p2p-interdiscom-trading-pilot-network";
+
 const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
 const ask = q => new Promise(r => rl.question(q, r));
 
@@ -91,7 +93,7 @@ async function main() {
         "beckn:items": [{
           "@context": SCHEMA.core,
           "@type": "beckn:Item",
-          "beckn:networkId": ["p2p-interdiscom-trading-pilot-network"],
+          "beckn:networkId": [NETWORK_ID],
           "beckn:isActive": true,
           "beckn:id": itemId,
           "beckn:descriptor": {

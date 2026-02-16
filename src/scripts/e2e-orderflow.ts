@@ -11,6 +11,7 @@ const MONGO_DB = process.env.MONDO_DB ?? "p2p_trading";
 import { calculateTotalAmount } from "../utils";
 import { ledgerClient } from "../services/ledger-client";
 
+const NETWORK_ID = process.env.NETWORK_ID || "p2p-interdiscom-trading-pilot-network";
 const SELLER_ID = "terrarex-provider-001";
 const BUYER_ID = "did:rcw:subject-057";
 const DISCOMM_BUYER = "DISCOM-1";
@@ -86,7 +87,7 @@ const publishEnergy = async ({
               "@context":
                 "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
               "@type": "beckn:Item",
-              "beckn:networkId": ["p2p-interdiscom-trading-pilot-network"],
+              "beckn:networkId": [NETWORK_ID],
               "beckn:isActive": true,
               "beckn:id": itemId,
               "beckn:descriptor": {

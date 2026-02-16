@@ -2,6 +2,7 @@ import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 
 import { getDB } from "../../db";
+import { NETWORK_ID } from "../../constants/schemas";
 import {
   DEFAULT_UNDERCUT_PERCENT,
   FLOOR_PRICE
@@ -37,7 +38,7 @@ export function buildDiscoverRequest({
 
   // Network Id - checking inside items
   conditions.push(
-    `@.beckn:items[*].beckn:networkId[*] == 'p2p-interdiscom-trading-pilot-network'`,
+    `@.beckn:items[*].beckn:networkId[*] == '${NETWORK_ID}'`,
   );
 
   // 1. Delivery Mode - checking inside item attributes
