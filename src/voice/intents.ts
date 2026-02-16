@@ -60,7 +60,7 @@ export const INTENTS = [
   {
     name: "gifting_energy",
     description:
-      "User wants to gift, bhet, or send energy to someone (distinct from selling)",
+      "User wants to gift, transfer, bhet, or send energy to someone (distinct from selling)",
     examples: [
       "gift 50 units",
       "send 100 kWh",
@@ -69,8 +69,9 @@ export const INTENTS = [
       "gift karna hai",
       "gift kar do",
       "100 unit gift kar do",
-      "20 kWh bhet dena hai",,
-      "I want to give gift"
+      "20 kWh bhet dena hai",
+      "I want to give gift",
+      "100 unit light transfer karni hai"
     ],
   },
   {
