@@ -5,7 +5,11 @@ import {
   calculatePrice,
 } from "../../bidding/services/market-analyzer";
 import { limitValidator } from "../../trade/limit-validator";
-import { HOURLY_MIN_THRESHOLD } from "../types";
+import {
+  HOURLY_MIN_THRESHOLD,
+  HOURLY_START_TIME,
+  HOURLY_END_TIME,
+} from "../types";
 import {
   buildDeliveryWindow,
   buildValidityWindow,
@@ -77,9 +81,26 @@ export async function preview(
     };
   }
 
-  // Step 2: Filter valid hours (>= 1 kWh)
-  const { valid: validHours, skipped: skippedHours } =
+  // Step 2: Filter valid hours (>= 1 kWh) and apply time window
+  const { valid: rawValidHours, skipped: rawSkippedHours } =
     filterValidHours(forecast);
+
+  const validHours: typeof rawValidHours = [];
+  const skippedHours = [...rawSkippedHours];
+
+  for (const hourData of rawValidHours) {
+    const hourNum = parseInt(hourData.hour.split(':')[0], 10);
+    
+    // Check strict time window (default 10am - 4pm)
+    if (hourNum >= HOURLY_START_TIME && hourNum < HOURLY_END_TIME) {
+      validHours.push(hourData);
+    } else {
+      skippedHours.push({
+        hour: hourData.hour,
+        reason: `Outside trading hours (${HOURLY_START_TIME}:00 - ${HOURLY_END_TIME}:00)`
+      });
+    }
+  }
 
   if (validHours.length === 0) {
     console.log(`[SellerBidding] No valid hours found, returning empty bids`);

@@ -7,6 +7,8 @@ export { MarketAnalysis, CompetitorOffer, ValidityWindow, FLOOR_PRICE, DEFAULT_U
 export const HOURLY_MIN_THRESHOLD = 1.0;  // kWh - minimum biddable quantity per hour
 export const VALIDITY_BUFFER_HOURS = 4;   // Hours before delivery that offer becomes valid
 export const TOP_N_HOURS = 5;             // Number of top hours to select
+export const HOURLY_START_TIME = parseInt(process.env.HOURLY_START_TIME || '10', 10); // Start hour (24h format)
+export const HOURLY_END_TIME = parseInt(process.env.HOURLY_END_TIME || '16', 10);   // End hour (24h format)
 
 // PR (Performance Ratio) computation types
 export interface PrSlotData {
