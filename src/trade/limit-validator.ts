@@ -60,11 +60,12 @@ export const limitValidator = {
         // Incoming quantity is Total. Normalize to Hourly.
         const hourlyQty = duration > 0 ? quantity / duration : quantity;
 
+        let peakUsage = 0;
         // 2. Calculate Usage (Active Offers + Sold Orders)
         for (let i = 0; i < duration; i++) {
             const hour = startHour + i;
             const usage = await this.getSellerUsage(userId, dateStr, hour); //active catalog / orders confirm 
-
+            peakUsage = Math.max(peakUsage, usage)
             if (usage + hourlyQty > safeLimit) {
                 return {
                     allowed: false,
@@ -76,14 +77,61 @@ export const limitValidator = {
             }
         }
 
-        return { allowed: true, limit: safeLimit, currentUsage: 0, remaining: safeLimit };
+        return { allowed: true, limit: safeLimit, currentUsage: peakUsage, remaining: Math.max(0, safeLimit - peakUsage) };
     },
 
     async getSellerUsage(userId: string, date: string, hour: number): Promise<number> {
         const db = getDB();
 
-        const targetLocalStart = new Date(`${date}T${String(hour).padStart(2, '0')}:00:00+05:30`);
-        const targetLocalEnd = new Date(`${date}T${String(hour + 1).padStart(2, '0')}:00:00+05:30`);
+        // Use UTC Date arithmetic for robust handling of 24h overflow and timezone consistency
+        // Input dateStr is YYYY-MM-DD. We assume the "hour" argument is the hour index (0-23) in the target timezone (IST) 
+        // IF the system is moving to UTC, we should normalize everything to UTC.
+        // However, the PR mentioned suggests offers will be in UTC. 
+        // If we want to check "10:00 - 11:00 IST", that is "04:30 - 05:30 UTC".
+        // BUT usually "hour" passed here is from a 0-23 loop based on the user's local day.
+        // If we stick to comparing timestamps (ms), we differ from how strings are parsed.
+
+        // Current approach: Construct IST Date objects.
+        // START: Date(YYYY-MM-DD T HH:00:00+05:30)
+        // END:   Date(YYYY-MM-DD T (HH+1):00:00+05:30)
+
+        // If PR #77 makes DB times UTC, then valid comparison requires comparing Epoch MS.
+        // `new Date("...T10:00:00Z").getTime()` vs `new Date("...T15:30:00+05:30").getTime()`.
+        // These represent the SAME moment. 
+        // So as long as we construct the `target` time correctly representing the User's intended slot, 
+        // comparing `.getTime()` works regardless of whether DB stored it as Z or +05:30.
+
+        // PROBLEM: The previous string concatenation `${date}T${String(hour)...}:00:00+05:30`
+        // is brittle for hour=24.
+        // SOLUTION: Use Date constructor with components.
+        // But Date(y, m, d, h...) uses Local System Time. 
+        // We want strict IST or UTC. 
+        // If the codebase standardizes on UTC, we should convert the user's "Hour 10 (IST)" to UTC.
+
+        // Assuming hour is 0-23 IST:
+        // Target Start = YYYY-MM-DD HH:00 IST
+        //              = YYYY-MM-DD HH:00 - 5:30 UTC
+
+        // Robust way: Parse YYYY-MM-DD, set hour, then subtract offset? 
+        // Or cleaner: Construct string with explicit offset and let Date parse it, but handle overflow.
+        // Helper:
+        const createDate = (d: string, h: number) => {
+            // Create date at 00:00 IST of the given day
+            const base = new Date(`${d}T00:00:00+05:30`);
+            // Add hours safely
+            base.setHours(base.getHours() + h);
+            // Note: setHours on a Date object works in Local time of the server? 
+            // NO, Date object methods like setHours() use local time. setUTCHours() uses UTC.
+            // If server is UTC, setHours is setUTCHours.
+            // This is risky if server timezone varies.
+
+            const t = new Date(`${d}T00:00:00+05:30`).getTime();
+            return new Date(t + (h * 3600000));
+        };
+
+        const targetLocalStart = createDate(date, hour);
+        const targetLocalEnd = createDate(date, hour + 1);
+
         const targetStartMs = targetLocalStart.getTime();
         const targetEndMs = targetLocalEnd.getTime();
 
@@ -189,7 +237,7 @@ export const limitValidator = {
 
         const soldOrders = await db.collection("orders").find({
             "order.beckn:seller": sellerDid,
-            status: { $in: ["CONFIRMED", "SCHEDULED", "COMPLETED"] } // Exclude CREATED? 
+            orderStatus: { $in: ["CONFIRMED", "SCHEDULED", "COMPLETED"] } // Exclude CREATED? 
         }).toArray();
 
         let totalSold = 0;
