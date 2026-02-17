@@ -6,6 +6,7 @@ import { buildDiscoverRequest } from "../bidding/services/market-analyzer";
 import { SourceType } from "../types";
 
 import type { Request, Response} from "express";
+import { getDB } from "../db";
 
 const discoverSchema = z.object({
   sourceType: z.enum(SourceType).default(SourceType.SOLAR),
@@ -114,9 +115,14 @@ export const discoverRoutes = () => {
           });
         }
 
-        if(query.tag === 'farmer') {
+        
+        if(query.tag) {
+          const db = getDB();
+          const farmers = await db.collection("users").find({tags: query.tag}).toArray();
+          const dids = new Set(farmers.map((farmer:any) => farmer?.profiles?.generationProfile?.did));
+          
           catalogs.forEach((catalog:any) => {
-            catalog["beckn:items"] = catalog["beckn:items"].filter((item:any) => item["beckn:provider"]?.["beckn:descriptor"]?.["schema:name"] === 'Suresh - BRPL Prosumer');
+            catalog["beckn:items"] = catalog["beckn:items"].filter((item:any) => dids.has(item["beckn:provider"]?.["beckn:id"]));
           })
         }
         
