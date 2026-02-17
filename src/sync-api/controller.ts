@@ -754,13 +754,6 @@ export async function syncSelect(req: Request, res: Response) {
       }
     }
     // -----------------------------
-    if(messageId){
-      return res.status(200).json({
-        success: true,
-        transaction_id: transactionId,
-        message_id: messageId,
-      });
-    }
     const response = await executeAndWait('select', becknRequest, transactionId);
 
     // Check for business error in response (e.g., insufficient inventory)
