@@ -116,9 +116,9 @@ export const discoverRoutes = () => {
         }
 
         
-        if(query.tag === 'farmer') {
+        if(query.tag) {
           const db = getDB();
-          const farmers = await db.collection("users").find({tags: "farmer"}).toArray();
+          const farmers = await db.collection("users").find({tags: query.tag}).toArray();
           const dids = new Set(farmers.map((farmer:any) => farmer?.profiles?.generationProfile?.did));
           
           catalogs.forEach((catalog:any) => {
