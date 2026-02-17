@@ -92,7 +92,7 @@ export async function preview(
     const hourNum = parseInt(hourData.hour.split(':')[0], 10);
     
     // Check strict time window (default 10am - 4pm)
-    if (hourNum >= HOURLY_START_TIME && hourNum < HOURLY_END_TIME) {
+    if (hourNum >= HOURLY_START_TIME && hourNum <= HOURLY_END_TIME) {
       validHours.push(hourData);
     } else {
       skippedHours.push({
