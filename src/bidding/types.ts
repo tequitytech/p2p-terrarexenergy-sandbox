@@ -124,4 +124,4 @@ export interface MarketSnapshot {
 export const FLOOR_PRICE = 6.0;  // INR/kWh - fixed, not configurable
 export const BUFFER_RATE = 0.9;  // 10% buffer (multiply by 0.9)
 export const MIN_THRESHOLD = 5;  // kWh - minimum biddable quantity
-export const DEFAULT_UNDERCUT_PERCENT = 5;  // Percentage to undercut competitors
+export const DEFAULT_UNDERCUT_PERCENT = 10;  // Percentage to undercut competitors
