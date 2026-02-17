@@ -1,0 +1,13 @@
+[
+  { "slot": "07:00-08:00", "pr_min": 0.58, "pr_max": 0.65, "midpoint": 0.62 },
+  { "slot": "08:00-09:00", "pr_min": 0.7, "pr_max": 0.77, "midpoint": 0.74 },
+  { "slot": "09:00-10:00", "pr_min": 0.76, "pr_max": 0.8, "midpoint": 0.78 },
+  { "slot": "10:00-11:00", "pr_min": 0.78, "pr_max": 0.82, "midpoint": 0.8 },
+  { "slot": "11:00-12:00", "pr_min": 0.79, "pr_max": 0.81, "midpoint": 0.8 },
+  { "slot": "12:00-13:00", "pr_min": 0.78, "pr_max": 0.8, "midpoint": 0.79 },
+  { "slot": "13:00-14:00", "pr_min": 0.77, "pr_max": 0.79, "midpoint": 0.78 },
+  { "slot": "14:00-15:00", "pr_min": 0.75, "pr_max": 0.78, "midpoint": 0.77 },
+  { "slot": "15:00-16:00", "pr_min": 0.73, "pr_max": 0.76, "midpoint": 0.75 },
+  { "slot": "16:00-17:00", "pr_min": 0.68, "pr_max": 0.72, "midpoint": 0.7 },
+  { "slot": "17:00-18:00", "pr_min": 0.58, "pr_max": 0.63, "midpoint": 0.61 }
+]

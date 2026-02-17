@@ -30,7 +30,7 @@ export enum SettlementType {
 }
 
 export const FLOOR_PRICE = 6.0;
-export const DEFAULT_UNDERCUT_PERCENT = 5;
+export const DEFAULT_UNDERCUT_PERCENT = 10;
 
 export interface CompetitorOffer {
   offer_id: string;

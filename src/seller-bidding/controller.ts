@@ -1,5 +1,6 @@
 import { getDB } from '../db';
 import { notificationService } from '../services/notification-service';
+import { tradingRules } from '../trade/trading-rules';
 
 import { preview, confirm } from './services/hourly-optimizer';
 
@@ -47,7 +48,15 @@ async function getSellerDetailsFromAuth(user: any) {
     throw new Error('Missing provider_id (DID) or meter_id in generation profile.');
   }
 
-  return { provider_id, meter_id };
+  // Compute safeLimit: min(genCap, sanctionLoad) * sellerSafetyFactor
+  const genCap = parseFloat(generationProfile.capacityKW || '0');
+  const sanctionLoad = parseFloat(userProfile.profiles?.consumptionProfile?.sanctionedLoadKW || '0');
+  const productionCapacity = Math.min(genCap, sanctionLoad > 0 ? sanctionLoad : genCap);
+
+  const rules = await tradingRules.getRules();
+  const safeLimit = productionCapacity * rules.sellerSafetyFactor;
+
+  return { provider_id, meter_id, safeLimit, userId: userProfile._id.toString() };
 }
 
 /**
@@ -66,14 +75,14 @@ export async function previewSellerBid(req: Request, res: Response) {
     }
 
     // 2. Get details from Auth
-    const { provider_id, meter_id } = await getSellerDetailsFromAuth(user);
+    const { provider_id, meter_id, safeLimit, userId } = await getSellerDetailsFromAuth(user);
 
     // 3. Generate preview
     const result = await preview({
       provider_id,
       meter_id,
       source_type: validation.source_type as SellerBidRequest['source_type']
-    });
+    }, safeLimit, userId);
 
     return res.status(200).json(result);
 
@@ -100,14 +109,14 @@ export async function confirmSellerBid(req: Request, res: Response) {
     }
 
     // 2. Get details from Auth
-    const { provider_id, meter_id } = await getSellerDetailsFromAuth(user);
+    const { provider_id, meter_id, safeLimit, userId } = await getSellerDetailsFromAuth(user);
 
     // 3. Confirm and publish bids
     const result = await confirm({
       provider_id,
       meter_id,
       source_type: validation.source_type as SellerBidRequest['source_type']
-    }, authorizationToken);
+    }, authorizationToken, safeLimit, userId);
 
     if (result.success && result.placed_bids.length > 0) {
       const totalQty = result.placed_bids.reduce((sum: number, b: any) => sum + b.quantity_kwh, 0);
