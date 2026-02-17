@@ -36,6 +36,8 @@ import {
   phoneToE164,
 } from "../utils";
 
+import { limitValidator } from "./limit-validator";
+
 import type {
   SettlementStatus} from "../services/settlement-store";
 import type { Request, Response} from "express";
@@ -478,6 +480,37 @@ export const tradeRoutes = () => {
         console.log(
           `[API] POST /publish - User: ${prosumerDetails.fullName}, Meter: ${prosumerDetails.meterId}`,
         );
+
+        console.log(
+          "sell limitValidator payload:",
+          userId,
+          input.quantity,
+          input.deliveryDate,
+          input.startHour,
+          input.duration,
+        );
+        // 3.4 Validate Seller Limits
+        const limitCheck = await limitValidator.validateSellerLimit(
+          userId,
+          input.quantity,
+          input.deliveryDate,
+          input.startHour,
+          input.duration
+        );
+
+        console.log(`[API] Seller limit check:`, limitCheck)
+
+        if (!limitCheck.allowed) {
+          return res.status(400).json({
+            error: "LIMIT_EXCEEDED",
+            message: limitCheck.error,
+            details: {
+              limit: limitCheck.limit,
+              currentUsage: limitCheck.currentUsage,
+              remaining: limitCheck.remaining
+            }
+          });
+        }
 
         // 3.5 Prepare gift fields
         const gift = input.isGift && input.recipientPhone
