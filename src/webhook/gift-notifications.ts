@@ -54,7 +54,8 @@ export const processGiftNotifications = async ({
 
         const sellerName = sellerUser?.name || "Green Energy Seller";
         const buyerName = buyerUser?.name || buyerId || "Green Energy Buyer";
-
+        const deliveryStartDate = claimResult["beckn:offerAttributes"]?.["beckn:deliveryWindow"]?.["schema:startTime"];
+        const deliveryEndDate = claimResult["beckn:offerAttributes"]?.["beckn:deliveryWindow"]?.["schema:endTime"];
         console.log(`[GIFT-BG] Insert notification for txn ${transactionId}`);
 
         // FE will handling certificate generation and upload will send the detials only
@@ -75,6 +76,8 @@ export const processGiftNotifications = async ({
                     sellerName,
                     giftQty,
                     giftingOptionId: claimResult?.giftingOptionId,
+                    deliveryStartDate,
+                    deliveryEndDate,
                 },
             );
         }
