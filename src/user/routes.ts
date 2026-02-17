@@ -21,7 +21,6 @@ const upload = multer({
   },
 });
 const createGiftingOptionSchema = z.object({
-  beneficiaryUserId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId"),
   badge: z.string().min(1, "Badge is required"),
   deliveryDescription: z.string().min(1, "Delivery description is required"),
   quantity: z.number().positive().max(1000), // kWh
@@ -30,7 +29,7 @@ const createGiftingOptionSchema = z.object({
   startHour: z.number().int().min(0).max(23).default(10),
   duration: z.number().int().min(1).max(12).default(1),
   sourceType: z.enum(["SOLAR", "WIND", "HYDRO"]).default("SOLAR"),
-  deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 const getGiftingOptionsSchema = z.object({
@@ -233,7 +232,6 @@ export function userRoutes(): Router {
       }
 
       const {
-        beneficiaryUserId,
         badge,
         deliveryDescription,
         quantity,
@@ -247,31 +245,9 @@ export function userRoutes(): Router {
 
       const db = getDB();
 
-      // 1. Validate beneficiary
-      const beneficiary = await db.collection("users").findOne({ _id: new ObjectId(beneficiaryUserId) });
-      if (!beneficiary) {
-        return res.status(404).json({ success: false, error: "Beneficiary not found" });
-      }
-
-      if (!beneficiary.isVerifiedGiftingBeneficiary) {
-        return res.status(400).json({ success: false, error: "User is not a verified gifting beneficiary" });
-      }
-
-      // 2. Security Check: Ensure the beneficiary is in the requester's contacts
-      const contactEntry = await db.collection("contacts").findOne({
-        userId: new ObjectId(user.userId),
-        contactUserId: new ObjectId(beneficiaryUserId)
-      });
-
-      if (!contactEntry) {
-        return res.status(403).json({ success: false, error: "Beneficiary is not in your contacts" });
-      }
-
       // 3. Create gifting option
-      const giftingOption = {
-        beneficiaryUserId: new ObjectId(beneficiaryUserId),
+      const giftingOption: any = {
         badge,
-        beneficiaryName: beneficiary.name,
         deliveryDescription,
         quantity: Number(quantity || 5),
         price: Number(price || 0), // Order price (e.g., 0)
@@ -281,11 +257,13 @@ export function userRoutes(): Router {
         sourceType: sourceType || "SOLAR",
         isGift: true,
         isActive: true,
-        deliveryDate: new Date(deliveryDate),
         createdBy: new ObjectId(user.userId),
         createdAt: new Date()
       };
 
+      if (deliveryDate) {
+        giftingOption.deliveryDate = new Date(deliveryDate);
+      }
       const result = await db.collection("gifting_options").insertOne(giftingOption);
 
       return res.status(201).json({
@@ -328,7 +306,6 @@ export function userRoutes(): Router {
       }
 
       const options = await db.collection("gifting_options").find({
-        beneficiaryUserId: new ObjectId(userId),
         createdBy: new ObjectId(user.userId),
         isActive: true
       }).toArray();
