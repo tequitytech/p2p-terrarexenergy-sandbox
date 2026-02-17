@@ -175,6 +175,8 @@ export function createHourlyBid(
   return {
     hour,
     quantity_kwh: quantity,
+    existing_usage_kwh: 0,
+    generation_kwh: quantity,
     price_inr: price,
     expected_revenue_inr: Math.round(quantity * price * 100) / 100,
     delivery_window: {

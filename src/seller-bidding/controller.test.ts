@@ -14,6 +14,18 @@ jest.mock("../db", () => {
   };
 });
 
+// Mock trading rules
+jest.mock("../trade/trading-rules", () => ({
+  tradingRules: {
+    getRules: jest.fn().mockResolvedValue({
+      sellerSafetyFactor: 1.0,
+      buyerSafetyFactor: 1.0,
+      enableBuyerLimits: true,
+      enableSellerLimits: true,
+    }),
+  },
+}));
+
 // Mock the hourly-optimizer service
 jest.mock("./services/hourly-optimizer", () => ({
   preview: jest.fn(),
@@ -32,11 +44,16 @@ const { __mockFindOne: mockFindOne } = jest.requireMock("../db") as {
 };
 
 const SELLER_USER = {
+  _id: { toString: () => "abc123userId" },
   phone: "9876543210",
   profiles: {
     generationProfile: {
       did: "did:example:seller-123",
       meterNumber: "300400500",
+      capacityKW: "10",
+    },
+    consumptionProfile: {
+      sanctionedLoadKW: "10",
     },
   },
   meters: ["300400500"],
@@ -159,11 +176,15 @@ describe("previewSellerBid", () => {
 
     expect(status).toHaveBeenCalledWith(200);
     expect(json).toHaveBeenCalledWith(previewResult);
-    expect(mockedPreview).toHaveBeenCalledWith({
-      provider_id: "did:example:seller-123",
-      meter_id: "300400500",
-      source_type: "SOLAR",
-    });
+    expect(mockedPreview).toHaveBeenCalledWith(
+      {
+        provider_id: "did:example:seller-123",
+        meter_id: "300400500",
+        source_type: "SOLAR",
+      },
+      10,
+      "abc123userId"
+    );
   });
 
   it("should return 500 when preview() throws an error", async () => {
@@ -185,11 +206,16 @@ describe("previewSellerBid", () => {
 
   it("should use meters[0] as fallback when meterNumber is missing", async () => {
     mockFindOne.mockResolvedValue({
+      _id: { toString: () => "fallbackUserId" },
       phone: "9876543210",
       profiles: {
         generationProfile: {
           did: "did:example:seller-123",
+          capacityKW: "10",
           // no meterNumber
+        },
+        consumptionProfile: {
+          sanctionedLoadKW: "10",
         },
       },
       meters: ["fallback-meter-001"],
@@ -205,7 +231,9 @@ describe("previewSellerBid", () => {
     expect(mockedPreview).toHaveBeenCalledWith(
       expect.objectContaining({
         meter_id: "fallback-meter-001",
-      })
+      }),
+      expect.any(Number),
+      expect.any(String)
     );
   });
 });
@@ -265,7 +293,9 @@ describe("confirmSellerBid", () => {
         meter_id: "300400500",
         source_type: "SOLAR",
       },
-      "Bearer test-token-abc"
+      "Bearer test-token-abc",
+      10,
+      "abc123userId"
     );
   });
 
@@ -304,7 +334,9 @@ describe("confirmSellerBid", () => {
         meter_id: "300400500",
         source_type: "WIND",
       },
-      "Bearer test-token-abc"
+      "Bearer test-token-abc",
+      10,
+      "abc123userId"
     );
   });
 

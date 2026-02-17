@@ -4,10 +4,12 @@ import {
   fetchMarketData,
   calculatePrice,
 } from "../../bidding/services/market-analyzer";
+import { limitValidator } from "../../trade/limit-validator";
 import {
-  TOP_N_HOURS,
+  HOURLY_MIN_THRESHOLD,
+  HOURLY_START_TIME,
+  HOURLY_END_TIME,
 } from "../types";
-
 import {
   buildDeliveryWindow,
   buildValidityWindow,
@@ -22,6 +24,7 @@ import { analyzeCompetitorsForHour } from "./hourly-market-analyzer";
 import type {
   SellerBidRequest,
   HourlyBid,
+  SkippedHour,
   SellerPreviewResponse,
   SellerConfirmResponse,
   PlacedHourlyBid} from "../types";
@@ -41,12 +44,14 @@ function calculateExpectedRevenue(quantity: number, price: number): number {
  */
 export async function preview(
   request: SellerBidRequest,
+  safeLimit: number,
+  userId?: string,
 ): Promise<SellerPreviewResponse> {
   const targetDate = getTomorrowDate();
   console.log(`[SellerBidding] Generating preview for ${targetDate}`);
 
-  // Step 1: Get tomorrow's forecast
-  const forecast = getTomorrowForecast();
+  // Step 1: Get tomorrow's forecast using PR data and safeLimit
+  const forecast = getTomorrowForecast(safeLimit);
 
   if (!forecast) {
     console.log(`[SellerBidding] No forecast available, returning empty bids`);
@@ -76,9 +81,26 @@ export async function preview(
     };
   }
 
-  // Step 2: Filter valid hours (>= 1 kWh)
-  const { valid: validHours, skipped: skippedHours } =
+  // Step 2: Filter valid hours (>= 1 kWh) and apply time window
+  const { valid: rawValidHours, skipped: rawSkippedHours } =
     filterValidHours(forecast);
+
+  const validHours: typeof rawValidHours = [];
+  const skippedHours = [...rawSkippedHours];
+
+  for (const hourData of rawValidHours) {
+    const hourNum = parseInt(hourData.hour.split(':')[0], 10);
+    
+    // Check strict time window (default 10am - 4pm)
+    if (hourNum >= HOURLY_START_TIME && hourNum < HOURLY_END_TIME) {
+      validHours.push(hourData);
+    } else {
+      skippedHours.push({
+        hour: hourData.hour,
+        reason: `Outside trading hours (${HOURLY_START_TIME}:00 - ${HOURLY_END_TIME}:00)`
+      });
+    }
+  }
 
   if (validHours.length === 0) {
     console.log(`[SellerBidding] No valid hours found, returning empty bids`);
@@ -125,10 +147,58 @@ export async function preview(
     );
   }
 
-  // Step 4: Calculate bids for all valid hours
+  // Step 4: Fetch existing seller usage for all hours in parallel
+  const usageMap = new Map<string, number>();
+  if (userId) {
+    const usageResults = await Promise.allSettled(
+      validHours.map(async (hourData) => {
+        const hourNum = parseInt(hourData.hour.split(':')[0], 10);
+        const usage = await limitValidator.getSellerUsage(userId, targetDate, hourNum);
+        return { hour: hourData.hour, usage };
+      }),
+    );
+
+    for (const result of usageResults) {
+      if (result.status === 'fulfilled') {
+        usageMap.set(result.value.hour, result.value.usage);
+      } else {
+        console.log(
+          `[SellerBidding] Failed to fetch seller usage: ${result.reason?.message}, using full generation`,
+        );
+      }
+    }
+  }
+
+  // Step 5: Calculate bids for all valid hours, subtracting existing usage
   const allBids: HourlyBid[] = [];
+  const capacitySkipped: SkippedHour[] = [];
 
   for (const hourData of validHours) {
+    // Subtract existing seller usage (active offers + sold orders) from available capacity
+    let availableQty = hourData.excess_kwh;
+    const existingUsage = usageMap.get(hourData.hour);
+    if (existingUsage !== undefined) {
+      availableQty = Math.round(Math.min(
+        Math.max(0, safeLimit - existingUsage),
+        hourData.excess_kwh,
+      ) * 100) / 100; // Round to 2 decimal places
+
+      if (existingUsage > 0) {
+        console.log(
+          `[SellerBidding] Hour ${hourData.hour}: existing usage=${existingUsage.toFixed(2)} kWh, available=${availableQty.toFixed(2)} kWh`,
+        );
+      }
+    }
+
+    // Skip hour if remaining capacity is below threshold
+    if (availableQty < HOURLY_MIN_THRESHOLD) {
+      capacitySkipped.push({
+        hour: hourData.hour,
+        reason: `Capacity already allocated (available: ${availableQty.toFixed(2)} kWh)`,
+      });
+      continue;
+    }
+
     const deliveryWindow = buildDeliveryWindow(targetDate, hourData.hour);
     const validityWindow = buildValidityWindow(targetDate, hourData.hour);
 
@@ -146,15 +216,17 @@ export async function preview(
       marketAnalysis.lowest_competitor_price,
     );
 
-    // Calculate expected revenue
+    // Calculate expected revenue using available quantity
     const expectedRevenue = calculateExpectedRevenue(
-      hourData.excess_kwh,
+      availableQty,
       price,
     );
 
     allBids.push({
       hour: hourData.hour,
-      quantity_kwh: hourData.excess_kwh,
+      quantity_kwh: availableQty,
+      existing_usage_kwh: existingUsage ?? 0,
+      generation_kwh: hourData.excess_kwh,
       price_inr: price,
       expected_revenue_inr: expectedRevenue,
       delivery_window: deliveryWindow,
@@ -164,24 +236,23 @@ export async function preview(
     });
   }
 
-  // Step 5: Select top N hours by expected revenue
-  const sortedBids = [...allBids].sort(
-    (a, b) => b.expected_revenue_inr - a.expected_revenue_inr,
-  );
-  const selectedBids = sortedBids.slice(0, TOP_N_HOURS);
+  // Merge capacity-skipped hours into skipped list
+  skippedHours.push(...capacitySkipped);
 
-  // Log selection decision
+  // Step 5: Use all valid hours, sorted by hour for display
+  const selectedBids = [...allBids].sort(
+    (a, b) => a.hour.localeCompare(b.hour),
+  );
+
+  // Log selection
   console.log(
-    `[SellerBidding] Selected top ${selectedBids.length} hours by revenue:`,
+    `[SellerBidding] Selected ${selectedBids.length} hours:`,
   );
   for (const bid of selectedBids) {
     console.log(
       `  ${bid.hour}: ${bid.quantity_kwh} kWh @ ${bid.price_inr} INR = ${bid.expected_revenue_inr} INR`,
     );
   }
-
-  // Sort selected bids by hour for display
-  selectedBids.sort((a, b) => a.hour.localeCompare(b.hour));
 
   // Calculate summary
   const totalQuantity = selectedBids.reduce(
@@ -225,12 +296,14 @@ export async function preview(
 export async function confirm(
   request: SellerBidRequest,
   authorizationToken: string,
+  safeLimit: number,
+  userId?: string,
 ): Promise<SellerConfirmResponse> {
   const targetDate = getTomorrowDate();
   console.log(`[SellerBidding] Confirming bids for ${targetDate}`);
 
   // First generate the preview to get the selected bids
-  const previewResult = await preview(request);
+  const previewResult = await preview(request, safeLimit, userId);
 
   if (previewResult.bids.length === 0) {
     console.log(`[SellerBidding] No bids to publish`);

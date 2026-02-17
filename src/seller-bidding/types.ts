@@ -7,6 +7,16 @@ export { MarketAnalysis, CompetitorOffer, ValidityWindow, FLOOR_PRICE, DEFAULT_U
 export const HOURLY_MIN_THRESHOLD = 1.0;  // kWh - minimum biddable quantity per hour
 export const VALIDITY_BUFFER_HOURS = 4;   // Hours before delivery that offer becomes valid
 export const TOP_N_HOURS = 5;             // Number of top hours to select
+export const HOURLY_START_TIME = parseInt(process.env.HOURLY_START_TIME || '10', 10); // Start hour (24h format)
+export const HOURLY_END_TIME = parseInt(process.env.HOURLY_END_TIME || '16', 10);   // End hour (24h format)
+
+// PR (Performance Ratio) computation types
+export interface PrSlotData {
+  slot: string;       // "07:00-08:00"
+  pr_min: number;
+  pr_max: number;
+  midpoint: number;
+}
 
 // Input types
 export interface SellerBidRequest {
@@ -30,6 +40,8 @@ export interface DailyForecast {
 export interface HourlyBid {
   hour: string;                    // "12:00"
   quantity_kwh: number;
+  existing_usage_kwh: number;      // Already allocated capacity for this hour
+  generation_kwh: number;          // PR-based generation before usage subtraction
   price_inr: number;
   expected_revenue_inr: number;
   delivery_window: {
