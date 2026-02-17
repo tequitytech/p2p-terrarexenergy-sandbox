@@ -13,6 +13,7 @@ import { authMiddleware } from "../auth/routes";
 import {
   BECKN_CONTEXT_ROOT,
   ENERGY_TRADE_SCHEMA_CTX,
+  NETWORK_ID,
 } from "../constants/schemas";
 import { getDB } from "../db";
 import { catalogStore } from "../services/catalog-store";
@@ -245,7 +246,7 @@ function buildCatalog(
         {
           "@context": BECKN_CONTEXT_ROOT,
           "@type": "beckn:Item",
-          "beckn:networkId": ["p2p-interdiscom-trading-pilot-network"],
+          "beckn:networkId": [NETWORK_ID],
           "beckn:isActive": true,
           "beckn:id": itemId,
           "beckn:descriptor": {

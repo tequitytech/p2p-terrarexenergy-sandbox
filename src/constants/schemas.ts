@@ -14,3 +14,6 @@ export const ENERGY_CUSTOMER_SCHEMA_CTX = ENERGY_TRADE_SCHEMA_CTX;
 
 // Payment settlement schema for init/confirm flows
 export const PAYMENT_SETTLEMENT_SCHEMA_CTX = "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/PaymentSettlement/v1/context.jsonld";
+
+// Network identifier for P2P inter-discom trading
+export const NETWORK_ID = process.env.NETWORK_ID || "p2p-interdiscom-trading-pilot-network";
