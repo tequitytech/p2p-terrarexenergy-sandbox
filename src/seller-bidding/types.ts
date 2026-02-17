@@ -8,6 +8,14 @@ export const HOURLY_MIN_THRESHOLD = 1.0;  // kWh - minimum biddable quantity per
 export const VALIDITY_BUFFER_HOURS = 4;   // Hours before delivery that offer becomes valid
 export const TOP_N_HOURS = 5;             // Number of top hours to select
 
+// PR (Performance Ratio) computation types
+export interface PrSlotData {
+  slot: string;       // "07:00-08:00"
+  pr_min: number;
+  pr_max: number;
+  midpoint: number;
+}
+
 // Input types
 export interface SellerBidRequest {
   provider_id: string;
@@ -30,6 +38,8 @@ export interface DailyForecast {
 export interface HourlyBid {
   hour: string;                    // "12:00"
   quantity_kwh: number;
+  existing_usage_kwh: number;      // Already allocated capacity for this hour
+  generation_kwh: number;          // PR-based generation before usage subtraction
   price_inr: number;
   expected_revenue_inr: number;
   delivery_window: {

@@ -1,11 +1,8 @@
-import * as fs from 'fs';
-import * as path from 'path';
-
 import { HOURLY_MIN_THRESHOLD } from '../types';
 
-import type { DailyForecast, HourlyExcess, SkippedHour} from '../types';
+import { readPrData, calculateHourlyGeneration } from './hourly-market-analyzer';
 
-const FORECAST_FILE = path.join(__dirname, '../../../data/excess_predicted_hourly.json');
+import type { DailyForecast, HourlyExcess, SkippedHour } from '../types';
 
 /**
  * Get tomorrow's date as YYYY-MM-DD in IST (UTC+5:30)
@@ -29,49 +26,38 @@ export function getTomorrowDate(): string {
 }
 
 /**
- * Read and parse the hourly forecast file
+ * Generate tomorrow's forecast using PR computation data and safeLimit
+ * Instead of reading excess_predicted_hourly.json, calculates generation as safeLimit * random_pr
  */
-function readForecastFile(): DailyForecast[] | null {
-  try {
-    if (!fs.existsSync(FORECAST_FILE)) {
-      console.log(`[SellerBidding] Forecast file not found: ${FORECAST_FILE}`);
-      return null;
-    }
-
-    const content = fs.readFileSync(FORECAST_FILE, 'utf-8');
-    const data = JSON.parse(content) as DailyForecast[];
-
-    if (!Array.isArray(data)) {
-      console.log(`[SellerBidding] Forecast file is not an array`);
-      return null;
-    }
-
-    return data;
-  } catch (error: any) {
-    console.log(`[SellerBidding] Error reading forecast file: ${error.message}`);
-    return null;
-  }
-}
-
-/**
- * Get tomorrow's forecast from the data
- */
-export function getTomorrowForecast(): DailyForecast | null {
-  const forecasts = readForecastFile();
-  if (!forecasts) {
+export function getTomorrowForecast(safeLimit: number): DailyForecast | null {
+  const prData = readPrData();
+  if (!prData) {
     return null;
   }
 
   const tomorrow = getTomorrowDate();
-  const tomorrowForecast = forecasts.find(f => f.date === tomorrow);
+  const hourly: HourlyExcess[] = [];
 
-  if (!tomorrowForecast) {
-    console.log(`[SellerBidding] No forecast found for tomorrow (${tomorrow})`);
+  for (const prSlot of prData) {
+    // Extract start hour from slot string e.g. "10:00-11:00" -> "10:00"
+    const hour = prSlot.slot.split('-')[0];
+
+    const result = calculateHourlyGeneration(hour, safeLimit, prData);
+    if (result) {
+      hourly.push({
+        hour,
+        excess_kwh: result.generation_kwh
+      });
+    }
+  }
+
+  if (hourly.length === 0) {
+    console.log(`[SellerBidding] No generation hours calculated for ${tomorrow}`);
     return null;
   }
 
-  console.log(`[SellerBidding] Found forecast for ${tomorrow} with ${tomorrowForecast.hourly.length} hours`);
-  return tomorrowForecast;
+  console.log(`[SellerBidding] Generated PR-based forecast for ${tomorrow} with ${hourly.length} hours`);
+  return { date: tomorrow, hourly };
 }
 
 /**
