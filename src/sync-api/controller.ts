@@ -3,7 +3,9 @@ import dotenv from "dotenv";
 import { ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
+import { parseISO, differenceInHours, format } from 'date-fns';
 
+import { limitValidator } from '../trade/limit-validator';
 import { BECKN_CONTEXT_ROOT, ENERGY_TRADE_SCHEMA_CTX, PAYMENT_SETTLEMENT_SCHEMA_CTX } from '../constants/schemas';
 import { createPendingTransaction, getPendingCount, cancelPendingTransaction } from '../services/transaction-store';
 import { extractBuyerDetails } from '../trade/routes';
@@ -677,6 +679,88 @@ export async function syncSelect(req: Request, res: Response) {
       context: { ...becknRequest.context, message_id: messageId }
     };
 
+    // --- Buyer Limit Validation ---
+    const authenticatedUserId = (req as any).user?.userId;
+    if (authenticatedUserId) {
+      const orderItems = becknRequest.message?.order?.["beckn:orderItems"] || [];
+      for (const item of orderItems) {
+        const quantity = Number(item["beckn:quantity"]?.unitQuantity || 0);
+        const acceptedOffer = item["beckn:acceptedOffer"];
+
+        // Extract time window from acceptedOffer
+        const deliveryWindow =
+          acceptedOffer?.["beckn:offerAttributes"]?.deliveryWindow;
+        if (deliveryWindow && quantity > 0) {
+          try {
+            const start = parseISO(deliveryWindow["schema:startTime"]);
+            const end = parseISO(deliveryWindow["schema:endTime"]);
+            const duration = Math.max(1, differenceInHours(end, start));
+            const startHour = start.getHours();
+            const dateStr = format(start, "yyyy-MM-dd");
+
+            console.log('[SyncAPI] Validating limits for buyer>>',
+              authenticatedUserId,
+              quantity,
+              dateStr,
+              startHour,
+              duration,
+            );
+            const limitCheck = await limitValidator.validateBuyerLimit(
+              authenticatedUserId,
+              quantity,
+              dateStr,
+              startHour,
+              duration,
+            );
+            console.log('[SyncAPI] Limit check result>>', limitCheck);
+            if (!limitCheck.allowed) {
+              return res.status(400).json({
+                success: false,
+                transaction_id: transactionId,
+                error: {
+                  code: "LIMIT_EXCEEDED",
+                  message: limitCheck.error,
+                  details: {
+                    limit: limitCheck.limit,
+                    currentUsage: limitCheck.currentUsage,
+                    remaining: limitCheck.remaining,
+                  },
+                },
+              });
+            }
+          } catch (error: any) {
+            console.warn(`[SyncAPI] Failed to validate limits for item:`, error.message);
+            // Determine HTTP status and error code
+            let statusCode = 500;
+            let errorCode = "INTERNAL_ERROR";
+
+            if (error.code === "UPSTREAM_ERROR") {
+              statusCode = 502;
+              errorCode = "UPSTREAM_ERROR";
+            } else if (error.statusCode) {
+              statusCode = error.statusCode;
+            }
+
+            return res.status(statusCode).json({
+              success: false,
+              error: {
+                code: errorCode,
+                message: error.message,
+                details: error.errorDetails || null,
+              },
+            });
+          }
+        }
+      }
+    }
+    // -----------------------------
+    if(messageId){
+      return res.status(200).json({
+        success: true,
+        transaction_id: transactionId,
+        message_id: messageId,
+      });
+    }
     const response = await executeAndWait('select', becknRequest, transactionId);
 
     // Check for business error in response (e.g., insufficient inventory)
@@ -777,6 +861,79 @@ export async function syncInit(req: Request, res: Response) {
       ...becknRequest,
       context: { ...becknRequest.context, message_id: messageId }
     };
+
+    // --- Buyer Limit Validation ---
+    const authenticatedUserId = (req as any).user?.userId;
+    if (authenticatedUserId) {
+      const orderItems =
+        becknRequest.message?.order?.["beckn:orderItems"] || [];
+      for (const item of orderItems) {
+        const quantity = Number(item["beckn:quantity"]?.unitQuantity || 0);
+        // Init request (from on_select) should have acceptedOffer populated
+        const acceptedOffer = item["beckn:acceptedOffer"];
+
+        const deliveryWindow =
+          acceptedOffer?.["beckn:offerAttributes"]?.deliveryWindow;
+        if (deliveryWindow && quantity > 0) {
+          try {
+            const start = parseISO(deliveryWindow["schema:startTime"]);
+            const end = parseISO(deliveryWindow["schema:endTime"]);
+            const duration = Math.max(1, differenceInHours(end, start));
+            const startHour = start.getHours();
+            const dateStr = format(start, "yyyy-MM-dd");
+
+            const limitCheck = await limitValidator.validateBuyerLimit(
+              authenticatedUserId,
+              quantity,
+              dateStr,
+              startHour,
+              duration,
+            );
+
+            if (!limitCheck.allowed) {
+              return res.status(400).json({
+                success: false,
+                transaction_id: transactionId,
+                error: {
+                  code: "LIMIT_EXCEEDED",
+                  message: limitCheck.error,
+                  details: {
+                    limit: limitCheck.limit,
+                    currentUsage: limitCheck.currentUsage,
+                    remaining: limitCheck.remaining,
+                  },
+                },
+              });
+            }
+          } catch (error: any) {
+            console.warn(
+              `[SyncAPI] syncInit Failed to validate limits for item:`,
+              error.message,
+            );
+            // Determine HTTP status and error code
+            let statusCode = 500;
+            let errorCode = "INTERNAL_ERROR";
+
+            if (error.code === "UPSTREAM_ERROR") {
+              statusCode = 502;
+              errorCode = "UPSTREAM_ERROR";
+            } else if (error.statusCode) {
+              statusCode = error.statusCode;
+            }
+
+            return res.status(statusCode).json({
+              success: false,
+              error: {
+                code: errorCode,
+                message: error.message,
+                details: error.errorDetails || null,
+              },
+            });
+          }
+        }
+      }
+    }
+    // -----------------------------
 
     const response = await executeAndWait('init', becknRequest, transactionId);
 
@@ -893,6 +1050,78 @@ export async function syncConfirm(req: Request, res: Response) {
       ...becknRequest,
       context: { ...becknRequest.context, message_id: messageId }
     };
+
+    // --- Buyer Limit Validation ---
+    const authenticatedUserId = (req as any).user?.userId;
+    if (authenticatedUserId) {
+      const orderItems = becknRequest.message?.order?.["beckn:orderItems"] || [];
+      for (const item of orderItems) {
+        const quantity = Number(item["beckn:quantity"]?.unitQuantity || 0);
+        // Confirm request (from on_init) has acceptedOffer
+        const acceptedOffer = item["beckn:acceptedOffer"];
+
+        const deliveryWindow =
+          acceptedOffer?.["beckn:offerAttributes"]?.deliveryWindow;
+        if (deliveryWindow && quantity > 0) {
+          try {
+            const start = parseISO(deliveryWindow["schema:startTime"]);
+            const end = parseISO(deliveryWindow["schema:endTime"]);
+            const duration = Math.max(1, differenceInHours(end, start));
+            const startHour = start.getHours();
+            const dateStr = format(start, "yyyy-MM-dd");
+
+            const limitCheck = await limitValidator.validateBuyerLimit(
+              authenticatedUserId,
+              quantity,
+              dateStr,
+              startHour,
+              duration,
+            );
+
+            if (!limitCheck.allowed) {
+              return res.status(400).json({
+                success: false,
+                transaction_id: transactionId,
+                error: {
+                  code: "LIMIT_EXCEEDED",
+                  message: limitCheck.error,
+                  details: {
+                    limit: limitCheck.limit,
+                    currentUsage: limitCheck.currentUsage,
+                    remaining: limitCheck.remaining,
+                  },
+                },
+              });
+            }
+          } catch (error: any) {
+            console.warn(
+              `[SyncAPI] syncConfirm Failed to validate limits for item:`,
+              error.message,
+            );
+            // Determine HTTP status and error code
+            let statusCode = 500;
+            let errorCode = "INTERNAL_ERROR";
+
+            if (error.code === "UPSTREAM_ERROR") {
+              statusCode = 502;
+              errorCode = "UPSTREAM_ERROR";
+            } else if (error.statusCode) {
+              statusCode = error.statusCode;
+            }
+
+            return res.status(statusCode).json({
+              success: false,
+              error: {
+                code: errorCode,
+                message: error.message,
+                details: error.errorDetails || null,
+              },
+            });
+          }
+        }
+      }
+    }
+    // -----------------------------
 
     const response = await executeAndWait('confirm', becknRequest, transactionId);
 

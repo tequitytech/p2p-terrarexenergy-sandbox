@@ -4,6 +4,152 @@ import { ObjectId } from "mongodb";
 import { parseISO } from "date-fns";
 
 export const limitValidator = {
+
+        /**
+ * Validate if a buyer can purchase specific quantity for a time slot
+ */
+    async validateBuyerLimit(
+        userId: string,
+        quantity: number,
+        dateStr: string, // YYYY-MM-DD
+        startHour: number,
+        duration: number
+    ): Promise<{ allowed: boolean; limit: number; currentUsage: number; remaining: number; error?: string }> {
+
+        const rules = await tradingRules.getRules();
+        if (!rules.enableBuyerLimits) {
+            return { allowed: true, limit: Infinity, currentUsage: 0, remaining: Infinity };
+        }
+
+        const db = getDB();
+
+        // 1. Get User Profile for Sanctioned Load
+        let user;
+        try {
+            user = await db.collection("users").findOne({ _id: new ObjectId(userId) });
+        } catch (e) {
+            // Fallback if userId is not a valid ObjectId string (though it should be)
+            console.error("Invalid ObjectId for userId:", userId);
+            return { allowed: false, limit: 0, currentUsage: 0, remaining: 0, error: "Invalid user ID" };
+        }
+
+        if (!user) {
+            // If user not found, strict block
+            return { allowed: false, limit: 0, currentUsage: 0, remaining: 0, error: "User not found" };
+        }
+
+        // Buyer limited by Sanctioned Load (Consumption Profile)
+        // Using simple traversal: profiles.consumptionProfile
+        const consumptionProfile = user.profiles?.consumptionProfile;
+
+        // Fallback? If no profile, limit is 0?
+        if (!consumptionProfile) {
+            return { allowed: false, limit: 0, currentUsage: 0, remaining: 0, error: "Consumption profile not found. Please complete verification." };
+        }
+
+        const sanctionedLoadKw = parseFloat(consumptionProfile.sanctionedLoadKW || "0");
+        const safeLimit = sanctionedLoadKw * rules.buyerSafetyFactor; // kWh/h limit
+
+        // Incoming quantity is Total for the duration.
+        // Assuming uniform distribution: Hourly Qty = Quantity / Duration
+        const hourlyQty = duration > 0 ? quantity / duration : quantity;
+
+        // 2. Calculate Usage for the requested slots
+        let peakUsage = 0;
+        for (let i = 0; i < duration; i++) {
+            const hour = startHour + i;
+            const usage = await this.getBuyerUsage(userId, dateStr, hour);
+             peakUsage = Math.max(peakUsage, usage);
+
+            // Use a small epsilon for float comparison if needed, but simple > is fine for safety
+            if (usage + hourlyQty > safeLimit) {
+                return {
+                    allowed: false,
+                    limit: safeLimit,
+                    currentUsage: usage,
+                    remaining: Math.max(0, safeLimit - usage),
+                    error: `Purchase limit exceeded for ${hour}:00-${hour + 1}:00. Limit: ${safeLimit.toFixed(2)} kWh/h, Used: ${usage.toFixed(2)} kWh/h, Requested: ${hourlyQty.toFixed(2)} kWh/h.`
+                };
+            }
+        }
+
+        // Return success (using the last slot's usage/remaining is a bit ambiguous for multi-slot, but 'allowed' is true)
+        return { allowed: true, limit: safeLimit, currentUsage: peakUsage, remaining: Math.max(0, safeLimit - peakUsage) };
+    },
+
+    async getBuyerUsage(userId: string, date: string, hour: number): Promise<number> {
+        const db = getDB();
+
+        // Find overlapping buyer orders
+        // We look for orders that are NOT Cancelled/Rejected
+        const orders = await db.collection("buyer_orders").find({
+            userId: userId,
+            status: { $nin: ["CANCELLED", "REJECTED", "FAILED"] } // Exclude failed ones too
+        }).toArray();
+
+        let total = 0;
+
+
+        const createDate = (d: string, h: number) => {
+            // Create date at 00:00 IST of the given day
+            const base = new Date(`${d}T00:00:00+05:30`);
+            // Add hours safely
+            base.setHours(base.getHours() + h);
+            // Note: setHours on a Date object works in Local time of the server? 
+            // NO, Date object methods like setHours() use local time. setUTCHours() uses UTC.
+            // If server is UTC, setHours is setUTCHours.
+            // This is risky if server timezone varies.
+
+            const t = new Date(`${d}T00:00:00+05:30`).getTime();
+            return new Date(t + (h * 3600000));
+        };
+
+        const targetLocalStart = createDate(date, hour);
+        const targetLocalEnd = createDate(date, hour + 1);
+        console.log("targetLocalStart>>", targetLocalStart);
+        console.log("targetLocalEnd>>", targetLocalEnd);
+        const targetStartMs = targetLocalStart.getTime();
+        const targetEndMs = targetLocalEnd.getTime();
+
+        for (const order of orders) {
+            // Check order items
+            // Structure: order.order["beckn:orderItems"] OR order["beckn:orderItems"] depending on how it was saved
+            // In bap-webhook: saveBuyerOrder({ order: order ... }) so it's under `order` key
+            const items = order.order?.["beckn:orderItems"] || order["beckn:orderItems"] || [];
+
+            for (const item of items) {
+                const offer = item["beckn:acceptedOffer"];
+                const deliveryWindow = offer?.["beckn:offerAttributes"]?.deliveryWindow || offer?.["beckn:offerAttributes"]?.["beckn:deliveryWindow"];
+
+                if (!deliveryWindow) continue;
+
+                const startStr = deliveryWindow["schema:startTime"] || deliveryWindow["startTime"];
+                const endStr = deliveryWindow["schema:endTime"] || deliveryWindow["endTime"];
+
+                if (!startStr || !endStr) continue;
+
+                const startMs = new Date(startStr).getTime();
+                const endMs = new Date(endStr).getTime();
+
+                // Duration in hours
+                const durationMs = endMs - startMs;
+                const durationHours = durationMs / (1000 * 60 * 60);
+
+                if (durationHours <= 0) continue;
+
+                // Check overlap: (StartA < EndB) and (EndA > StartB)
+                if (startMs < targetEndMs && endMs > targetStartMs) {
+                    const qty = parseFloat(item["beckn:quantity"]?.unitQuantity || "0");
+                    console.log("qty>>", qty);
+                    console.log("durationHours>>", durationHours);
+                    // Add proportional energy
+                    total += (qty / durationHours);
+                }
+            }
+        }
+        return total;
+    },
+
     /**
      * Validate if a seller can publish/sell specific quantity
      */
