@@ -178,10 +178,10 @@ export async function preview(
     let availableQty = hourData.excess_kwh;
     const existingUsage = usageMap.get(hourData.hour);
     if (existingUsage !== undefined) {
-      availableQty = Math.min(
+      availableQty = Math.round(Math.min(
         Math.max(0, safeLimit - existingUsage),
         hourData.excess_kwh,
-      );
+      ) * 100) / 100; // Round to 2 decimal places
 
       if (existingUsage > 0) {
         console.log(
