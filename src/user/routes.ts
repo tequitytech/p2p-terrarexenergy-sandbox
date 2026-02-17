@@ -356,7 +356,7 @@ export function userRoutes(): Router {
       const solarPay = [
         {
           title: "₹0 installation cost",
-          description: "We install a premium 10kW solar system with digital backed financing. No upfront payment required."
+          description: "We install a premium 10 units solar system with digital backed financing. No upfront payment required."
         },
         {
           title: "Energy sales repay your EMI",
@@ -374,7 +374,7 @@ export function userRoutes(): Router {
   <p>Zero Upfront Solar Ownership Model (Become Urjadata)</p>
 
   <h4>1. The Big Idea</h4>
-  <p>Install a 10kW rooftop solar system at zero upfront cost. Use part of the electricity for your home. Sell the remaining electricity through our energy marketplace. The earnings from the sale automatically repay your loan. After the loan ends, you own 100% of the solar system.</p>
+  <p>Install a 10 units rooftop solar system at zero upfront cost. Use part of the electricity for your home. Sell the remaining electricity through our energy marketplace. The earnings from the sale automatically repay your loan. After the loan ends, you own 100% of the solar system.</p>
 
   <h4>2. How It Works (Simple 4 Steps)</h4>
   <p><strong>Step 1 – Instant Loan Approval</strong><br>
@@ -382,7 +382,7 @@ export function userRoutes(): Router {
   No heavy paperwork. Fast approval.</p>
 
   <p><strong>Step 2 – Professional Installation</strong><br>
-  We install a premium 10kW solar system at your home.<br>
+  We install a premium 10 units solar system at your home.<br>
   You pay nothing upfront.</p>
 
   <p><strong>Step 3 – Energy Split Model</strong><br>
@@ -396,7 +396,7 @@ export function userRoutes(): Router {
   This guaranteed payout covers your EMI.<br>
   If market price goes higher, you keep the extra profit.</p>
 
-  <h4>3. Real Example (North India – 10kW System)</h4>
+  <h4>3. Real Example (North India – 10 units System)</h4>
   <p>Average generation: 1,200 units per month</p>
   
   <p><strong>Your Share (30%)</strong><br>
@@ -557,5 +557,22 @@ export function userRoutes(): Router {
       }
     },
   );
+  
+  // GET /discoms - Get list of discoms
+  router.get("/discoms", async (req: Request, res: Response) => {
+    try {
+      const db = getDB();
+      const discoms = await db.collection("discoms").find({}, { projection: { _id: 0, name: 1, link: 1 } }).toArray();
+      console.log("[API Discom List Length]", discoms.length)
+      return res.status(200).json({
+        success: true,
+        discoms
+      });
+    } catch (error: any) {
+      console.error("[API] Error fetching discoms:", error);
+      return res.status(500).json({ success: false, error: "Failed to fetch discoms" });
+    }
+  });
+
   return router;
 }

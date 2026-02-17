@@ -106,7 +106,7 @@ describe("Voice Routes — POST /api/voice/intent", () => {
 
     const consoleSpy = jest
       .spyOn(console, "error")
-      .mockImplementation(() => {});
+      .mockImplementation(() => { });
 
     const res = await request(app)
       .post("/api/voice/intent")
@@ -158,5 +158,65 @@ describe("Voice Routes — POST /api/voice/intent", () => {
     expect(entities.time_window.unit).toBe(ENTITY_TYPES.time_window.unit);
     expect(entities.meter_id.unit).toBe(ENTITY_TYPES.meter_id.unit);
     expect(entities.source_type.unit).toBe(ENTITY_TYPES.source_type.unit);
+  });
+
+  it("should correctly handle gifting_energy intent", async () => {
+    mockClassifyIntent.mockResolvedValue({
+      intent: "gifting_energy",
+      confidence: 0.98,
+      detected_language: "en",
+      entities: [
+        { name: "quantity", value: 50 },
+      ],
+    });
+
+    const res = await request(app)
+      .post("/api/voice/intent")
+      .send({ text: "gift 50 units" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.intent).toBe("gifting_energy");
+    expect(res.body.data.entities.quantity).toEqual({
+      value: 50,
+      unit: "kWh",
+    });
+  });
+
+  it("should correctly handle 'bhet' (Hindi for gift) as gifting_energy", async () => {
+    mockClassifyIntent.mockResolvedValue({
+      intent: "gifting_energy",
+      confidence: 0.95,
+      detected_language: "hinglish",
+      entities: [
+        { name: "quantity", value: 20 },
+      ],
+    });
+
+    const res = await request(app)
+      .post("/api/voice/intent")
+      .send({ text: "20 kWh bhet dena hai" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.intent).toBe("gifting_energy");
+    expect(res.body.data.entities.quantity.value).toBe(20);
+  });
+
+  it("should correctly handle 'send' as gifting_energy", async () => {
+    mockClassifyIntent.mockResolvedValue({
+      intent: "gifting_energy",
+      confidence: 0.92,
+      detected_language: "en",
+      entities: [
+        { name: "quantity", value: 100 },
+      ],
+    });
+
+    const res = await request(app)
+      .post("/api/voice/intent")
+      .send({ text: "send 100 units" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.intent).toBe("gifting_energy");
   });
 });

@@ -92,6 +92,9 @@ export async function connectDB(): Promise<Db> {
     db.collection("notifications").createIndex({ userId: 1 }),
     db.collection("notifications").createIndex({ createdAt: -1 }),
     db.collection("notifications").createIndex({ isRead: 1 }),
+
+    // DISCOMs collection
+    db.collection("discoms").createIndex({ name: 1 }, { unique: true }),
   ]);
   return db;
 }

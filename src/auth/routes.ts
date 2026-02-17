@@ -550,6 +550,10 @@ async function verifyVc(req: Request, res: Response) {
     const did = vc.id;
     const vcType = vc.type.find((t: string) => VALID_VC_TYPES.includes(t as VCType)) as VCType;
     const profileField = VC_TYPE_TO_PROFILE[vcType];
+    console.log("did>>>",did)
+    console.log("vcType>>>",vcType)
+    console.log("profileField>>>",profileField)
+
 
     try {
       // Call external verify API
@@ -558,6 +562,9 @@ async function verifyVc(req: Request, res: Response) {
         timeout: VC_TIMEOUT,
         headers: { Authorization: createBecknAuthHeader('') },
       });
+
+      console.log("vc check response>>>",response.data);
+
       const { status, checks } = response.data;
 
       // Check verification status
@@ -575,7 +582,22 @@ async function verifyVc(req: Request, res: Response) {
       for (const check of checks || []) {
         if (check.revoked && check.revoked !== 'OK') failedChecks.push('revoked');
         if (check.expired && check.expired !== 'OK') failedChecks.push('expired');
-        if (check.proof && check.proof !== 'OK') failedChecks.push('proof');
+        /*
+         * PROOF CHECK DISABLED (Feb 2026)
+         *
+         * The VC verification service has a known bug in its revocation-checking
+         * library that causes it to return proof: "NOK" for valid, untampered
+         * credentials — specifically PVVNL-issued VCs.
+         *
+         * This was blocking customer onboarding. Confirmed with Anusree (VC team)
+         * that the credential data is intact and this is a false negative on their
+         * end. She recommended using the "get credential by ID" endpoint as the
+         * primary source of truth for onboarding until the fix is deployed.
+         *
+         * TODO: Re-enable this check once the VC service ships the library fix
+         * (planned for next phase).
+         */
+        // if (check.proof && check.proof !== 'OK') failedChecks.push('proof');
       }
 
       if (failedChecks.length > 0) {
@@ -584,6 +606,7 @@ async function verifyVc(req: Request, res: Response) {
           type: vcType,
           reason: `Verification failed: ${failedChecks.join(', ')} check failed`,
         });
+        console.log('some checks failed>>>',failed)
         continue;
       }
 
@@ -651,6 +674,7 @@ async function verifyVc(req: Request, res: Response) {
     }
   }
 
+  console.log("loop completed>>>>")
   // Update user in database
   const hasVerifiedAny = Object.keys(verified).length > 0;
   const updateDoc: any = {
@@ -670,7 +694,7 @@ async function verifyVc(req: Request, res: Response) {
 
   // Fetch updated user
   const updatedUser = await db.collection('users').findOne({ phone });
-
+  console.log("ve verify response>>>",{verified,failed})
   return res.json({
     success: true,
     verified,
@@ -767,10 +791,11 @@ async function getMe(req: Request, res: Response) {
 
   // Derive role based on generationProfile
   const role = user.profiles?.generationProfile ? 'prosumer' : 'consumer';
-
+  const DISCOM_WHEELING_RATE = process.env.DISCOM_WHEELING_RATE
   return res.json({
     success: true,
     user: {
+      discom_wheeling_rate: DISCOM_WHEELING_RATE,
       phone: user.phone,
       name: user.name,
       vcVerified: user.vcVerified || false,

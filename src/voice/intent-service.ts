@@ -64,6 +64,17 @@ SELL vs AUTO_BID RULE (CRITICAL):
   - "sell my solar power" → auto_bid (no quantity)
   - "mujhe 100 unit bechna hai" → sell_energy (has quantity)
 
+SELL vs GIFT RULE (CRITICAL):
+- Use "gifting_energy" if user uses words like "gift", "send", "transfer", "give", "bhet".
+- "sell" implies getting money return. "gift/send/give" implies giving away without return.
+- Examples:
+  - "send 50 units" → gifting_energy
+  - "gift 100 kWh" → gifting_energy
+  - "bhet dena hai" → gifting_energy
+  - "I want to gift energy" → gifting_energy
+  - "sell 50 units" → sell_energy
+  - "100 unit light transfer karni h" → gifting_energy
+
 ENTITY VALUE RULES (CRITICAL):
 - Return ONLY the raw value, NEVER include units in the value
 - quantity: Return as NUMBER (e.g., "fifty units" → 50, "100 kWh" → 100)
