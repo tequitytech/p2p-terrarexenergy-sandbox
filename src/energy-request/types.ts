@@ -6,6 +6,7 @@ export interface EnergyRequest {
   beneficiaryType?: 'social' | 'known';
   requiredEnergy: number;
   purpose: string;
+  imgUri?: string;
   startTime: string; // ISO Stringw
   endTime: string; // ISO String
   status: 'PENDING' | 'FULFILLED' | 'CANCELLED' | 'PAYMENT_PENDING';

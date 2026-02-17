@@ -25,12 +25,12 @@ export const S3Service = {
      * @param mimeType MIME type of the file
      * @returns {Promise<string>} The Key of the uploaded file
      */
-    async uploadFile(fileBuffer: Buffer, mimeType: string): Promise<string> {
+    async uploadFile(fileBuffer: Buffer, mimeType: string, folder: string): Promise<string> {
         if (!BUCKET_NAME) {
             throw new Error("AWS_BUCKET_NAME is not configured");
         }
 
-        const key = `contacts/images/${uuidv4()}-${Date.now()}`;
+        const key = `${folder}/images/${uuidv4()}-${Date.now()}`;
 
         const command = new PutObjectCommand({
             Bucket: BUCKET_NAME,
