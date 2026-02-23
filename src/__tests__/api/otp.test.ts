@@ -251,7 +251,6 @@ describe('OTP Auth Flow', () => {
             const res = await request(app)
                 .post('/api/auth/login')
                 .send({ phone: validPhone, pin: '123456' });
-            console.log("res>>", res)
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
             expect(res.body.accessToken).toBeDefined();
