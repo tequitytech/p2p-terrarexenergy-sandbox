@@ -113,7 +113,7 @@ interface JWTPayload {
   phone: string;
   userId?: string;
   iat: number;
-  exp: number; 
+  exp: number;
   type: string;
 }
 
@@ -233,12 +233,12 @@ export async function findOrCreateUser(db: Db, phone: string) {
     console.log(`[Auth] Creating new user for phone: ${phone}`);
     const timestamp = new Date()
     const result = await db.collection('users').insertOne({
-        phone,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        vcVerified: false,
-        meters: [],
-      });
+      phone,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      vcVerified: false,
+      meters: [],
+    });
     user = await db.collection("users").findOne({ _id: result.insertedId });
   }
 
@@ -271,23 +271,14 @@ async function sendOtp(req: Request, res: Response) {
   const db = getDB();
 
   try {
-    /*
-     * Pilot mode: only pre-approved users can login.
-     * Users must be added directly to the `users` collection in MongoDB
-     * before they can request an OTP. No auto-creation on first request.
-     *
-     * Previously this called findOrCreateUser() which would insert a new
-     * user record for any phone number. That is disabled for the pilot to
-     * restrict access to a curated set of participants.
-     */
-    const user = await db.collection('users').findOne({ phone });
+    const user = await findOrCreateUser(db, phone);
 
     if (!user) {
-      return res.status(403).json({
+      return res.status(500).json({
         success: false,
         error: {
-          code: 'USER_NOT_FOUND',
-          message: 'This phone number is not registered for the pilot program.',
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to find or create user.',
         },
       });
     }
@@ -306,7 +297,7 @@ async function sendOtp(req: Request, res: Response) {
         success: false,
         error: {
           code: "RATE_LIMIT_EXCEEDED",
-          message:`Max OTP send attempts reached. Please try again in ${retryAfterMinutes} minutes.`,
+          message: `Max OTP send attempts reached. Please try again in ${retryAfterMinutes} minutes.`,
         },
       });
     }
@@ -481,8 +472,8 @@ async function verifyOtp(req: Request, res: Response) {
  * This method is kept only for backward compatibility.
  */
 async function login(req: Request, res: Response) {
-  const { phone:phoneNumber, pin, fcmToken } = req.body;
-  
+  const { phone: phoneNumber, pin, fcmToken } = req.body;
+
   const phone = normalizeIndianPhone(phoneNumber);
 
   // Normalize phone (keep spaces for now, just use as-is for lookup)
@@ -545,14 +536,12 @@ async function verifyVc(req: Request, res: Response) {
   const failed: Array<{ did: string; type: string; reason: string }> = [];
   const profileUpdates: Record<string, any> = {};
   const newMeters = new Set<string>(user.meters || []);
+  let extractedName: string | undefined;
 
   for (const vc of credentials) {
     const did = vc.id;
     const vcType = vc.type.find((t: string) => VALID_VC_TYPES.includes(t as VCType)) as VCType;
     const profileField = VC_TYPE_TO_PROFILE[vcType];
-    console.log("did>>>",did)
-    console.log("vcType>>>",vcType)
-    console.log("profileField>>>",profileField)
 
 
     try {
@@ -563,7 +552,6 @@ async function verifyVc(req: Request, res: Response) {
         headers: { Authorization: createBecknAuthHeader('') },
       });
 
-      console.log("vc check response>>>",response.data);
 
       const { status, checks } = response.data;
 
@@ -606,13 +594,18 @@ async function verifyVc(req: Request, res: Response) {
           type: vcType,
           reason: `Verification failed: ${failedChecks.join(', ')} check failed`,
         });
-        console.log('some checks failed>>>',failed)
+        console.log('some checks failed>>>', failed)
         continue;
       }
 
       // Verification passed - extract credentialSubject and store
       // Map VC fields to expected profile fields
       const mappedSubject: Record<string, any> = { ...vc.credentialSubject };
+      console.log("extractedName>>>",extractedName)
+      // Extract user name from the first valid VC that contains it
+      if (!extractedName && vc?.credentialSubject?.fullName) {
+        extractedName = vc?.credentialSubject?.fullName;
+      }
 
       // Map issuerName → utilityId for all credential types that have it
       // (GenerationProfile, ConsumptionProfile, UtilityCustomer all use issuerName for DISCOM)
@@ -686,6 +679,10 @@ async function verifyVc(req: Request, res: Response) {
   if (hasVerifiedAny) {
     updateDoc.vcVerified = true;
   }
+    
+  if (extractedName && !user?.name) {
+    updateDoc.name = extractedName;
+  }
 
   await db.collection('users').updateOne(
     { phone },
@@ -694,7 +691,7 @@ async function verifyVc(req: Request, res: Response) {
 
   // Fetch updated user
   const updatedUser = await db.collection('users').findOne({ phone });
-  console.log("ve verify response>>>",{verified,failed})
+  console.log("ve verify response>>>", { verified, failed })
   return res.json({
     success: true,
     verified,
@@ -775,10 +772,10 @@ async function getMe(req: Request, res: Response) {
       },
     });
   }
-  
+
   const db = getDB();
   const user = await db.collection('users').findOne({ _id: new ObjectId(userDetails.userId) });
-  
+
   if (!user) {
     return res.status(404).json({
       success: false,
