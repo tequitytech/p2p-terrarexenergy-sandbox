@@ -194,7 +194,7 @@ describe('Auth Routes', () => {
 
   describe('POST /api/auth/login', () => {
     it('should return token and user info for valid phone + PIN', async () => {
-      await seedUser({ phone: '1234567890', pin: '123456', name: 'Test User' });
+      await seedUser({ phone: '+911234567890', pin: '123456', name: 'Test User' });
 
       const res = await request(app)
         .post('/api/auth/login')
@@ -203,13 +203,13 @@ describe('Auth Routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.token).toBeDefined();
-      expect(res.body.user.phone).toBe('1234567890');
+      expect(res.body.user.phone).toBe('+911234567890');
       expect(res.body.user.name).toBe('Test User');
       expect(res.body.user.vcVerified).toBe(false);
 
       // Verify the token is actually valid
       const decoded = verifyToken(res.body.token);
-      expect(decoded.phone).toBe('1234567890');
+      expect(decoded.phone).toBe('+911234567890');
     });
 
     it('should return 401 for wrong PIN', async () => {
@@ -270,13 +270,11 @@ describe('Auth Routes', () => {
     });
 
     it('should include userId in token when user has _id', async () => {
-      await seedUser({ phone: '1234567890', pin: '123456', name: 'Test User' });
-      const user = await getTestUser('1234567890');
-
+      await seedUser({ phone: '+911234567890', pin: '123456', name: 'Test User' });
+      const user = await getTestUser('+911234567890');
       const res = await request(app)
         .post('/api/auth/login')
         .send({ phone: '1234567890', pin: '123456' });
-
       const decoded = verifyToken(res.body.token);
       expect(decoded.userId).toBe(user!._id.toString());
     });

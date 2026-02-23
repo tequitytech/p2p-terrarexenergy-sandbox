@@ -57,6 +57,7 @@ describe('OTP Auth Flow', () => {
             updatedAt: new Date(),
             vcVerified: false,
             meters: [],
+            pin: '123456',
         });
     }
 
@@ -250,7 +251,6 @@ describe('OTP Auth Flow', () => {
             const res = await request(app)
                 .post('/api/auth/login')
                 .send({ phone: validPhone, pin: '123456' });
-
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
             expect(res.body.accessToken).toBeDefined();
