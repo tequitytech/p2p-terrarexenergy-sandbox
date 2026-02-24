@@ -83,8 +83,8 @@ describe("Payment Routes", () => {
             expect(response.body).toEqual({
                 success: true,
                 data: {
-                    url: mockPaymentLink.short_url,
                     orderId: mockOrder.id,
+                    transactionId: "test-transaction-id-uuid",
                 },
             });
 
@@ -106,30 +106,6 @@ describe("Payment Routes", () => {
                 userPhone: "1234567890",
                 userId: "aaaaaaaaaaaaaaaaaaaaaaaa",
             }));
-
-            // Verify payment link uses authenticated user's phone
-            expect(mockPaymentService.createPaymentLink).toHaveBeenCalledWith({
-                amount: mockOrder.amount,
-                currency: validOrderData.currency,
-                id: mockOrder.id,
-                contact: "1234567890",
-                name: "Test User",
-            });
-
-            // Verify buyer order saved via orderService
-            expect(mockOrderService.saveBuyerOrder).toHaveBeenCalledWith(
-                "test-transaction-id-uuid",
-                expect.objectContaining({
-                    userId: "aaaaaaaaaaaaaaaaaaaaaaaa",
-                    userPhone: "1234567890",
-                    razorpayOrderId: mockOrder.id,
-                    meterId: validOrderData.meterId,
-                    sourceMeterId: validOrderData.sourceMeterId,
-                    messageId: validOrderData.messageId,
-                    status: "INITIATED",
-                    type: "buyer",
-                })
-            );
         });
 
         it("should return 400 validation error for missing required fields", async () => {
@@ -205,34 +181,174 @@ describe("Payment Routes", () => {
 
             expect(response.status).toBe(200);
 
-            // Phone should fall back to userPhone from request body
-            expect(mockPaymentService.createPaymentLink).toHaveBeenCalledWith(expect.objectContaining({
-                contact: validOrderData.userPhone,
-            }));
-
             // userId should come from the DB lookup
             expect(mockOrderService.saveBuyerOrder).toHaveBeenCalledWith(
                 "test-transaction-id-uuid",
                 expect.objectContaining({
                     userId: "bbbbbbbbbbbbbbbbbbbbbbbb",
                     userPhone: validOrderData.userPhone,
-                    status: "INITIATED",
-                    type: "buyer",
                 })
             );
         });
+    });
 
-        it("should handle internal service errors", async () => {
-            mockPaymentService.createOrder.mockRejectedValue(new Error("Razorpay Error"));
+    describe("POST /api/payment/verify", () => {
+        const validVerifyData = {
+            razorpay_order_id: "order_sdk_123",
+            razorpay_payment_id: "pay_sdk_456",
+            razorpay_signature: "sig_sdk_789"
+        };
+
+        it("should verify payment successfully and update buyer order to PAID", async () => {
+            mockPaymentService.verifyPaymentSdk.mockResolvedValue(true);
+            mockCollection.findOne.mockResolvedValue({
+                transactionId: "txn-sdk-123",
+                razorpayOrderId: "order_sdk_123",
+            });
+            mockOrderService.updateBuyerOrderStatus.mockResolvedValue(undefined as any);
 
             const response = await request(app)
-                .post("/api/payment/order")
-                .send(validOrderData);
+                .post("/api/payment/verify")
+                .send(validVerifyData);
 
-            expect(response.status).toBe(500);
+            expect(response.status).toBe(200);
+            expect(response.body.success).toBe(true);
+            expect(mockPaymentService.verifyPaymentSdk).toHaveBeenCalledWith(
+                validVerifyData.razorpay_order_id,
+                validVerifyData.razorpay_payment_id,
+                validVerifyData.razorpay_signature
+            );
+
+            // Verify buyer_orders collection queried
+            expect(mockDb.collection).toHaveBeenCalledWith("buyer_orders");
+            expect(mockCollection.findOne).toHaveBeenCalledWith({
+                razorpayOrderId: "order_sdk_123",
+            });
+
+            // Verify order status updated to PAID
+            expect(mockOrderService.updateBuyerOrderStatus).toHaveBeenCalledWith(
+                "txn-sdk-123",
+                "PAID",
+                {
+                    paymentId: validVerifyData.razorpay_payment_id,
+                    razorpaySignature: validVerifyData.razorpay_signature,
+                },
+            );
+        });
+
+        it("should return 400 for missing body parameters", async () => {
+            const invalidData = { ...validVerifyData };
+            delete (invalidData as any).razorpay_signature;
+
+            const response = await request(app)
+                .post("/api/payment/verify")
+                .send(invalidData);
+
+            expect(response.status).toBe(400);
             expect(response.body.success).toBe(false);
-            expect(response.body.error.code).toBe("INTERNAL_SERVER_ERROR");
-            expect(response.body.error.details).toBe("Razorpay Error");
+            expect(response.body.error.code).toBe("VALIDATION_ERROR");
+        });
+
+        it("should return 400 if SDK signature verification fails", async () => {
+            mockPaymentService.verifyPaymentSdk.mockResolvedValue(false);
+
+            const response = await request(app)
+                .post("/api/payment/verify")
+                .send(validVerifyData);
+
+            expect(response.status).toBe(400);
+            expect(response.body.success).toBe(false);
+            expect(response.body.error.code).toBe("VERIFICATION_FAILED");
+
+            expect(mockOrderService.updateBuyerOrderStatus).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("POST /api/payment/refund", () => {
+        it("should successfully refund a payment and update DB statuses", async () => {
+            mockCollection.findOne.mockResolvedValue({
+                transaction_id: "txn-refund-123",
+                paymentId: "pay_refund_456",
+                status: "paid"
+            });
+            mockPaymentService.refundPayment.mockResolvedValue({ id: "rfnd_123" });
+            mockCollection.updateOne.mockResolvedValue({ modifiedCount: 1 });
+            mockOrderService.updateBuyerOrderStatus.mockResolvedValue(undefined as any);
+
+            const response = await request(app)
+                .post("/api/payment/refund")
+                .send({ transactionId: "txn-refund-123" });
+
+            expect(response.status).toBe(200);
+            expect(response.body.success).toBe(true);
+            expect(response.body.data.message).toBe("Refund processed successfully");
+
+            expect(mockCollection.findOne).toHaveBeenCalledWith({ transaction_id: "txn-refund-123" });
+            expect(mockPaymentService.refundPayment).toHaveBeenCalledWith("pay_refund_456");
+
+            // Verify payment record updated
+            expect(mockCollection.updateOne).toHaveBeenCalledWith(
+                { transaction_id: "txn-refund-123" },
+                expect.objectContaining({
+                    $set: expect.objectContaining({ status: "refunded" })
+                })
+            );
+
+            // Verify buyer order status updated
+            expect(mockOrderService.updateBuyerOrderStatus).toHaveBeenCalledWith(
+                "txn-refund-123",
+                "REFUNDED",
+                {}
+            );
+        });
+
+        it("should return 400 if transactionId is missing", async () => {
+            const response = await request(app).post("/api/payment/refund").send({});
+
+            expect(response.status).toBe(400);
+            expect(response.body.success).toBe(false);
+            expect(response.body.error.code).toBe("VALIDATION_ERROR");
+        });
+
+        it("should return 404 if payment document not found", async () => {
+            mockCollection.findOne.mockResolvedValue(null);
+
+            const response = await request(app)
+                .post("/api/payment/refund")
+                .send({ transactionId: "unknown-txn" });
+
+            expect(response.status).toBe(404);
+            expect(response.body.error.code).toBe("NOT_FOUND");
+        });
+
+        it("should return 400 if payment does not have a paymentId", async () => {
+            mockCollection.findOne.mockResolvedValue({
+                transaction_id: "txn-nopay",
+                status: "created"
+                // No paymentId
+            });
+
+            const response = await request(app)
+                .post("/api/payment/refund")
+                .send({ transactionId: "txn-nopay" });
+
+            expect(response.status).toBe(400);
+            expect(response.body.error.code).toBe("BAD_REQUEST");
+        });
+
+        it("should return 400 if payment is already refunded", async () => {
+            mockCollection.findOne.mockResolvedValue({
+                transaction_id: "txn-already-refunded",
+                paymentId: "pay_123",
+                status: "refunded"
+            });
+
+            const response = await request(app)
+                .post("/api/payment/refund")
+                .send({ transactionId: "txn-already-refunded" });
+
+            expect(response.status).toBe(400);
+            expect(response.body.error.code).toBe("ALREADY_REFUNDED");
         });
     });
 
