@@ -76,6 +76,10 @@ export const paymentRoutes = () => {
     razorpay_signature: z.string().min(1, "razorpay_signature is required"),
   });
 
+  const paymentRefundSchema = z.object({
+    transactionId: z.string().min(1, "transactionId is required"),
+  });
+
   // --- Middleware ---
   function validateBody(schema: z.ZodSchema) {
     return (req: Request, res: Response, next: NextFunction) => {
@@ -162,7 +166,7 @@ export const paymentRoutes = () => {
 
         const txnBody = {
           userPhone: phone,
-          userId: userId,
+          userId: finalUserId,
           status: "pending",
           amount,
           currency,
@@ -224,16 +228,6 @@ export const paymentRoutes = () => {
       try {
         const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
-        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-          return res.status(400).json({
-            success: false,
-            error: {
-              code: "VALIDATION_ERROR",
-              message: "Missing Razorpay verification parameters",
-            },
-          });
-        }
-
         const isValid = await paymentService.verifyPaymentSdk(
           razorpay_order_id,
           razorpay_payment_id,
@@ -253,6 +247,8 @@ export const paymentRoutes = () => {
               razorpaySignature: razorpay_signature,
             });
             console.log(`[Verify] Buyer Order ${transactionId} marked as PAID`);
+          }else {
+            console.warn(`[Verify] No buyer_order found for RZP order ${razorpay_order_id}`);
           }
 
           return res.status(200).json({
@@ -286,19 +282,10 @@ export const paymentRoutes = () => {
   router.post(
     "/payment/refund",
     authMiddleware,
+    validateBody(paymentRefundSchema),
     async (req: Request, res: Response) => {
       try {
         const { transactionId } = req.body;
-
-        if (!transactionId) {
-          return res.status(400).json({
-            success: false,
-            error: {
-              code: "VALIDATION_ERROR",
-              message: "transactionId is required",
-            },
-          });
-        }
 
         const db = getDB();
 

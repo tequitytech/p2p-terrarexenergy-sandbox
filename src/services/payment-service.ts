@@ -194,7 +194,7 @@ export const paymentService = {
         refundData.amount = Math.floor(amount * 100);
       }
       const refund = await razorpay.payments.refund(paymentId, refundData);
-      console.log("refund>>",refund)
+      console.log("[PaymentService] Refund processed:", refund);
       return refund;
     } catch (error: any) {
       console.error("[PaymentService] Error refunding payment:", error);
