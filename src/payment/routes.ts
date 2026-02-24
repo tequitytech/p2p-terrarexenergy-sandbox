@@ -61,13 +61,19 @@ export const paymentRoutes = () => {
     sourceMeterId: z.string().min(1, "sourceMeterId is required"),
     messageId: z.string().min(1, "messageId is required"),
     items: z.object({
-        "beckn:orderedItem": z.string().optional(),
-        "beckn:quantity": z.object({
-          unitQuantity: z.number().optional(),
-        }).optional(),
-      })
+      "beckn:orderedItem": z.string().optional(),
+      "beckn:quantity": z.object({
+        unitQuantity: z.number().optional(),
+      }).optional(),
+    })
       .passthrough()
       .optional(),
+  });
+
+  const paymentVerifySchema = z.object({
+    razorpay_order_id: z.string().min(1, "razorpay_order_id is required"),
+    razorpay_payment_id: z.string().min(1, "razorpay_payment_id is required"),
+    razorpay_signature: z.string().min(1, "razorpay_signature is required"),
   });
 
   // --- Middleware ---
@@ -171,15 +177,6 @@ export const paymentRoutes = () => {
           .insertOne(txnBody);
         console.log("Created payment db transaction:", trnsResp);
 
-        const paymentLink = await paymentService.createPaymentLink({
-          amount: order.amount,
-          currency,
-          id: order.id,
-          contact: phone,
-          name: notes?.name || "Customer",
-        });
-        console.log("Created Razorpay payment link:", paymentLink);
-
         // --- Save Buyer Order ---
         await orderService.saveBuyerOrder(transactionId, {
           userId: finalUserId,
@@ -200,8 +197,8 @@ export const paymentRoutes = () => {
         res.json({
           success: true,
           data: {
-            url: paymentLink.short_url,
             orderId: order.id,
+            transactionId
           },
         });
       } catch (error: any) {
@@ -211,6 +208,148 @@ export const paymentRoutes = () => {
           error: {
             code: "INTERNAL_SERVER_ERROR",
             message: "Failed to create payment order",
+            details: error.message,
+          },
+        });
+      }
+    },
+  );
+
+  // POST /api/payment/verify - Verify Razorpay SDK payment
+  router.post(
+    "/payment/verify",
+    authMiddleware,
+    validateBody(paymentVerifySchema),
+    async (req: Request, res: Response) => {
+      try {
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+          return res.status(400).json({
+            success: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message: "Missing Razorpay verification parameters",
+            },
+          });
+        }
+
+        const isValid = await paymentService.verifyPaymentSdk(
+          razorpay_order_id,
+          razorpay_payment_id,
+          razorpay_signature,
+        );
+
+        if (isValid) {
+          const db = getDB();
+          const buyerOrder = await db
+            .collection("buyer_orders")
+            .findOne({ razorpayOrderId: razorpay_order_id });
+
+          if (buyerOrder) {
+            const transactionId = buyerOrder.transactionId;
+            await orderService.updateBuyerOrderStatus(transactionId, "PAID", {
+              paymentId: razorpay_payment_id,
+              razorpaySignature: razorpay_signature,
+            });
+            console.log(`[Verify] Buyer Order ${transactionId} marked as PAID`);
+          }
+
+          return res.status(200).json({
+            success: true,
+            data: { message: "Payment verified successfully" },
+          });
+        } else {
+          return res.status(400).json({
+            success: false,
+            error: {
+              code: "VERIFICATION_FAILED",
+              message: "Payment signature verification failed",
+            },
+          });
+        }
+      } catch (error: any) {
+        console.error("[API] Error verifying payment sdk:", error);
+        return res.status(500).json({
+          success: false,
+          error: {
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to verify payment",
+            details: error.message,
+          },
+        });
+      }
+    },
+  );
+
+  // POST /api/payment/refund - Process a refund
+  router.post(
+    "/payment/refund",
+    authMiddleware,
+    async (req: Request, res: Response) => {
+      try {
+        const { transactionId } = req.body;
+
+        if (!transactionId) {
+          return res.status(400).json({
+            success: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message: "transactionId is required",
+            },
+          });
+        }
+
+        const db = getDB();
+
+        // 1. Find the payment doc
+        const payment = await db.collection("payments").findOne({ transaction_id: transactionId });
+        if (!payment) {
+          return res.status(404).json({
+            success: false,
+            error: { code: "NOT_FOUND", message: "Payment transaction not found" },
+          });
+        }
+
+        // 2. Verify payment status
+        if (!payment.paymentId) {
+          return res.status(400).json({
+            success: false,
+            error: { code: "BAD_REQUEST", message: "Payment has not been completed or missing paymentId" },
+          });
+        }
+
+        if (payment.status === "refunded") {
+          return res.status(400).json({
+            success: false,
+            error: { code: "ALREADY_REFUNDED", message: "Payment is already refunded" },
+          });
+        }
+
+        // 3. Process refund against Razorpay
+        await paymentService.refundPayment(payment.paymentId);
+
+        // 4. Update the DB statuses
+        await db.collection("payments").updateOne(
+          { transaction_id: transactionId },
+          { $set: { status: "refunded", updatedAt: new Date() } },
+        );
+
+        await orderService.updateBuyerOrderStatus(transactionId, "REFUNDED", {});
+        console.log(`[Refund] Order ${transactionId} refunded successfully`);
+
+        return res.status(200).json({
+          success: true,
+          data: { message: "Refund processed successfully" },
+        });
+
+      } catch (error: any) {
+        console.error("[API] Error processing refund:", error);
+        return res.status(500).json({
+          success: false,
+          error: {
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to process refund",
             details: error.message,
           },
         });

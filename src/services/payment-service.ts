@@ -141,6 +141,68 @@ export const paymentService = {
   },
 
   /**
+   * Verify SDK Payment Signature from Client
+   */
+  async verifyPaymentSdk(
+    razorpayOrderId: string,
+    razorpayPaymentId: string,
+    razorpaySignature: string,
+  ): Promise<boolean> {
+    const secret = rzp_key_secret;
+    if (!secret) throw new Error("RAZORPAY_KEY_SECRET not configured");
+
+    const isValid = validatePaymentVerification(
+      {
+        order_id: razorpayOrderId,
+        payment_id: razorpayPaymentId,
+      },
+      razorpaySignature,
+      secret,
+    );
+
+    console.log("isValidating SDK payment signature:", isValid);
+
+    if (isValid) {
+      const db = getDB();
+      await db.collection<PaymentData>("payments").updateOne(
+        { orderId: razorpayOrderId },
+        {
+          $set: {
+            status: PaymentStatus.PAID,
+            paymentId: razorpayPaymentId,
+            razorpaySignature,
+            updatedAt: new Date(),
+          },
+        },
+      );
+      return true;
+    } else {
+      console.warn(
+        `[PaymentService] SDK Signature verification failed for order ${razorpayOrderId}`,
+      );
+      return false;
+    }
+  },
+
+  /**
+   * Refund a Payment
+   */
+  async refundPayment(paymentId: string, amount?: number): Promise<any> {
+    try {
+      const refundData: any = {};
+      if (amount) {
+        refundData.amount = Math.floor(amount * 100);
+      }
+      const refund = await razorpay.payments.refund(paymentId, refundData);
+      console.log("refund>>",refund)
+      return refund;
+    } catch (error: any) {
+      console.error("[PaymentService] Error refunding payment:", error);
+      throw error;
+    }
+  },
+
+  /**
    * Get Payment Details
    */
   async getPayment(orderId: string): Promise<PaymentData | null> {

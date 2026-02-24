@@ -296,6 +296,83 @@ describe('PaymentService', () => {
   });
 
   // ============================================
+  // verifyPaymentSdk
+  // ============================================
+  describe('verifyPaymentSdk', () => {
+    it('should return true and update DB when signature is valid', async () => {
+      mockValidatePaymentVerification.mockReturnValue(true);
+
+      const db = getTestDB();
+      await db.collection('payments').insertOne({
+        orderId: 'order_sdk_1',
+        status: PaymentStatus.CREATED,
+        amount: 5000,
+        currency: 'INR',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const result = await paymentService.verifyPaymentSdk(
+        'order_sdk_1',
+        'pay_sdk_abc',
+        'sig_sdk_xyz'
+      );
+
+      expect(result).toBe(true);
+      expect(mockValidatePaymentVerification).toHaveBeenCalledWith(
+        { order_id: 'order_sdk_1', payment_id: 'pay_sdk_abc' },
+        'sig_sdk_xyz',
+        'test-secret-key'
+      );
+
+      const payment = await db.collection('payments').findOne({ orderId: 'order_sdk_1' });
+      expect(payment?.status).toBe(PaymentStatus.PAID);
+      expect(payment?.paymentId).toBe('pay_sdk_abc');
+      expect(payment?.razorpaySignature).toBe('sig_sdk_xyz');
+    });
+
+    it('should return false when signature verification fails', async () => {
+      mockValidatePaymentVerification.mockReturnValue(false);
+
+      const result = await paymentService.verifyPaymentSdk(
+        'order_sdk_2',
+        'pay_sdk_def',
+        'bad_sig_sdk'
+      );
+
+      expect(result).toBe(false);
+    });
+  });
+
+  // ============================================
+  // refundPayment
+  // ============================================
+  describe('refundPayment', () => {
+    it('should call razorpay.payments.refund with the paymentId and amount', async () => {
+      const mockRefundResp = { id: 'rfnd_abc', status: 'processed' };
+      const mockRefund = jest.fn().mockResolvedValue(mockRefundResp);
+
+      const razorpayModule = require('./razorpay');
+      razorpayModule.razorpay.payments = { refund: mockRefund };
+
+      const result = await paymentService.refundPayment('pay_refund_1', 100);
+
+      expect(mockRefund).toHaveBeenCalledWith('pay_refund_1', { amount: 10000 });
+      expect(result).toEqual(mockRefundResp);
+    });
+
+    it('should call razorpay.payments.refund without amount for full refund', async () => {
+      const mockRefund = jest.fn().mockResolvedValue({ id: 'rfnd_def' });
+      const razorpayModule = require('./razorpay');
+      razorpayModule.razorpay.payments = { refund: mockRefund };
+
+      await paymentService.refundPayment('pay_refund_2');
+
+      expect(mockRefund).toHaveBeenCalledWith('pay_refund_2', {});
+    });
+  });
+
+  // ============================================
   // getPayment
   // ============================================
 
