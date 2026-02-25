@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import { getDB } from "../../db";
 import { NETWORK_ID } from "../../constants/schemas";
+import { getNetworkId } from "../../utils/network-config";
 import {
   DEFAULT_UNDERCUT_PERCENT,
   FLOOR_PRICE
@@ -170,6 +171,7 @@ export async function fetchMarketData(
   startDate: string,
   endDate: string,
   sourceType: string,
+  phone?: string,
 ): Promise<CompetitorOffer[]> {
   const discoverUrl = `https://p2p.terrarexenergy.com/bap/caller/discover`;
   console.log(`[BidService] Fetching market data via ONIX: ${discoverUrl}`);
@@ -177,6 +179,7 @@ export async function fetchMarketData(
   try {
     const request = buildDiscoverRequest({
       sourceType,
+      networkId: getNetworkId(phone),
     });
 
     const response = await axios.post(discoverUrl, request, {

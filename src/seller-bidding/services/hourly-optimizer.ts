@@ -137,6 +137,7 @@ export async function preview(
       targetDate,
       targetDate,
       request.source_type,
+      request?.phone,
     );
     console.log(
       `[SellerBidding] Found ${competitorOffers.length} competitor offers`,

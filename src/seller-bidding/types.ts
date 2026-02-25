@@ -23,6 +23,7 @@ export interface SellerBidRequest {
   provider_id: string;
   meter_id: string;
   source_type: 'SOLAR' | 'WIND' | 'BATTERY';
+  phone?: string;  // User phone for mock/prod network resolution
 }
 
 // Hourly forecast structures
