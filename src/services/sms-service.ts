@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import twilio from "twilio";
 
 import type { PublishCommandInput } from "@aws-sdk/client-sns";
-import { normalizeIndianPhone } from "../auth/routes";
+import { normalizeIndianPhone } from "../utils";
 
 dotenv.config();
 

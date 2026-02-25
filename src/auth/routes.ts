@@ -15,6 +15,7 @@ import { smsService } from '../services/sms-service';
 import crypto from "crypto";
 import { createBecknAuthHeader } from '../services/ledger-client';
 import { otpSendLimiter } from "./rate-limiter";
+import { normalizeIndianPhone } from "../utils";
 
 import { getDB } from '../db';
 
@@ -246,21 +247,6 @@ export async function findOrCreateUser(db: Db, phone: string) {
 }
 
 
-export function normalizeIndianPhone(phoneNumber: string): string {
-
-  // Strip +91 if already present
-  if (phoneNumber.startsWith("+91")) {
-    phoneNumber = phoneNumber.slice(3);
-  }
-
-  // Validate 10-digit number
-  if (!/^\d{10}$/.test(phoneNumber)) {
-    throw new Error("Invalid phone number. Must be a 10-digit Indian mobile number");
-  }
-
-  // Return normalized phone with +91
-  return `+91${phoneNumber}`;
-}
 
 async function sendOtp(req: Request, res: Response) {
   let { phone: phoneNumber } = req.body;

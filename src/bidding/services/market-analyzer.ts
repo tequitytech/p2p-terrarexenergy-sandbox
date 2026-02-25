@@ -26,6 +26,7 @@ export function buildDiscoverRequest({
   deliveryMode,
   itemId,
   isActive,
+  networkId,
 }: {
   sourceType?: string;
   deliveryMode?: DeliveryMode;
@@ -33,12 +34,14 @@ export function buildDiscoverRequest({
   order?: string;
   itemId?: string;
   isActive?: boolean;
+  networkId?: string;
 }) {
   const conditions = [];
+  const resolvedNetworkId = networkId || NETWORK_ID;
 
   // Network Id - checking inside items
   conditions.push(
-    `@.beckn:items[*].beckn:networkId[*] == '${NETWORK_ID}'`,
+    `@.beckn:items[*].beckn:networkId[*] == '${resolvedNetworkId}'`,
   );
 
   // 1. Delivery Mode - checking inside item attributes

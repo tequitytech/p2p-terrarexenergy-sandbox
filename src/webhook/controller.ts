@@ -359,6 +359,7 @@ export const onSelect = (req: Request, res: Response) => {
         `[Select] Sending order with ${orderItems.length} item(s) to:`,
         callbackUrl,
       );
+      console.log("[Select] Sending order with ${orderItems.length} item(s) to:", responsePayload);
       const select_data = await axios.post(callbackUrl, responsePayload);
       console.log("[Select] Response sent successfully:", select_data.data);
     } catch (error: any) {
@@ -620,6 +621,7 @@ export const onInit = (req: Request, res: Response) => {
 
       const callbackUrl = getCallbackUrl(context, "init");
       console.log("[Init] Sending on_init to:", callbackUrl);
+      console.log("[Init] Sending on_init to:", responsePayload);
       const init_data = await axios.post(callbackUrl, responsePayload);
       console.log("[Init] Response sent:", init_data.data);
     } catch (error: any) {
@@ -882,7 +884,7 @@ export const onConfirm = (req: Request, res: Response) => {
             catalogs: [catalog],
           },
         };
-
+        console.log("[Confirm] Republishing catalog:", publishPayload);
         const publishUrl = `${ONIX_BPP_URL}/bpp/caller/publish`;
         const publishRes = await axios.post(publishUrl, publishPayload, {
           headers: { "Content-Type": "application/json" },

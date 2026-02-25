@@ -3,7 +3,8 @@ import { Router } from "express";
 import { getDB } from "../db";
 
 import type { Request, Response } from "express";
-import { authMiddleware, normalizeIndianPhone } from "../auth/routes";
+import { authMiddleware } from "../auth/routes";
+import { normalizeIndianPhone } from "../utils";
 
 import { ObjectId } from "mongodb";
 import { z } from "zod";

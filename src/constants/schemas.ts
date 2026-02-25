@@ -17,3 +17,4 @@ export const PAYMENT_SETTLEMENT_SCHEMA_CTX = "https://raw.githubusercontent.com/
 
 // Network identifier for P2P inter-discom trading
 export const NETWORK_ID = process.env.NETWORK_ID || "p2p-interdiscom-trading-pilot-network";
+export const MOCK_NETWORK_ID = process.env.MOCK_NETWORK_ID || "p2p-interdiscom-trading-aisummit-inbooth";

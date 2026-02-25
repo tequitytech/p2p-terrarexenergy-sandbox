@@ -37,6 +37,7 @@ import {
 } from "../utils";
 
 import { limitValidator } from "./limit-validator";
+import { resolveDiscom, resolveMeter, getNetworkId } from "../utils/network-config";
 
 import type {
   SettlementStatus} from "../services/settlement-store";
@@ -160,8 +161,8 @@ function extractProsumerDetails(user: any): ProsumerDetails {
 
   return {
     fullName,
-    meterId,
-    utilityId,
+    meterId: resolveMeter(user.phone, meterId, "SELLER"),
+    utilityId: resolveDiscom(user.phone, utilityId, "SELLER"),
     consumerNumber,
     providerId,
   };
@@ -191,15 +192,16 @@ export async function extractBuyerDetails(userId: ObjectId): Promise<BuyerDetail
   return {
     buyerId: profile.did || `buyer-${userId}`,
     fullName: user.name || 'Unknown',
-    meterId: profile.meterNumber || user.meters?.[0] || '',
+    meterId: resolveMeter(user.phone, profile.meterNumber || user.meters?.[0] || '', "BUYER"),
     utilityCustomerId: profile.consumerNumber || '',
-    utilityId: profile.utilityId || '',
+    utilityId: resolveDiscom(user.phone, profile.utilityId || '', "BUYER"),
   };
 }
 
 function buildCatalog(
   input: PublishInput,
   prosumer: ProsumerDetails,
+  networkId: string,
   giftFields?: { lookupHash: string; claimVerifier: string; expiresAt: string },
 ) {
   const now = new Date();
@@ -248,7 +250,7 @@ function buildCatalog(
         {
           "@context": BECKN_CONTEXT_ROOT,
           "@type": "beckn:Item",
-          "beckn:networkId": [NETWORK_ID],
+          "beckn:networkId": [networkId],
           "beckn:isActive": true,
           "beckn:id": itemId,
           "beckn:descriptor": {
@@ -443,6 +445,7 @@ export const tradeRoutes = () => {
         let prosumerDetails: ProsumerDetails;
         try {
           prosumerDetails = extractProsumerDetails(user);
+          console.log(`[API] Prosumer details:`, prosumerDetails);
         } catch (error: any) {
           // Missing generationProfile or required fields
           if (error.message.includes("generationProfile")) {
@@ -521,6 +524,7 @@ export const tradeRoutes = () => {
         const { catalog, catalogId, itemId, offerId } = buildCatalog(
           input,
           prosumerDetails,
+          getNetworkId((req as any).user?.phone),
           gift?.catalog,
         );
 
@@ -546,7 +550,7 @@ export const tradeRoutes = () => {
 
         let onixResponse = null;
         let onixError = null;
-
+        console.log(`[Publish API] Forwarding to ${forwardUrl}`, request);
         try {
           const onixRes = await axios.post(forwardUrl, request, {
             headers: { "Content-Type": "application/json" },
