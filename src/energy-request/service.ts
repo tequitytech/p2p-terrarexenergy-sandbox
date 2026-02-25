@@ -6,6 +6,8 @@ import dotenv from "dotenv";
 import { buildDiscoverRequest } from '../bidding/services/market-analyzer';
 
 import type { SourceType } from '../types';
+import { ObjectId } from "mongodb";
+import { extractBuyerDetails } from "../trade/routes";
 
 dotenv.config();
 
@@ -79,6 +81,9 @@ export async function executeDirectTransaction(
   const isDonation = pricePerUnit === 0;
   const typeLabel = isDonation ? "Donation" : "Direct Trade";
 
+  const buyerDetails = await extractBuyerDetails(new ObjectId(buyerId));
+  console.log(`[TransactionService] Buyer Details:`, JSON.stringify(buyerDetails, null, 2));
+  const { fullName, meterId, utilityCustomerId, utilityId, buyerId: buyerDid } = buyerDetails;
   console.log(
     `[TransactionService] Processing ${typeLabel} flow. Buyer: ${buyerId}, Seller: ${sellerId}, Qty: ${quantity}, Price: ${pricePerUnit}`,
   );
@@ -144,16 +149,16 @@ export async function executeDirectTransaction(
         "beckn:orderStatus": "CREATED",
         "beckn:seller": sellerId,
         "beckn:buyer": {
-          "beckn:id": buyerId,
+          "beckn:id": buyerDid || buyerId,
           "@context":
             "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
           "@type": "beckn:Buyer",
           "beckn:buyerAttributes": {
-             "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld",
-             "@type": "EnergyCustomer",
-             "meterId": `MTR-${buyerId}`,
-             "utilityCustomerId": `CUST-${buyerId}`,
-             "utilityId": "DISCOM-1" 
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld",
+            "@type": "EnergyCustomer",
+            "meterId": meterId || "TEST_BUYER_MTR",
+            "utilityCustomerId": utilityCustomerId || `CUST-${buyerId}`,
+            "utilityId": utilityId || "TEST_BUYER_DISCOM"
           }
         },
         "beckn:orderAttributes": {
@@ -179,9 +184,9 @@ export async function executeDirectTransaction(
                 "@context":
                   "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld",
                 "@type": "EnergyCustomer",
-                meterId: prosumer?.meterId || "MTR-UNKNOWN",
-                utilityCustomerId: "UTIL-CUST-77777",
-                utilityId: "DISCOM-2",
+                meterId: prosumer?.meterId || "TEST_SELLER_MTR",
+                utilityCustomerId: prosumer?.utilityCustomerId || `CUST_${sellerId}`,
+                utilityId: prosumer?.utilityId || "TEST_SELLER_DISCOM",
               },
             },
             "beckn:quantity": {
@@ -194,11 +199,12 @@ export async function executeDirectTransaction(
     },
   };
 
-  console.log(`[TransactionService] Calling Select...`);
+  console.log(`[TransactionService] Calling Select...`,JSON.stringify(selectPayload,null,2));
   let selectResponse;
   try {
       const selectRes = await axios.post(`${BASE_URI}/api/select`, selectPayload);
       selectResponse = selectRes.data;
+      console.log(`[TransactionService] Select Response:`,JSON.stringify(selectResponse,null,2));
   } catch (err: any) {
       console.error("[TransactionService] Select Failed:", JSON.stringify(err.response?.data || err.message, null, 2));
       throw err;
@@ -245,11 +251,12 @@ export async function executeDirectTransaction(
     },
   };
 
-  console.log(`[TransactionService] Calling Init...`);
+  console.log(`[TransactionService] Calling Init...`, JSON.stringify(initPayload,null,2));
   let initResponse;
   try {
     const initRes = await axios.post(`${BASE_URI}/api/init`, initPayload);
     initResponse = initRes.data;
+    console.log(`[TransactionService] Init Response:`,JSON.stringify(initResponse,null,2));
   } catch (err: any) {
     console.error("[TransactionService] Init Failed:", JSON.stringify(err.response?.data || err.message, null, 2));
     throw err;
@@ -276,11 +283,12 @@ export async function executeDirectTransaction(
     message: initResponse.message,
   };
 
-  console.log(`[TransactionService] Calling Confirm...`);
+  console.log(`[TransactionService] Calling Confirm...`,JSON.stringify(confirmPayload,null,2));
   let confirmResponse;
   try {
       const confirmRes = await axios.post(`${BASE_URI}/api/confirm`, confirmPayload);
       confirmResponse = confirmRes.data;
+      console.log(`[TransactionService] Confirm Response:`,JSON.stringify(confirmResponse,null,2));
   } catch (err: any) {
       console.error("[TransactionService] Confirm Failed:", JSON.stringify(err.response?.data || err.message, null, 2));
       throw err;
