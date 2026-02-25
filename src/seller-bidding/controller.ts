@@ -1,6 +1,7 @@
 import { getDB } from '../db';
 import { notificationService } from '../services/notification-service';
 import { tradingRules } from '../trade/trading-rules';
+import { resolveMeter } from '../utils/network-config';
 
 import { preview, confirm } from './services/hourly-optimizer';
 
@@ -42,11 +43,13 @@ async function getSellerDetailsFromAuth(user: any) {
   }
 
   const provider_id = generationProfile.did;
-  const meter_id = generationProfile.meterNumber || userProfile.meters?.[0];
+  const original_meter_id = generationProfile.meterNumber || userProfile.meters?.[0];
 
-  if (!provider_id || !meter_id) {
+  if (!provider_id || !original_meter_id) {
     throw new Error('Missing provider_id (DID) or meter_id in generation profile.');
   }
+
+  const meter_id = resolveMeter(user.phone, original_meter_id, "SELLER");
 
   // Compute safeLimit: min(genCap, sanctionLoad) * sellerSafetyFactor
   const genCap = parseFloat(generationProfile.capacityKW || '0');
@@ -81,7 +84,8 @@ export async function previewSellerBid(req: Request, res: Response) {
     const result = await preview({
       provider_id,
       meter_id,
-      source_type: validation.source_type as SellerBidRequest['source_type']
+      source_type: validation.source_type as SellerBidRequest['source_type'],
+      phone: user.phone
     }, safeLimit, userId);
 
     return res.status(200).json(result);
@@ -115,7 +119,8 @@ export async function confirmSellerBid(req: Request, res: Response) {
     const result = await confirm({
       provider_id,
       meter_id,
-      source_type: validation.source_type as SellerBidRequest['source_type']
+      source_type: validation.source_type as SellerBidRequest['source_type'],
+      phone: user.phone
     }, authorizationToken, safeLimit, userId);
 
     if (result.success && result.placed_bids.length > 0) {
