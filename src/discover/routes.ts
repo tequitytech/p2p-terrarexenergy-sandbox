@@ -3,10 +3,12 @@ import { Router } from "express";
 import z from "zod";
 
 import { buildDiscoverRequest } from "../bidding/services/market-analyzer";
+import { getNetworkId } from "../utils/network-config";
 import { SourceType } from "../types";
 
 import type { Request, Response} from "express";
 import { getDB } from "../db";
+import { authMiddleware } from "../auth/routes";
 
 const discoverSchema = z.object({
   sourceType: z.enum(SourceType).default(SourceType.SOLAR),
@@ -24,13 +26,13 @@ const discoverSchema = z.object({
 export const discoverRoutes = () => {
   const router = Router();
 
-  router.get("/discover", async (req: Request, res: Response) => {
+  router.get("/discover", authMiddleware,  async (req: Request, res: Response) => {
     const discoverUrl = `https://p2p.terrarexenergy.com/bap/caller/discover`;
     const query = discoverSchema.parse(req.query);
 
     try {
-      const request = buildDiscoverRequest(query);
-
+      const request = buildDiscoverRequest({ ...query, networkId: getNetworkId((req as any).user?.phone) });
+      console.log(`[Discover] Request:`, request);
       const response = await axios.post(discoverUrl, request, {
         headers: { "Content-Type": "application/json" },
         timeout: 15000, // 15 second timeout

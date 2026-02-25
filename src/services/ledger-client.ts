@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as crypto from 'crypto';
 
-const LEDGER_URL = process.env.LEDGER_URL || 'https://34.93.166.38.sslip.io';
+const LEDGER_URL = process.env.LEDGER_URL || 'https://ies-p2p-energy-ledger.beckn.io';
 const LEDGER_TIMEOUT = parseInt(process.env.LEDGER_TIMEOUT || '10000', 10);
 const LEDGER_RETRY_COUNT = parseInt(process.env.LEDGER_RETRY_COUNT || '3', 10);
 const LEDGER_RETRY_DELAY = parseInt(process.env.LEDGER_RETRY_DELAY || '1000', 10);

@@ -160,6 +160,15 @@ const CLAIM_SECRET_LEN = 8;
 const sha256 = (input: string): string =>
   crypto.createHash('sha256').update(input).digest('hex');
 
+export function normalizeIndianPhone(phoneNumber: string): string {
+  if (phoneNumber.startsWith("+91")) {
+    phoneNumber = phoneNumber.slice(3);
+  }
+  if (!/^\d{10}$/.test(phoneNumber)) {
+    throw new Error("Invalid phone number. Must be a 10-digit Indian mobile number");
+  }
+  return `+91${phoneNumber}`;
+}
 export function validateRecipientPhone(phone: string): void {
   if (!INDIAN_PHONE_RE.test(phone)) {
     throw new Error(

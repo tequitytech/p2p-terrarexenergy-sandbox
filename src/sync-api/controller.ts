@@ -656,6 +656,7 @@ export async function syncSelect(req: Request, res: Response) {
       let buyerDetails: BuyerDetails;
       try {
         buyerDetails = await extractBuyerDetails(new ObjectId(userId));
+        console.log(`[SyncAPI] Buyer details:`, buyerDetails);
       } catch (error: any) {
         const isProfileError = error.code === 'NO_BUYER_PROFILE';
         return res.status(isProfileError ? 403 : 500).json({
@@ -669,6 +670,7 @@ export async function syncSelect(req: Request, res: Response) {
 
       becknRequest = transformCatalogToOrder(parseResult.data, buyerDetails);
       console.log(`[SyncAPI] Transformed catalog-based request to beckn format for buyer: ${buyerDetails.buyerId}`);
+      console.log(`[SyncAPI] Transformed catalog-based request:`, JSON.stringify(becknRequest, null, 2));
     }
 
     const transactionId = becknRequest.context.transaction_id;
