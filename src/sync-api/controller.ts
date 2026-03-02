@@ -697,6 +697,19 @@ export async function syncSelect(req: Request, res: Response) {
             const start = parseISO(deliveryWindow["schema:startTime"]);
             const end = parseISO(deliveryWindow["schema:endTime"]);
             const duration = Math.max(1, differenceInHours(end, start));
+
+            // Rule 3: delivery window must be exactly 1 hour
+            if (duration !== 1) {
+              return res.status(400).json({
+                success: false,
+                transaction_id: transactionId,
+                error: {
+                  code: 'INVALID_DELIVERY_WINDOW',
+                  message: `Delivery window must be exactly 1 hour, got ${duration} hours`,
+                },
+              });
+            }
+
             const startHour = start.getHours();
             const dateStr = format(start, "yyyy-MM-dd");
 
@@ -874,6 +887,19 @@ export async function syncInit(req: Request, res: Response) {
             const start = parseISO(deliveryWindow["schema:startTime"]);
             const end = parseISO(deliveryWindow["schema:endTime"]);
             const duration = Math.max(1, differenceInHours(end, start));
+
+            // Rule 3: delivery window must be exactly 1 hour
+            if (duration !== 1) {
+              return res.status(400).json({
+                success: false,
+                transaction_id: transactionId,
+                error: {
+                  code: 'INVALID_DELIVERY_WINDOW',
+                  message: `Delivery window must be exactly 1 hour, got ${duration} hours`,
+                },
+              });
+            }
+
             const startHour = start.getHours();
             const dateStr = format(start, "yyyy-MM-dd");
 
@@ -1062,6 +1088,19 @@ export async function syncConfirm(req: Request, res: Response) {
             const start = parseISO(deliveryWindow["schema:startTime"]);
             const end = parseISO(deliveryWindow["schema:endTime"]);
             const duration = Math.max(1, differenceInHours(end, start));
+
+            // Rule 3: delivery window must be exactly 1 hour
+            if (duration !== 1) {
+              return res.status(400).json({
+                success: false,
+                transaction_id: transactionId,
+                error: {
+                  code: 'INVALID_DELIVERY_WINDOW',
+                  message: `Delivery window must be exactly 1 hour, got ${duration} hours`,
+                },
+              });
+            }
+
             const startHour = start.getHours();
             const dateStr = format(start, "yyyy-MM-dd");
 
