@@ -66,7 +66,7 @@ const publishInputSchema = z
     price: z.number().min(0).max(100), // INR/kWh — min(0) to allow gifts; refines enforce context
     deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     startHour: z.number().int().min(0).max(23).default(10),
-    duration: z.number().int().min(1).max(12).default(1),
+    duration: z.literal(1).default(1), // Rule 3: delivery window must be exactly 1 hour
     sourceType: z.enum(["SOLAR", "WIND", "HYDRO"]).default("SOLAR"),
     isGift: z.boolean().default(false),
     recipientPhone: z
