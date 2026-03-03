@@ -16,13 +16,13 @@
   },
   "message": {
     "order": {
-      "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+      "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
       "@type": "beckn:Order",
       "beckn:orderStatus": "CREATED",
       "beckn:seller": "tpddl-deg.voltbrew.energy",
       "beckn:buyer": {
         "beckn:id": "terrarex-buyer-001",
-        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
         "@type": "beckn:Buyer"
       },
       "beckn:orderAttributes": {
@@ -54,7 +54,7 @@
           },
           "beckn:acceptedOffer": {
             "beckn:id": "vb_inters|11|43.87|101010101|1769823000000|1769866200000|697de9c55a019f0013505b37|696e0b607eede50013cbe930",
-            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
             "@type": "beckn:Offer",
             "beckn:descriptor": {
               "@type": "beckn:Descriptor",
@@ -88,13 +88,13 @@
         }
       ],
       "beckn:fulfillment": {
-        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
         "@type": "beckn:Fulfillment",
         "beckn:id": "fulfillment-3f52b58b",
         "beckn:mode": "DELIVERY"
       },
       "beckn:payment": {
-        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
         "@type": "beckn:Payment",
         "beckn:id": "payment-d13d0b72",
         "beckn:amount": {

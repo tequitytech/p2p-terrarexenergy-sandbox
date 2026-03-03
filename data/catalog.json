@@ -1,5 +1,5 @@
 {
-  "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+  "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
   "@type": "beckn:Catalog",
   "beckn:id": "catalog-41434064-1770111349435",
   "beckn:descriptor": {
@@ -11,7 +11,7 @@
   "beckn:bppUri": "https://p2p.terrarexenergy.com/bpp/receiver",
   "beckn:items": [
     {
-      "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+      "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
       "@type": "beckn:Item",
       "beckn:id": "item-41434064-1770111349435",
       "beckn:descriptor": {
@@ -29,7 +29,7 @@
           "schema:name": "Lata Deka - BRPL Prosumer"
         },
         "beckn:providerAttributes": {
-          "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld",
+          "@context": "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
           "@type": "EnergyCustomer",
           "utilityId": "BRPL",
           "meterId": "41434064",
@@ -37,7 +37,7 @@
         }
       },
       "beckn:itemAttributes": {
-        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld",
+        "@context": "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
         "@type": "EnergyResource",
         "sourceType": "SOLAR",
         "meterId": "41434064"
@@ -47,7 +47,7 @@
   "beckn:offers": [
     {
       "@type": "beckn:Offer",
-      "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+      "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
       "beckn:id": "offer-41434064-1770111349435",
       "beckn:items": ["item-41434064-1770111349435"],
       "beckn:price": {
@@ -67,7 +67,7 @@
       },
       "beckn:offerAttributes": {
         "@type": "EnergyTradeOffer",
-        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld",
+        "@context": "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
         "pricingModel": "PER_KWH",
         "deliveryWindow": {
           "@type": "beckn:TimePeriod",
