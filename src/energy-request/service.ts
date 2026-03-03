@@ -119,7 +119,7 @@ export async function executeDirectTransaction(
   console.log(`[TransactionService] Published. Item: ${itemId}, Offer: ${offerId}`);
 
   const offerData = {
-      "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+      "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
       "@type": "beckn:Offer",
       "beckn:id": offerId,
       "beckn:descriptor": {
@@ -144,17 +144,17 @@ export async function executeDirectTransaction(
     message: {
       order: {
         "@context":
-          "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+          "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
         "@type": "beckn:Order",
         "beckn:orderStatus": "CREATED",
         "beckn:seller": sellerId,
         "beckn:buyer": {
           "beckn:id": buyerDid || buyerId,
           "@context":
-            "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+            "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
           "@type": "beckn:Buyer",
           "beckn:buyerAttributes": {
-            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld",
+            "@context": "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
             "@type": "EnergyCustomer",
             "meterId": meterId || "TEST_BUYER_MTR",
             "utilityCustomerId": utilityCustomerId || `CUST-${buyerId}`,
@@ -163,7 +163,7 @@ export async function executeDirectTransaction(
         },
         "beckn:orderAttributes": {
           "@context":
-            "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld",
+            "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
           "@type": "EnergyTradeOrder",
           bap_id: contextSelect.bap_id,
           bpp_id: contextSelect.bpp_id,
@@ -178,11 +178,11 @@ export async function executeDirectTransaction(
             "beckn:acceptedOffer": offerData,
             "beckn:orderItemAttributes": {
               "@context":
-                "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld",
+                "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
               "@type": "EnergyOrderItem",
               providerAttributes: {
                 "@context":
-                  "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld",
+                  "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
                 "@type": "EnergyCustomer",
                 meterId: prosumer?.meterId || "TEST_SELLER_MTR",
                 utilityCustomerId: prosumer?.utilityCustomerId || `CUST_${sellerId}`,
@@ -223,7 +223,7 @@ export async function executeDirectTransaction(
       ...selectResponse.message, // carry over order object
       "beckn:payment": {
         "@context":
-          "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+          "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
         "@type": "beckn:Payment",
         "beckn:id": crypto.randomUUID(),
         "beckn:amount": {

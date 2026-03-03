@@ -106,13 +106,13 @@ async function main() {
           }
         })),
         "beckn:fulfillment": {
-          "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+          "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
           "@type": "beckn:Fulfillment",
           "beckn:id": `fulfillment-${uuidv4().slice(0, 8)}`,
           "beckn:mode": "DELIVERY"
         },
         "beckn:payment": {
-          "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+          "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
           "@type": "beckn:Payment",
           "beckn:id": `payment-${uuidv4().slice(0, 8)}`,
           "beckn:amount": {

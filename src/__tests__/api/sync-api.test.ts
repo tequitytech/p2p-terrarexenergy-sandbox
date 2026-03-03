@@ -52,10 +52,10 @@ const mockedTransactionStore = transactionStore as jest.Mocked<typeof transactio
 // Helper function to create spec-compliant select order
 function createSpecCompliantSelectOrder() {
   return {
-    '@context': 'https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld',
+    '@context': 'https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld',
     '@type': 'beckn:Order',
     'beckn:buyer': {
-      '@context': 'https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld',
+      '@context': 'https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld',
       '@type': 'beckn:Buyer',
       'beckn:id': 'buyer-001',
       'beckn:buyerAttributes': {
@@ -95,7 +95,7 @@ function createSpecCompliantSelectOrder() {
           unitText: 'kWh'
         },
         'beckn:acceptedOffer': {
-          '@context': 'https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld',
+          '@context': 'https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld',
           '@type': 'beckn:Offer',
           'beckn:id': 'offer-001',
           'beckn:offerAttributes': {
