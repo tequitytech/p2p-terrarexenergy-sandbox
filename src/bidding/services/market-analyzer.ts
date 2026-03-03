@@ -93,7 +93,7 @@ export function buildDiscoverRequest({
         country: { code: "IND", name: "India" },
       },
       schema_context: [
-        "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld",
+        "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
       ],
     },
     message: {

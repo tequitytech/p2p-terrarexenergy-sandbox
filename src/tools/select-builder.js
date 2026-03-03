@@ -12,7 +12,7 @@ const BAP = {
 };
 
 // Schema context URL for EnergyTrade v0.3
-const ENERGY_TRADE_CONTEXT = 'https://raw.githubusercontent.com/beckn/protocol-specifications-v2/refs/heads/p2p-trading/schema/EnergyTrade/v0.3/context.jsonld';
+const ENERGY_TRADE_CONTEXT = 'https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld';
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
 const ask = q => new Promise(r => rl.question(q, r));
@@ -102,12 +102,12 @@ async function main() {
     },
     message: {
       order: {
-        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
         "@type": "beckn:Order",
         "beckn:orderStatus": "CREATED",
         "beckn:seller": provider,
         "beckn:buyer": {
-          "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+          "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
           "@type": "beckn:Buyer",
           "beckn:id": buyerId,
           "beckn:buyerAttributes": {
@@ -143,7 +143,7 @@ async function main() {
           },
           "beckn:quantity": { "unitQuantity": qty, "unitText": "kWh" },
           "beckn:acceptedOffer": {
-            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld",
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
             "@type": "beckn:Offer",
             "beckn:id": offer['beckn:id'],
             "beckn:descriptor": offer['beckn:descriptor'],

@@ -209,7 +209,7 @@ export function createBecknItem(
   sourceType: string = 'SOLAR'
 ): any {
   return {
-    '@context': 'https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld',
+    '@context': 'https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld',
     '@type': 'beckn:Item',
     'beckn:id': itemId,
     'beckn:descriptor': {
@@ -244,7 +244,7 @@ export function createBecknOffer(
   quantity: number
 ): any {
   return {
-    '@context': 'https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld',
+    '@context': 'https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld',
     '@type': 'beckn:Offer',
     'beckn:id': offerId,
     'beckn:provider': providerId,
@@ -276,7 +276,7 @@ export function createBecknCatalog(
   offers: any[]
 ): any {
   return {
-    '@context': 'https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld',
+    '@context': 'https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld',
     '@type': 'beckn:Catalog',
     'beckn:id': catalogId,
     'beckn:descriptor': { '@type': 'beckn:Descriptor', 'schema:name': 'Test Catalog' },
