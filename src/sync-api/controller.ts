@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { parseISO, differenceInHours, format } from 'date-fns';
 
 import { limitValidator } from '../trade/limit-validator';
-import { BECKN_CONTEXT_ROOT, ENERGY_TRADE_SCHEMA_CTX, PAYMENT_SETTLEMENT_SCHEMA_CTX } from '../constants/schemas';
+import { BECKN_CONTEXT_ROOT, ENERGY_TRADE_SCHEMA_CTX, PAYMENT_SETTLEMENT_SCHEMA_CTX, MIN_DELIVERY_GAP_HOURS } from '../constants/schemas';
 import { createPendingTransaction, getPendingCount, cancelPendingTransaction } from '../services/transaction-store';
 import { extractBuyerDetails } from '../trade/routes';
 
@@ -698,6 +698,36 @@ export async function syncSelect(req: Request, res: Response) {
             const end = parseISO(deliveryWindow["schema:endTime"]);
             const duration = Math.max(1, differenceInHours(end, start));
 
+            // Check: validity window must not have expired
+            const validityWindow =
+              acceptedOffer?.["beckn:offerAttributes"]?.validityWindow;
+            if (validityWindow) {
+              const validityEnd = new Date(validityWindow["schema:endTime"]);
+              if (Date.now() > validityEnd.getTime()) {
+                return res.status(400).json({
+                  success: false,
+                  transaction_id: transactionId,
+                  error: {
+                    code: 'OFFER_EXPIRED',
+                    message: `Offer validity has expired`,
+                  },
+                });
+              }
+            }
+
+            // Check: delivery must be at least 4 hours from now
+            const hoursUntilDelivery = (start.getTime() - Date.now()) / (1000 * 60 * 60);
+            if (hoursUntilDelivery < MIN_DELIVERY_GAP_HOURS) {
+              return res.status(400).json({
+                success: false,
+                transaction_id: transactionId,
+                error: {
+                  code: 'DELIVERY_TOO_SOON',
+                  message: `Delivery must be at least ${MIN_DELIVERY_GAP_HOURS} hours from now. Current gap: ${hoursUntilDelivery.toFixed(1)} hours`,
+                },
+              });
+            }
+
             // Rule 3: delivery window must be exactly 1 hour
             if (duration !== 1) {
               return res.status(400).json({
@@ -708,6 +738,41 @@ export async function syncSelect(req: Request, res: Response) {
                   message: `Delivery window must be exactly 1 hour, got ${duration} hours`,
                 },
               });
+            }
+
+            // Rule 4b: Buyer meterId must differ from provider meterId
+            const providerAttrs = item["beckn:orderItemAttributes"]?.providerAttributes;
+            const providerMeterId = providerAttrs?.meterId || item["beckn:itemAttributes"]?.meterId;
+            const buyerAttrs = becknRequest.message?.order?.["beckn:buyer"]?.["beckn:buyerAttributes"];
+            const buyerMeterId = buyerAttrs?.meterId;
+            const buyerUtilityId = buyerAttrs?.utilityId;
+
+            if (buyerMeterId === providerMeterId) {
+              return res.status(400).json({
+                success: false,
+                transaction_id: transactionId,
+                error: {
+                  code: 'SELF_TRADING_NOT_ALLOWED',
+                  message: 'Buyer meterId cannot be the same as provider meterId'
+                }
+              });
+            }
+
+            // Test ID consistency
+            const providerUtilityId = providerAttrs?.utilityId;
+            const isProviderTest = providerMeterId?.startsWith("TEST_") || providerUtilityId?.startsWith("TEST_");
+
+            if (isProviderTest) {
+              if (buyerMeterId !== "TEST_METER_BUYER" || buyerUtilityId !== "TEST_DISCOM_BUYER") {
+                return res.status(400).json({
+                  success: false,
+                  transaction_id: transactionId,
+                  error: {
+                    code: 'TEST_CONSISTENCY_FAILED',
+                    message: 'Provider uses test identifiers, but buyer does not have correct test identifiers (TEST_METER_BUYER, TEST_DISCOM_BUYER)'
+                  }
+                });
+              }
             }
 
             const startHour = start.getHours();
@@ -888,6 +953,36 @@ export async function syncInit(req: Request, res: Response) {
             const end = parseISO(deliveryWindow["schema:endTime"]);
             const duration = Math.max(1, differenceInHours(end, start));
 
+            // Check: validity window must not have expired
+            const validityWindow =
+              acceptedOffer?.["beckn:offerAttributes"]?.validityWindow;
+            if (validityWindow) {
+              const validityEnd = new Date(validityWindow["schema:endTime"]);
+              if (Date.now() > validityEnd.getTime()) {
+                return res.status(400).json({
+                  success: false,
+                  transaction_id: transactionId,
+                  error: {
+                    code: 'OFFER_EXPIRED',
+                    message: `Offer validity has expired`,
+                  },
+                });
+              }
+            }
+
+            // Check: delivery must be at least 4 hours from now
+            const hoursUntilDelivery = (start.getTime() - Date.now()) / (1000 * 60 * 60);
+            if (hoursUntilDelivery < MIN_DELIVERY_GAP_HOURS) {
+              return res.status(400).json({
+                success: false,
+                transaction_id: transactionId,
+                error: {
+                  code: 'DELIVERY_TOO_SOON',
+                  message: `Delivery must be at least ${MIN_DELIVERY_GAP_HOURS} hours from now. Current gap: ${hoursUntilDelivery.toFixed(1)} hours`,
+                },
+              });
+            }
+
             // Rule 3: delivery window must be exactly 1 hour
             if (duration !== 1) {
               return res.status(400).json({
@@ -898,6 +993,41 @@ export async function syncInit(req: Request, res: Response) {
                   message: `Delivery window must be exactly 1 hour, got ${duration} hours`,
                 },
               });
+            }
+
+            // Rule 4b: Buyer meterId must differ from provider meterId
+            const providerAttrs = item["beckn:orderItemAttributes"]?.providerAttributes;
+            const providerMeterId = providerAttrs?.meterId || item["beckn:itemAttributes"]?.meterId;
+            const buyerAttrs = becknRequest.message?.order?.["beckn:buyer"]?.["beckn:buyerAttributes"];
+            const buyerMeterId = buyerAttrs?.meterId;
+            const buyerUtilityId = buyerAttrs?.utilityId;
+
+            if (buyerMeterId === providerMeterId) {
+              return res.status(400).json({
+                success: false,
+                transaction_id: transactionId,
+                error: {
+                  code: 'SELF_TRADING_NOT_ALLOWED',
+                  message: 'Buyer meterId cannot be the same as provider meterId'
+                }
+              });
+            }
+
+            // Test ID consistency
+            const providerUtilityId = providerAttrs?.utilityId;
+            const isProviderTest = providerMeterId?.startsWith("TEST_") || providerUtilityId?.startsWith("TEST_");
+
+            if (isProviderTest) {
+              if (buyerMeterId !== "TEST_METER_BUYER" || buyerUtilityId !== "TEST_DISCOM_BUYER") {
+                return res.status(400).json({
+                  success: false,
+                  transaction_id: transactionId,
+                  error: {
+                    code: 'TEST_CONSISTENCY_FAILED',
+                    message: 'Provider uses test identifiers, but buyer does not have correct test identifiers (TEST_METER_BUYER, TEST_DISCOM_BUYER)'
+                  }
+                });
+              }
             }
 
             const startHour = start.getHours();
@@ -1089,6 +1219,36 @@ export async function syncConfirm(req: Request, res: Response) {
             const end = parseISO(deliveryWindow["schema:endTime"]);
             const duration = Math.max(1, differenceInHours(end, start));
 
+            // Check: validity window must not have expired
+            const validityWindow =
+              acceptedOffer?.["beckn:offerAttributes"]?.validityWindow;
+            if (validityWindow) {
+              const validityEnd = new Date(validityWindow["schema:endTime"]);
+              if (Date.now() > validityEnd.getTime()) {
+                return res.status(400).json({
+                  success: false,
+                  transaction_id: transactionId,
+                  error: {
+                    code: 'OFFER_EXPIRED',
+                    message: `Offer validity has expired`,
+                  },
+                });
+              }
+            }
+
+            // Check: delivery must be at least 4 hours from now
+            const hoursUntilDelivery = (start.getTime() - Date.now()) / (1000 * 60 * 60);
+            if (hoursUntilDelivery < MIN_DELIVERY_GAP_HOURS) {
+              return res.status(400).json({
+                success: false,
+                transaction_id: transactionId,
+                error: {
+                  code: 'DELIVERY_TOO_SOON',
+                  message: `Delivery must be at least ${MIN_DELIVERY_GAP_HOURS} hours from now. Current gap: ${hoursUntilDelivery.toFixed(1)} hours`,
+                },
+              });
+            }
+
             // Rule 3: delivery window must be exactly 1 hour
             if (duration !== 1) {
               return res.status(400).json({
@@ -1099,6 +1259,41 @@ export async function syncConfirm(req: Request, res: Response) {
                   message: `Delivery window must be exactly 1 hour, got ${duration} hours`,
                 },
               });
+            }
+
+            // Rule 4b: Buyer meterId must differ from provider meterId
+            const providerAttrs = item["beckn:orderItemAttributes"]?.providerAttributes;
+            const providerMeterId = providerAttrs?.meterId || item["beckn:itemAttributes"]?.meterId;
+            const buyerAttrs = becknRequest.message?.order?.["beckn:buyer"]?.["beckn:buyerAttributes"];
+            const buyerMeterId = buyerAttrs?.meterId;
+            const buyerUtilityId = buyerAttrs?.utilityId;
+
+            if (buyerMeterId === providerMeterId) {
+              return res.status(400).json({
+                success: false,
+                transaction_id: transactionId,
+                error: {
+                  code: 'SELF_TRADING_NOT_ALLOWED',
+                  message: 'Buyer meterId cannot be the same as provider meterId'
+                }
+              });
+            }
+
+            // Test ID consistency
+            const providerUtilityId = providerAttrs?.utilityId;
+            const isProviderTest = providerMeterId?.startsWith("TEST_") || providerUtilityId?.startsWith("TEST_");
+
+            if (isProviderTest) {
+              if (buyerMeterId !== "TEST_METER_BUYER" || buyerUtilityId !== "TEST_DISCOM_BUYER") {
+                return res.status(400).json({
+                  success: false,
+                  transaction_id: transactionId,
+                  error: {
+                    code: 'TEST_CONSISTENCY_FAILED',
+                    message: 'Provider uses test identifiers, but buyer does not have correct test identifiers (TEST_METER_BUYER, TEST_DISCOM_BUYER)'
+                  }
+                });
+              }
             }
 
             const startHour = start.getHours();
