@@ -14,8 +14,6 @@ import {
   BECKN_CONTEXT_ROOT,
   ENERGY_TRADE_SCHEMA_CTX,
   NETWORK_ID,
-  MIN_DELIVERY_GAP_HOURS,
-  MIN_VALIDITY_GAP_HOURS,
 } from "../constants/schemas";
 import { getDB } from "../db";
 import { catalogStore } from "../services/catalog-store";
@@ -216,16 +214,16 @@ function buildCatalog(
   const deliveryStartIST = new Date(`${input.deliveryDate}T${String(input.startHour).padStart(2, "0")}:00:00+05:30`);
   const deliveryStart = deliveryStartIST.toISOString();
 
-  const deliveryEndIST = new Date(deliveryStartIST.getTime() + input.duration * 60 * 60 * 1000);
+  const deliveryEndIST = new Date(`${input.deliveryDate}T${String(input.startHour + input.duration).padStart(2, "0")}:00:00+05:30`);
   const deliveryEnd = deliveryEndIST.toISOString();
 
   const validityStart = now.toISOString();
 
   // Handle edge case where validity end crosses to previous day
-  let validityEndHour = input.startHour - MIN_VALIDITY_GAP_HOURS;
+  let validityEndHour = input.startHour - 1;
   let validityEndDate = input.deliveryDate;
   if (validityEndHour < 0) {
-    validityEndHour = 24 + validityEndHour;
+    validityEndHour = 23;
     // Subtract one day from deliveryDate
     const prevDay = new Date(input.deliveryDate);
     prevDay.setDate(prevDay.getDate() - 1);
@@ -290,7 +288,7 @@ function buildCatalog(
           "beckn:id": offerId,
           "beckn:descriptor": {
             "@type": "beckn:Descriptor",
-            "schema:name": `Solar Energy Offer - ${input.startHour}:00-${(input.startHour + input.duration) % 24}:00`,
+            "schema:name": `Solar Energy Offer - ${input.startHour}:00-${input.startHour + input.duration}:00`,
           },
           "beckn:provider": prosumer.providerId,
           "beckn:items": [itemId],
@@ -494,17 +492,7 @@ export const tradeRoutes = () => {
           input.startHour,
           input.duration,
         );
-        // 3.4 Validate delivery time is at least 4 hours from now
-        const deliveryStartIST = new Date(`${input.deliveryDate}T${String(input.startHour).padStart(2, "0")}:00:00+05:30`);
-        const hoursUntilDelivery = (deliveryStartIST.getTime() - Date.now()) / (1000 * 60 * 60);
-        if (hoursUntilDelivery < MIN_DELIVERY_GAP_HOURS) {
-          return res.status(400).json({
-            error: "DELIVERY_TOO_SOON",
-            message: `Delivery must be at least ${MIN_DELIVERY_GAP_HOURS} hours from now. Current gap: ${hoursUntilDelivery.toFixed(1)} hours`,
-          });
-        }
-
-        // 3.5 Validate Seller Limits
+        // 3.4 Validate Seller Limits
         const limitCheck = await limitValidator.validateSellerLimit(
           userId,
           input.quantity,

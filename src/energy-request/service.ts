@@ -89,22 +89,9 @@ export async function executeDirectTransaction(
   );
 
   // 1. ALWAYS Publish New Catalog Integration
-  // 5 hours ahead
-  const now = new Date();
-  const deliveryIST = new Date(now.getTime() + 5 * 60 * 60 * 1000);
-
-  // Use hourCycle: 'h23' to guarantee 00-23 format instead of 24
-  const options: Intl.DateTimeFormatOptions = {
-    timeZone: 'Asia/Kolkata',
-    hourCycle: 'h23'
-  };
-
-  const year = deliveryIST.toLocaleString('en-US', { ...options, year: 'numeric' });
-  const month = deliveryIST.toLocaleString('en-US', { ...options, month: '2-digit' });
-  const day = deliveryIST.toLocaleString('en-US', { ...options, day: '2-digit' });
-  const startHour = Number(deliveryIST.toLocaleString('en-US', { ...options, hour: '2-digit' }));
-
-  const deliveryDate = `${year}-${month}-${day}`;
+  // 1. Publish using the simplified /api/publish endpoint
+  const deliveryDate = new Date().toISOString().split('T')[0];
+  const startHour = new Date().getHours() + 1 > 23 ? 0 : new Date().getHours() + 1;
 
   const effectivePrice = pricePerUnit === 0 ? 0.01 : pricePerUnit;
 
@@ -169,9 +156,9 @@ export async function executeDirectTransaction(
           "beckn:buyerAttributes": {
             "@context": "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
             "@type": "EnergyCustomer",
-            "meterId": meterId || "TEST_METER_BUYER",
+            "meterId": meterId || "TEST_BUYER_MTR",
             "utilityCustomerId": utilityCustomerId || `CUST-${buyerId}`,
-            "utilityId": utilityId || "TEST_DISCOM_BUYER"
+            "utilityId": utilityId || "TEST_BUYER_DISCOM"
           }
         },
         "beckn:orderAttributes": {
@@ -197,9 +184,9 @@ export async function executeDirectTransaction(
                 "@context":
                   "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
                 "@type": "EnergyCustomer",
-                meterId: prosumer?.meterId || "TEST_METER_SELLER",
+                meterId: prosumer?.meterId || "TEST_SELLER_MTR",
                 utilityCustomerId: prosumer?.utilityCustomerId || `CUST_${sellerId}`,
-                utilityId: prosumer?.utilityId || "TEST_DISCOM_SELLER",
+                utilityId: prosumer?.utilityId || "TEST_SELLER_DISCOM",
               },
             },
             "beckn:quantity": {
