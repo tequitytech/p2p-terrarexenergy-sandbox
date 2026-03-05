@@ -68,7 +68,7 @@ export const limitValidator = {
                     limit: safeLimit,
                     currentUsage: usage,
                     remaining: Math.max(0, safeLimit - usage),
-                    error: `Purchase limit exceeded for ${hour}:00-${hour + 1}:00. Limit: ${safeLimit.toFixed(2)} kWh/h, Used: ${usage.toFixed(2)} kWh/h, Requested: ${hourlyQty.toFixed(2)} kWh/h.`
+                    error: `Purchase limit exceeded for ${String(hour % 24).padStart(2, "0")}:00-${String((hour + 1) % 24).padStart(2, "0")}:00. Limit: ${safeLimit.toFixed(2)} kWh/h, Used: ${usage.toFixed(2)} kWh/h, Requested: ${hourlyQty.toFixed(2)} kWh/h.`
                 };
             }
         }
@@ -218,7 +218,7 @@ export const limitValidator = {
                     limit: safeLimit,
                     currentUsage: usage,
                     remaining: Math.max(0, safeLimit - usage),
-                    error: `Selling limit exceeded for ${hour}:00-${hour + 1}:00. Limit: ${safeLimit.toFixed(2)} kWh/h, Allocated: ${usage.toFixed(2)} kWh/h, Requested: ${hourlyQty.toFixed(2)} kWh/h.`
+                    error: `Selling limit exceeded for ${String(hour % 24).padStart(2, "0")}:00-${String((hour + 1) % 24).padStart(2, "0")}:00. Limit: ${safeLimit.toFixed(2)} kWh/h, Allocated: ${usage.toFixed(2)} kWh/h, Requested: ${hourlyQty.toFixed(2)} kWh/h.`
                 };
             }
         }

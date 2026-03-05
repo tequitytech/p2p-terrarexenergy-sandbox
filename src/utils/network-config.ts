@@ -49,10 +49,10 @@ export function resolveDiscom(
         //we need to use only PVVNL as mention on instrudction
 
         // if (originalDiscom) {
-            // return "TEST_PVVNL";
+        // return "TEST_PVVNL";
         // }
-        console.log(`[API] User is mock`, `TEST_${role}_DISCOM`);
-        return `TEST_${role}_DISCOM`;
+        console.log(`[API] User is mock`, `TEST_DISCOM_${role}`);
+        return `TEST_DISCOM_${role}`;
     }
     // Production users trade on their actual network discom
     console.log(`[API] User is prod`, originalDiscom);
@@ -70,12 +70,8 @@ export function resolveMeter(
     role: "BUYER" | "SELLER"
 ): string {
     if (isMockUser(phone)) {
-        if (originalMeter) {
-            console.log(`[API] User is mock`, `TEST_${role}_MTR_${originalMeter}`);
-            return `TEST_${role}_MTR_${originalMeter}`;
-        }
-        console.log(`[API] User is mock`, `TEST_${role}_MTR`);
-        return `TEST_${role}_MTR`;
+        console.log(`[API] User is mock`, `TEST_METER_${role}`, '--Meter id is:-', originalMeter);
+        return `TEST_METER_${role}`;
     }
     // Production users trade on their actual network meter
     console.log(`[API] User is prod`, originalMeter);
