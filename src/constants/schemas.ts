@@ -1,8 +1,8 @@
 
-export const BECKN_CONTEXT_ROOT = "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld";
+// export const BECKN_CONTEXT_ROOT = "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld";
 
 //after change the url while publish we got the error so again changed to the old one
-// export const BECKN_CONTEXT_ROOT = "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld";
+export const BECKN_CONTEXT_ROOT = "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld";
 
 // DEG P2P Trading uses consolidated EnergyTrade schema from protocol-specifications-v2
 export const ENERGY_TRADE_SCHEMA_CTX = "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld";
