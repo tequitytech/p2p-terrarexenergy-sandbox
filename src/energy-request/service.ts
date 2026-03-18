@@ -167,7 +167,7 @@ export async function executeDirectTransaction(
             "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
           "@type": "beckn:Buyer",
           "beckn:buyerAttributes": {
-            "@context": "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
+            "@context": "https://raw.githubusercontent.com/beckn/DEG/tags/deg-1.0.0/specification/schema/EnergyTrade/v0.3/context.jsonld",
             "@type": "EnergyCustomer",
             "meterId": meterId || "TEST_METER_BUYER",
             "utilityCustomerId": utilityCustomerId || `CUST-${buyerId}`,
