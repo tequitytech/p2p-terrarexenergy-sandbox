@@ -8,6 +8,7 @@ import { buildDiscoverRequest } from '../bidding/services/market-analyzer';
 import type { SourceType } from '../types';
 import { ObjectId } from "mongodb";
 import { extractBuyerDetails } from "../trade/routes";
+import { ENERGY_TRADE_ORDER_SCHEMA_CTX } from "../constants/schemas";
 
 dotenv.config();
 
@@ -175,8 +176,7 @@ export async function executeDirectTransaction(
           }
         },
         "beckn:orderAttributes": {
-          "@context":
-            "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
+          "@context":ENERGY_TRADE_ORDER_SCHEMA_CTX,
           "@type": "EnergyTradeOrder",
           bap_id: contextSelect.bap_id,
           bpp_id: contextSelect.bpp_id,
@@ -190,12 +190,10 @@ export async function executeDirectTransaction(
             "beckn:orderedItem": itemId,
             "beckn:acceptedOffer": offerData,
             "beckn:orderItemAttributes": {
-              "@context":
-                "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
+              "@context":ENERGY_TRADE_ORDER_SCHEMA_CTX,
               "@type": "EnergyOrderItem",
               providerAttributes: {
-                "@context":
-                  "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
+                "@context":ENERGY_TRADE_ORDER_SCHEMA_CTX,
                 "@type": "EnergyCustomer",
                 meterId: prosumer?.meterId || "TEST_METER_SELLER",
                 utilityCustomerId: prosumer?.utilityCustomerId || `CUST_${sellerId}`,

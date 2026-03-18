@@ -2,7 +2,7 @@ import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 
 import { getDB } from "../../db";
-import { NETWORK_ID } from "../../constants/schemas";
+import { ENERGY_DISCOVER_SCHEMA_CTX, NETWORK_ID } from "../../constants/schemas";
 import { getNetworkId } from "../../utils/network-config";
 import {
   DEFAULT_UNDERCUT_PERCENT,
@@ -93,7 +93,8 @@ export function buildDiscoverRequest({
         country: { code: "IND", name: "India" },
       },
       schema_context: [
-        "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
+        // "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld",
+        ENERGY_DISCOVER_SCHEMA_CTX
       ],
     },
     message: {
