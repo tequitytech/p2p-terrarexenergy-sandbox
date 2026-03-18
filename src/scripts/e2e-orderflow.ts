@@ -10,6 +10,7 @@ if (!MONGO_URI) {
 const MONGO_DB = process.env.MONDO_DB ?? "p2p_trading";
 import { calculateTotalAmount } from "../utils";
 import { ledgerClient } from "../services/ledger-client";
+import { BECKN_CONTEXT_ROOT } from "../constants/schemas";
 
 const NETWORK_ID = process.env.NETWORK_ID || "p2p-interdiscom-trading-pilot-network";
 const SELLER_ID = "terrarex-provider-001";
@@ -73,7 +74,7 @@ const publishEnergy = async ({
       catalogs: [
         {
           "@context":
-            "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
+            BECKN_CONTEXT_ROOT,
           "@type": "beckn:Catalog",
           "beckn:id": catalogId,
           "beckn:descriptor": {
@@ -85,7 +86,7 @@ const publishEnergy = async ({
           "beckn:items": [
             {
               "@context":
-                "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
+                BECKN_CONTEXT_ROOT,
               "@type": "beckn:Item",
               "beckn:networkId": [NETWORK_ID],
               "beckn:isActive": true,
@@ -136,7 +137,7 @@ const publishEnergy = async ({
           "beckn:offers": [
             {
               "@context":
-                "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
+                BECKN_CONTEXT_ROOT,
               "@type": "beckn:Offer",
               "beckn:id": offerId,
               "beckn:descriptor": {
@@ -241,14 +242,14 @@ const selectItem = async (
       message: {
         order: {
           "@context":
-            "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
+            BECKN_CONTEXT_ROOT,
           "@type": "beckn:Order",
           "beckn:orderStatus": "CREATED",
           "beckn:seller": item["beckn:providerId"],
           "beckn:buyer": {
             "beckn:id": BUYER_ID,
             "@context":
-              "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
+              BECKN_CONTEXT_ROOT,
             "@type": "beckn:Buyer",
           },
           "beckn:orderAttributes": {
@@ -304,7 +305,7 @@ const initItem = async (
       ...selectResponse.message,
       "beckn:payment": {
         "@context":
-          "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
+          BECKN_CONTEXT_ROOT,
         "@type": "beckn:Payment",
         "beckn:id": crypto.randomUUID(),
         "beckn:amount": {
