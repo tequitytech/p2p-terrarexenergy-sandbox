@@ -13,6 +13,7 @@ import { energyRequestRoutes } from "./energy-request/routes";
 import { notificationRoutes } from "./notification/routes";
 import { ordersRoutes } from "./orders/routes";
 import { paymentRoutes } from "./payment/routes";
+import { reportRoutes } from "./report/routes";
 import { sellerBiddingRoutes } from "./seller-bidding/routes";
 import { startPolling, stopPolling } from "./services/settlement-poller";
 import { syncApiRoutes } from "./sync-api/routes";
@@ -39,28 +40,29 @@ export async function createApp() {
   const apiRouter = Router();
 
   app.use((req, res, next) => {
-    res.on('finish', () => {
+    res.on("finish", () => {
       console.log(`${req.method} ${req.url} ${res.statusCode}`);
     });
     next();
-  })
+  });
 
   // Mount all routes under the main API router
   apiRouter.use("/webhook", webhookRoutes());
   apiRouter.use("/bap-webhook", bapWebhookRoutes());
-  apiRouter.use("/", tradeRoutes());  // Mount at root: /api/publish, /api/inventory, etc.
-  apiRouter.use("/", discoverRoutes());  // Mounts /api/discover
-  apiRouter.use("/", syncApiRoutes());  // Mounts /api/select, /api/init, etc.
-  apiRouter.use("/", biddingRoutes());  // Mounts /api/bid/preview, /api/bid/confirm
-  apiRouter.use("/", sellerBiddingRoutes());  // Mounts /api/seller/preview, /api/seller/confirm
-  apiRouter.use("/", authRoutes());  // Mounts /api/auth/login, /api/auth/verify-vc, /api/auth/me
-  apiRouter.use("/", userRoutes());  // Mounts /api/social-impact-accounts
+  apiRouter.use("/", tradeRoutes()); // Mount at root: /api/publish, /api/inventory, etc.
+  apiRouter.use("/", discoverRoutes()); // Mounts /api/discover
+  apiRouter.use("/", syncApiRoutes()); // Mounts /api/select, /api/init, etc.
+  apiRouter.use("/", biddingRoutes()); // Mounts /api/bid/preview, /api/bid/confirm
+  apiRouter.use("/", sellerBiddingRoutes()); // Mounts /api/seller/preview, /api/seller/confirm
+  apiRouter.use("/", authRoutes()); // Mounts /api/auth/login, /api/auth/verify-vc, /api/auth/me
+  apiRouter.use("/", userRoutes()); // Mounts /api/social-impact-accounts
   apiRouter.use("/", paymentRoutes()); // Mounts /api/payment/order, /api/payment/verify, /api/payment/:orderId, /webhook/razorpay
   apiRouter.use("/", notificationRoutes()); // Mounts /api/notification/sms
   apiRouter.use("/", dashboardRoutes()); // Mounts /api/dashboard/stats
-  apiRouter.use("/voice", authMiddleware, voiceRoutes());  // Mounts /api/voice/intent
+  apiRouter.use("/voice", authMiddleware, voiceRoutes()); // Mounts /api/voice/intent
   apiRouter.use("/", ordersRoutes()); // Mounts /api/orders
   apiRouter.use("/", energyRequestRoutes()); // Mounts energy request routes
+  apiRouter.use("/", reportRoutes()); // Mounts /api/report/settlement
 
   // Mount the main API router with /api prefix
   apiRouter.use("/health", (req: Request, res: Response) => {
@@ -70,17 +72,17 @@ export async function createApp() {
 
   // Global error fallback
   app.use((err: any, req: any, res: any, _next: any) => {
-    if(err instanceof ZodError) {
+    if (err instanceof ZodError) {
       return res.status(400).json({
         success: false,
         error: {
-          code: 'VALIDATION_ERROR',
-          message: err.issues[0]?.message || 'Request validation failed',
-          details: err.issues.map(e => ({
-            field: e.path.join('.'),
-            message: e.message
-          }))
-        }
+          code: "VALIDATION_ERROR",
+          message: err.issues[0]?.message || "Request validation failed",
+          details: err.issues.map((e) => ({
+            field: e.path.join("."),
+            message: e.message,
+          })),
+        },
       });
     }
     req?.log?.error?.(err);
@@ -89,13 +91,13 @@ export async function createApp() {
 
   // Graceful shutdown handler
   const shutdown = () => {
-    console.log('[App] Shutting down...');
+    console.log("[App] Shutting down...");
     stopPolling();
     process.exit(0);
   };
 
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
 
   return app;
 }
