@@ -2,13 +2,18 @@ import { Router } from "express";
 import { generateSettlementReport, toCSV } from "../services/report-service";
 import type { Request, Response } from "express";
 import { format as formatDate } from "date-fns";
+import { authMiddleware } from "../auth/routes";
 
 export function reportRoutes(): Router {
     const router = Router();
 
     // GET /api/reports/eod-trades?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&format=csv|json
-    router.get("/eod-trades", async (req: Request, res: Response) => {
+    router.get("/eod-trades", authMiddleware, async (req: Request, res: Response) => {
         try {
+            const user = (req as any).user;
+            if (!user) {
+                return res.status(401).json({ success: false, error: "Unauthorized" });
+            }
             const startDateStr = req.query.startDate as string;
             const endDateStr = req.query.endDate as string;
             const format = (req.query.format as string || "json").toLowerCase();

@@ -573,19 +573,6 @@ export function userRoutes(): Router {
 
   // --- Payout Verification & OTP Flow ---
 
-  const verifyAccountSchema = z.object({
-    accountType: z.enum(["bank_account", "vpa"]),
-    bankAccount: z.object({
-      accountNumber: z.string().min(5),
-      ifsc: z.string().min(11).max(11),
-    }).optional(),
-    upiId: z.string().optional(),
-  }).refine((data) => {
-    if (data.accountType === "bank_account") return !!data.bankAccount;
-    if (data.accountType === "vpa") return !!data.upiId;
-    return false;
-  }, { message: "Provide appropriate details based on accountType" });
-
   /**
    * Step 1: Verify Bank Account or UPI details
    * POST /api/payout-details/verify
@@ -596,7 +583,7 @@ export function userRoutes(): Router {
     try {
       const user = (req as any).user;
       if (!user) return res.status(401).json({ success: false, error: "Unauthorized" });
-      const { accountType, bankAccount, upiId } = verifyAccountSchema.parse(req.body);
+      const { accountType, bankAccount, upiId } = payoutDetailsSchema.parse(req.body);
 
       // Both UPI and Bank use the same /v1/fund_accounts/validations endpoint,
       // with polling until completed.
@@ -850,6 +837,12 @@ export function userRoutes(): Router {
         { _id: new ObjectId(user.userId) },
         updatePayload
       );
+
+      // Invalidate the OTP immediately after successful save to prevent reuse within the 15-minute window
+      await db.collection("otps").deleteOne({
+        userId: new ObjectId(user.userId),
+        purpose: "payout_setup"
+      });
 
       return res.status(200).json({
         success: true,

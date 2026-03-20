@@ -149,13 +149,13 @@ export async function pollOnce(): Promise<PollResult> {
                   );
                 }
 
-                // --- Execute Financial Payouts & Refunds if Inter-platform ---
+                // --- Execute Financial Payouts & Refunds if Intra-platform ---
                 if (
                   updated.counterpartyPlatformId &&
                   ourPlatformId &&
                   updated.counterpartyPlatformId === ourPlatformId
                 ) {
-                  console.log(`[SettlementPoller] Inter-platform trade detected for ${settlement.transactionId}. Calculating payouts...`);
+                  console.log(`[SettlementPoller] Intra-platform trade detected for ${settlement.transactionId}. Calculating payouts...`);
 
                   // Retrieve the order to find the price
                   const order = await catalogStore.getOrderByTransactionId(settlement.transactionId);
@@ -180,35 +180,34 @@ export async function pollOnce(): Promise<PollResult> {
 
                         if (existingPayout) {
                           console.log(`[SettlementPoller] Payout already processed for trade: ${settlement.transactionId}`);
-                          continue;
-                        }
-
-                        const sellerUser = await db.collection("users").findOne({ _id: new ObjectId(sellerOrder.userId) });
-
-                        if (sellerUser?.razorpayFundAccountId) {
-                          try {
-                            const payoutResp = await paymentService.processSellerPayout(
-                              sellerUser.razorpayFundAccountId,
-                              payoutAmount,
-                              settlement.transactionId
-                            );
-
-                            await db.collection("payouts").insertOne({
-                              transactionId: settlement.transactionId,
-                              role: "SELLER",
-                              userId: sellerOrder.userId,
-                              amount: payoutAmount,
-                              razorpayPayoutId: payoutResp.id,
-                              status: "INITIATED",
-                              settlementId: sellerOrder?.settlementId ?? null,
-                              sellerOrderId: sellerOrder?._id?.toString() ?? null,
-                              date: new Date()
-                            });
-                          } catch (err: any) {
-                            console.error(`[SettlementPoller] Payout to seller failed: ${err.message}`);
-                          }
                         } else {
-                          console.error(`[SettlementPoller] Seller ${sellerOrder.userId} has no Razorpay Fund Account for payout`);
+                          const sellerUser = await db.collection("users").findOne({ _id: new ObjectId(sellerOrder.userId) });
+
+                          if (sellerUser?.razorpayFundAccountId) {
+                            try {
+                              const payoutResp = await paymentService.processSellerPayout(
+                                sellerUser.razorpayFundAccountId,
+                                payoutAmount,
+                                settlement.transactionId
+                              );
+
+                              await db.collection("payouts").insertOne({
+                                transactionId: settlement.transactionId,
+                                role: "SELLER",
+                                userId: sellerOrder.userId,
+                                amount: payoutAmount,
+                                razorpayPayoutId: payoutResp.id,
+                                status: "INITIATED",
+                                settlementId: sellerOrder?.settlementId ?? null,
+                                sellerOrderId: sellerOrder?._id?.toString() ?? null,
+                                date: new Date()
+                              });
+                            } catch (err: any) {
+                              console.error(`[SettlementPoller] Payout to seller failed: ${err.message}`);
+                            }
+                          } else {
+                            console.error(`[SettlementPoller] Seller ${sellerOrder.userId} has no Razorpay Fund Account for payout`);
+                          }
                         }
                       }
                     } else if (settlement.role === "BUYER") {
@@ -230,25 +229,24 @@ export async function pollOnce(): Promise<PollResult> {
 
                           if (existingRefund) {
                             console.log(`[SettlementPoller] Refund already processed for trade: ${settlement.transactionId}`);
-                            continue;
-                          }
+                          } else {
+                            try {
+                              const refundResp = await paymentService.refundPayment(buyerOrder.paymentId, refundAmount);
 
-                          try {
-                            const refundResp = await paymentService.refundPayment(buyerOrder.paymentId, refundAmount);
-
-                            await db.collection("payouts").insertOne({
-                              transactionId: settlement.transactionId,
-                              role: "BUYER",
-                              userId: buyerOrder.userId,
-                              amount: refundAmount,
-                              razorpayRefundId: refundResp.id,
-                              status: "INITIATED",
-                              settlementId: settlement?._id?.toString() ?? null,
-                              buyerOrderId: buyerOrder?._id?.toString() ?? null,
-                              date: new Date()
-                            });
-                          } catch (err: any) {
-                            console.error(`[SettlementPoller] Refund to buyer failed: ${err.message}`);
+                              await db.collection("payouts").insertOne({
+                                transactionId: settlement.transactionId,
+                                role: "BUYER",
+                                userId: buyerOrder.userId,
+                                amount: refundAmount,
+                                razorpayRefundId: refundResp.id,
+                                status: "INITIATED",
+                                settlementId: settlement?._id?.toString() ?? null,
+                                buyerOrderId: buyerOrder?._id?.toString() ?? null,
+                                date: new Date()
+                              });
+                            } catch (err: any) {
+                              console.error(`[SettlementPoller] Refund to buyer failed: ${err.message}`);
+                            }
                           }
                         } else {
                           console.error(`[SettlementPoller] Buyer order ${settlement.transactionId} missing paymentId for refund`);

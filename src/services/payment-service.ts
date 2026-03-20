@@ -347,12 +347,15 @@ export const paymentService = {
     currency: string = "INR"
   ): Promise<any> {
     try {
+      const rzpXAccountNumber = process.env.RZP_X_ACCOUNT_NUMBER;
+      if (!rzpXAccountNumber) throw new Error("RZP_X_ACCOUNT_NUMBER is not configured. Cannot process payout.");
+
       // Fetch fund account details to determine correct mode
       const fundAccount = await this.getFundAccount(fundAccountId);
       const isVpa = fundAccount.account_type === "vpa";
 
       const payload = {
-        account_number: process.env.RZP_X_ACCOUNT_NUMBER || "2323230045468789", // Using configured account or test default
+        account_number: rzpXAccountNumber,
         fund_account_id: fundAccountId,
         amount: Math.floor(amount * 100), // amount in paise
         currency,
@@ -413,9 +416,12 @@ export const paymentService = {
         account_number: accountNumberOrVpa,
       };
     }
-    console.log("Fund Account>>", fundAccount);
+
+    const rzpXAccountNumber = process.env.RZP_X_ACCOUNT_NUMBER;
+    if (!rzpXAccountNumber) throw new Error("RZP_X_ACCOUNT_NUMBER is not configured. Cannot initiate fund account validation.");
+
     const payload: any = {
-      account_number: process.env.RZP_X_ACCOUNT_NUMBER || "2323230045468789",
+      account_number: rzpXAccountNumber,
       fund_account: fundAccount,
       notes: { purpose: "payout_verification" },
     };
@@ -425,7 +431,6 @@ export const paymentService = {
       payload.currency = "INR";
     }
 
-    console.log("Payload:", payload);
     const authHeader = this._getRazorpayXAuthHeader();
 
     let validationId: string;
@@ -435,7 +440,7 @@ export const paymentService = {
         payload,
         { headers: { Authorization: authHeader, "Content-Type": "application/json" } }
       );
-      console.log("Create Response>>>", createResp.data);
+      console.log("[PaymentService] Create Response ID", createResp.data.id);
       validationId = createResp.data.id;
       console.log(`[PaymentService] Bank validation created: ${validationId}${isTestMode ? " (TEST MODE — skipping poll)" : " — polling for result..."}`);
 
