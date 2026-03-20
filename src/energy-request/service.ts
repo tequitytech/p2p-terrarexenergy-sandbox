@@ -8,7 +8,7 @@ import { buildDiscoverRequest } from '../bidding/services/market-analyzer';
 import type { SourceType } from '../types';
 import { ObjectId } from "mongodb";
 import { extractBuyerDetails } from "../trade/routes";
-import { ENERGY_TRADE_ORDER_SCHEMA_CTX } from "../constants/schemas";
+import { BECKN_CONTEXT_ROOT, ENERGY_TRADE_ORDER_SCHEMA_CTX, ENERGY_TRADE_SCHEMA_CTX, PAYMENT_SETTLEMENT_SCHEMA_CTX } from "../constants/schemas";
 
 dotenv.config();
 
@@ -133,7 +133,7 @@ export async function executeDirectTransaction(
   console.log(`[TransactionService] Published. Item: ${itemId}, Offer: ${offerId}`);
 
   const offerData = {
-      "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
+      "@context": BECKN_CONTEXT_ROOT,
       "@type": "beckn:Offer",
       "beckn:id": offerId,
       "beckn:descriptor": {
@@ -157,18 +157,16 @@ export async function executeDirectTransaction(
     context: contextSelect,
     message: {
       order: {
-        "@context":
-          "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
+        "@context":BECKN_CONTEXT_ROOT,
         "@type": "beckn:Order",
         "beckn:orderStatus": "CREATED",
         "beckn:seller": sellerId,
         "beckn:buyer": {
           "beckn:id": buyerDid || buyerId,
-          "@context":
-            "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
+          "@context":BECKN_CONTEXT_ROOT,
           "@type": "beckn:Buyer",
           "beckn:buyerAttributes": {
-            "@context": "https://raw.githubusercontent.com/beckn/DEG/tags/deg-1.0.0/specification/schema/EnergyTrade/v0.3/context.jsonld",
+            "@context": ENERGY_TRADE_SCHEMA_CTX,
             "@type": "EnergyCustomer",
             "meterId": meterId || "TEST_METER_BUYER",
             "utilityCustomerId": utilityCustomerId || `CUST-${buyerId}`,
@@ -233,8 +231,7 @@ export async function executeDirectTransaction(
     message: {
       ...selectResponse.message, // carry over order object
       "beckn:payment": {
-        "@context":
-          "https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld",
+        "@context":BECKN_CONTEXT_ROOT,
         "@type": "beckn:Payment",
         "beckn:id": crypto.randomUUID(),
         "beckn:amount": {
@@ -244,8 +241,7 @@ export async function executeDirectTransaction(
         "beckn:beneficiary": "Tequity",
         "beckn:paymentStatus": "INITIATED",
         "beckn:paymentAttributes": {
-          "@context":
-            "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/PaymentSettlement/v1/context.jsonld",
+          "@context": PAYMENT_SETTLEMENT_SCHEMA_CTX,
           "@type": "PaymentSettlement",
           settlementAccounts: [
             {

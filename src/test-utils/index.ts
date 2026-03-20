@@ -4,6 +4,7 @@
 
 
 import type { DailyForecast, HourlyExcess, ValidityWindow, CalculatedBid, CompetitorOffer, MarketAnalysis } from '../bidding/types';
+import { BECKN_CONTEXT_ROOT } from '../constants/schemas';
 import type { HourlyBid, SkippedHour } from '../seller-bidding/types';
 import type { Request, Response } from 'express';
 
@@ -209,7 +210,7 @@ export function createBecknItem(
   sourceType: string = 'SOLAR'
 ): any {
   return {
-    '@context': 'https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld',
+    '@context': BECKN_CONTEXT_ROOT,
     '@type': 'beckn:Item',
     'beckn:id': itemId,
     'beckn:descriptor': {
@@ -244,7 +245,7 @@ export function createBecknOffer(
   quantity: number
 ): any {
   return {
-    '@context': 'https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld',
+    '@context': BECKN_CONTEXT_ROOT,
     '@type': 'beckn:Offer',
     'beckn:id': offerId,
     'beckn:provider': providerId,
@@ -276,7 +277,7 @@ export function createBecknCatalog(
   offers: any[]
 ): any {
   return {
-    '@context': 'https://raw.githubusercontent.com/beckn/protocol-specifications-v2/tags/core-2.0.0-rc-eos-release/schema/core/v2/context.jsonld',
+    '@context': BECKN_CONTEXT_ROOT,
     '@type': 'beckn:Catalog',
     'beckn:id': catalogId,
     'beckn:descriptor': { '@type': 'beckn:Descriptor', 'schema:name': 'Test Catalog' },
