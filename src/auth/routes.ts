@@ -221,7 +221,7 @@ async function updateFcmToken(db: Db, userId: ObjectId, fcmToken?: string) {
   }
 }
 
-function generateOtp(): string {
+export function generateOtp(): string {
   return crypto.randomInt(100000, 999999).toString();
 }
 

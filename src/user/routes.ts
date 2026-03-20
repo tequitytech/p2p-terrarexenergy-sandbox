@@ -10,6 +10,11 @@ import { ObjectId } from "mongodb";
 import { z } from "zod";
 import multer from "multer";
 import { S3Service } from "../services/s3-service";
+import { paymentService } from "../services/payment-service";
+import { smsService } from "../services/sms-service";
+import { generateOtp } from "../auth/routes";
+import { getUserTransactionHistory } from "../services/report-service";
+import crypto from "crypto";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -32,6 +37,20 @@ const createGiftingOptionSchema = z.object({
   sourceType: z.enum(["SOLAR", "WIND", "HYDRO"]).default("SOLAR"),
   deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
+
+const payoutDetailsSchema = z.object({
+  // name: z.string().min(1, "Name is required"),
+  accountType: z.enum(["bank_account", "vpa"]),
+  bankAccount: z.object({
+    accountNumber: z.string().min(5),
+    ifsc: z.string().min(11).max(11),
+  }).optional(),
+  upiId: z.string().optional(),
+}).refine((data) => {
+  if (data.accountType === "bank_account") return !!data.bankAccount;
+  if (data.accountType === "vpa") return !!data.upiId;
+  return false;
+}, { message: "Provide appropriate details based on accountType" });
 
 const getGiftingOptionsSchema = z.object({
   userId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId")
@@ -549,6 +568,484 @@ export function userRoutes(): Router {
     } catch (error: any) {
       console.error("[API] Error fetching discoms:", error);
       return res.status(500).json({ success: false, error: "Failed to fetch discoms" });
+    }
+  });
+
+  // --- Payout Verification & OTP Flow ---
+
+  const verifyAccountSchema = z.object({
+    accountType: z.enum(["bank_account", "vpa"]),
+    bankAccount: z.object({
+      accountNumber: z.string().min(5),
+      ifsc: z.string().min(11).max(11),
+    }).optional(),
+    upiId: z.string().optional(),
+  }).refine((data) => {
+    if (data.accountType === "bank_account") return !!data.bankAccount;
+    if (data.accountType === "vpa") return !!data.upiId;
+    return false;
+  }, { message: "Provide appropriate details based on accountType" });
+
+  /**
+   * Step 1: Verify Bank Account or UPI details
+   * POST /api/payout-details/verify
+   * - Validates the account via RazorpayX
+   * - Returns the account holder name
+   */
+  router.post("/payout-details/verify", authMiddleware, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!user) return res.status(401).json({ success: false, error: "Unauthorized" });
+      const { accountType, bankAccount, upiId } = verifyAccountSchema.parse(req.body);
+
+      // Both UPI and Bank use the same /v1/fund_accounts/validations endpoint,
+      // with polling until completed.
+      let validationData: any;
+
+      if (accountType === "vpa") {
+        validationData = await paymentService.validateBankAccount(
+          upiId!,   // accountNumber slot holds UPI address for VPA type
+          "",       // ifsc is not applicable for VPA
+          "Customer",
+          { maxWaitMs: 20000 } // VPA typically resolves faster
+        );
+      } else {
+        validationData = await paymentService.validateBankAccount(
+          bankAccount!.accountNumber,
+          bankAccount!.ifsc
+        );
+      }
+
+      if (validationData.results?.account_status === "invalid") {
+        return res.status(400).json({
+          success: false,
+          error: accountType === "vpa"
+            ? "Invalid UPI ID. Please check and try again."
+            : "Bank account details could not be verified. Please check and try again."
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        accountHolderName: validationData.results?.registered_name || null,
+        validationData
+      });
+    } catch (error: any) {
+      console.error("[API] Payout verification failed:", error.response?.data || error.message);
+      const errorMsg = error.response?.data?.error?.description || "Failed to verify account details";
+      return res.status(error.response?.status || 400).json({ success: false, error: errorMsg });
+    }
+  });
+
+
+  /**
+   * Step 2: Send OTP to registered mobile for Payout Confirmation
+   * POST /api/payout-details/send-otp
+   */
+  router.post("/payout-details/send-otp", authMiddleware, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!user) return res.status(401).json({ success: false, error: "Unauthorized" });
+
+      const db = getDB();
+      const userDoc = await db.collection("users").findOne({ _id: new ObjectId(user.userId) });
+      if (!userDoc || !userDoc.phone) {
+        return res.status(404).json({ success: false, error: "User phone not found" });
+      }
+
+      // Generate 6-digit OTP
+      const otp = generateOtp();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+      const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
+
+      // Store in DB (upsert for the user)
+      await db.collection("otps").updateOne(
+        { userId: new ObjectId(user.userId), purpose: "payout_setup" },
+        {
+          $set: {
+            otp: hashedOtp,
+            expiresAt,
+            verified: false,
+            updatedAt: new Date()
+          }
+        },
+        { upsert: true }
+      );
+
+      // Send SMS
+      const message = `Your OTP for adding payout details is ${otp}. Valid for 5 minutes.`;
+      const messageId = await smsService.sendSms(userDoc.phone, message);
+
+      console.log(`[Payout] SMS sent to ${userDoc.phone}, MessageId: ${messageId}`);
+
+      return res.status(200).json({
+        success: true,
+        message: "OTP sent to your registered mobile number"
+      });
+    } catch (error: any) {
+      console.error("[API] Error sending payout OTP:", error.message);
+      return res.status(500).json({ success: false, error: "Failed to send OTP" });
+    }
+  });
+
+  /**
+   * Step 3: Verify OTP
+   * POST /api/payout-details/verify-otp
+   */
+  router.post("/payout-details/verify-otp", authMiddleware, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { otp } = req.body;
+
+      if (!otp) return res.status(400).json({ success: false, error: "OTP is required" });
+
+      const db = getDB();
+      const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
+      const otpDoc = await db.collection("otps").findOne({
+        userId: new ObjectId(user.userId),
+        purpose: "payout_setup",
+        otp: hashedOtp,
+        expiresAt: { $gt: new Date() }
+      });
+
+      if (!otpDoc) {
+        return res.status(400).json({ success: false, error: "Invalid or expired OTP" });
+      }
+
+      // Mark as verified
+      await db.collection("otps").updateOne(
+        { _id: otpDoc._id },
+        { $set: { verified: true, updatedAt: new Date() } }
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "OTP verified successfully"
+      });
+    } catch (error: any) {
+      console.error("[API] Error verifying payout OTP:", error.message);
+      return res.status(500).json({ success: false, error: "Failed to verify OTP" });
+    }
+  });
+
+  // POST /payout-details
+  router.post("/payout-details", authMiddleware, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!user) {
+        return res.status(401).json({ success: false, error: "Unauthorized" });
+      }
+
+      const db = getDB();
+
+      // SECURITY CHECK: Ensure OTP was verified within the last 15 minutes
+      const otpDoc = await db.collection("otps").findOne({
+        userId: new ObjectId(user.userId),
+        purpose: "payout_setup",
+        verified: true,
+        updatedAt: { $gt: new Date(Date.now() - 15 * 60 * 1000) }
+      });
+
+      if (!otpDoc) {
+        return res.status(403).json({
+          success: false,
+          error: "Verification required. Please verify OTP before saving payout details."
+        });
+      }
+
+      const validationResult = payoutDetailsSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({
+          success: false,
+          error: "Validation failed",
+          details: validationResult.error.issues,
+        });
+      }
+
+      const { accountType, bankAccount, upiId } = validationResult.data;
+      // Retrieve existing user
+      const userProfile = await db.collection("users").findOne({ _id: new ObjectId(user.userId) });
+      if (!userProfile) {
+        return res.status(404).json({ success: false, error: "User not found" });
+      }
+      const name = userProfile?.name;
+
+      // Step 1: Create Razorpay Contact (if not already existing in our DB)
+      let contactId = userProfile.razorpayContactId;
+      if (!contactId) {
+        // Use user.userId as the referenceId
+        const contact = await paymentService.createContact(
+          name,
+          userProfile.email || undefined,
+          userProfile.phone,
+          userProfile.caNumber || user.userId // Reference ID
+        );
+        contactId = contact.id;
+      }
+
+      // Step 2: Create Fund Account
+      let fundAccount;
+      let lastFourDigit = null;
+      let vpaId = null;
+      let bankName = null;
+
+      if (accountType === "bank_account" && bankAccount) {
+        fundAccount = await paymentService.createFundAccount(
+          contactId,
+          "bank_account",
+          {
+            name: name,
+            ifsc: bankAccount.ifsc,
+            account_number: bankAccount.accountNumber,
+          }
+        );
+        lastFourDigit = bankAccount.accountNumber.slice(-4);
+        bankName = fundAccount?.bank_account?.bank_name || fundAccount?.vpa?.bank_name || fundAccount?.vpa?.bank || null;
+      } else if (accountType === "vpa" && upiId) {
+        fundAccount = await paymentService.createFundAccount(
+          contactId,
+          "vpa",
+          {
+            name: name,
+            address: upiId,
+          }
+        );
+        vpaId = upiId;
+        bankName = fundAccount?.vpa?.bank_name || fundAccount?.vpa?.bank || fundAccount?.bank_account?.bank_name || null;
+      } else {
+        return res.status(400).json({ success: false, error: "Invalid account details provided" });
+      }
+
+      // Step 3: Save Reference IDs to Database
+      const newFundAccountRecord = {
+        id: fundAccount.id,
+        accountType: accountType,
+        ...(lastFourDigit ? { lastFourDigit } : {}),
+        ...(vpaId ? { vpaId } : {}),
+        ...(bankName ? { bankName } : {}),
+        addedAt: new Date()
+      };
+
+      const isFirstAccount = !userProfile.razorpayFundAccountId;
+
+      const updatePayload: any = {
+        $push: {
+          fundAccounts: newFundAccountRecord
+        } as any
+      };
+
+      if (isFirstAccount) {
+        updatePayload.$set = {
+          razorpayContactId: contactId,
+          razorpayFundAccountId: fundAccount.id, // Set as default since it's the first one
+          payoutAccountType: accountType,
+          ...(lastFourDigit ? { lastFourDigit } : {}),
+          ...(vpaId ? { vpaId } : {}),
+          ...(bankName ? { bankName } : {}),
+          updatedAt: new Date(),
+        };
+      }
+
+      await db.collection("users").updateOne(
+        { _id: new ObjectId(user.userId) },
+        updatePayload
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Payout details saved successfully",
+      });
+
+    } catch (error: any) {
+      console.error("[API] Error saving payout details:", error.message || error);
+      return res.status(500).json({ success: false, error: "Failed to save payout details" });
+    }
+  });
+
+  // GET /payout-details
+  router.get("/payout-details", authMiddleware, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!user) {
+        return res.status(401).json({ success: false, error: "Unauthorized" });
+      }
+
+      const db = getDB();
+      const userProfile = await db.collection("users").findOne({ _id: new ObjectId(user.userId) });
+
+      if (!userProfile) {
+        return res.status(404).json({ success: false, error: "User not found" });
+      }
+
+      // Query the embedded fundAccounts array
+      const fundAccounts = userProfile.fundAccounts || [];
+
+      // Return ONLY the masked identifier and status, NEVER return actual sensitive details
+      if (fundAccounts && fundAccounts.length > 0) {
+        // Map and enrich accounts (optional: could fetch missing bankNames here)
+        const enrichedAccounts = await Promise.all(fundAccounts.map(async (fa: any) => {
+          let bName = fa.bankName;
+
+          // If bankName is missing (legacy), try to fetch it once
+          if (fa.accountType === "bank_account" && !bName) {
+            try {
+              const rzpFa = await paymentService.getFundAccount(fa.id);
+              bName = rzpFa?.bank_account?.bank_name || null;
+              if (bName) {
+                // Update DB in background
+                db.collection("users").updateOne(
+                  { _id: new ObjectId(user.userId), "fundAccounts.id": fa.id },
+                  { $set: { "fundAccounts.$.bankName": bName } }
+                ).catch(e => console.error("Failed to update bankName in background", e));
+              }
+            } catch (e) {
+              console.error(`Failed to fetch fund account info for ${fa.id}`, e);
+            }
+          }
+
+          const isPrimary = fa.id === userProfile.razorpayFundAccountId;
+
+          return {
+            id: fa.id,
+            accountType: fa.accountType,
+            title: bName || (fa.accountType === "vpa" ? (fa.vpaId || "UPI Account") : "Bank Account"),
+            subtitle: fa.accountType === "vpa" ? `UPI ID - ${fa.vpaId}` : `A/c no - ${fa.lastFourDigit}`,
+            lastFourDigit: fa.lastFourDigit,
+            vpaId: fa.vpaId,
+            bankName: bName,
+            isPrimary
+          };
+        }));
+
+        return res.status(200).json({
+          success: true,
+          payoutDetails: {
+            linked: true,
+            primaryAccountId: userProfile.razorpayFundAccountId,
+            accounts: enrichedAccounts
+          },
+        });
+      } else if (userProfile.razorpayFundAccountId) {
+        // Fallback Enrichment for legacy single account
+        let bName = userProfile.bankName;
+        if (!bName) {
+          try {
+            const rzpFa = await paymentService.getFundAccount(userProfile.razorpayFundAccountId);
+            bName = rzpFa?.bank_account?.bank_name || rzpFa?.vpa?.bank_name || null;
+            if (bName) {
+              db.collection("users").updateOne(
+                { _id: new ObjectId(user.userId) },
+                { $set: { bankName: bName } }
+              ).catch(e => console.error("Failed to update legacy bankName", e));
+            }
+          } catch (e) {
+            console.error("Failed to fetch legacy fund account", e);
+          }
+        }
+
+        return res.status(200).json({
+          success: true,
+          payoutDetails: {
+            linked: true,
+            primaryAccountId: userProfile.razorpayFundAccountId,
+            accounts: [{
+              id: userProfile.razorpayFundAccountId,
+              accountType: userProfile.payoutAccountType || "unknown",
+              title: bName || (userProfile.payoutAccountType === "vpa" ? "UPI Account" : "Bank Account"),
+              subtitle: userProfile.payoutAccountType === "vpa" ? `UPI ID - ${userProfile.vpaId}` : `A/c no - ${userProfile.lastFourDigit}`,
+              ...(userProfile.lastFourDigit ? { lastFourDigit: userProfile.lastFourDigit } : {}),
+              ...(userProfile.vpaId ? { vpaId: userProfile.vpaId } : {}),
+              ...(bName ? { bankName: bName } : {}),
+              isPrimary: true
+            }]
+          },
+        });
+      } else {
+        return res.status(200).json({
+          success: true,
+          payoutDetails: {
+            linked: false,
+            accounts: []
+          },
+        });
+      }
+    } catch (error: any) {
+      console.error("[API] Error fetching payout details:", error.message || error);
+      return res.status(500).json({ success: false, error: "Failed to fetch payout details" });
+    }
+  });
+
+  // PUT /payout-details/primary
+  router.put("/payout-details/primary", authMiddleware, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!user) {
+        return res.status(401).json({ success: false, error: "Unauthorized" });
+      }
+
+      const { accountId } = req.body;
+      if (!accountId) {
+        return res.status(400).json({ success: false, error: "Account ID is required" });
+      }
+
+      const db = getDB();
+      const userProfile = await db.collection("users").findOne({ _id: new ObjectId(user.userId) });
+
+      if (!userProfile) {
+        return res.status(404).json({ success: false, error: "User not found" });
+      }
+
+      // Verify the requested account ID actually belongs to this user's stored funds
+      const fundAccounts = userProfile.fundAccounts || [];
+      const targetAccount = fundAccounts.find((fa: any) => fa.id === accountId);
+
+      if (!targetAccount) {
+        return res.status(404).json({ success: false, error: "Requested account not found in user's saved payout methods" });
+      }
+
+      // Update the user profile to swap out the active attributes to this target account
+      await db.collection("users").updateOne(
+        { _id: new ObjectId(user.userId) },
+        {
+          $set: {
+            razorpayFundAccountId: targetAccount.id,
+            payoutAccountType: targetAccount.accountType,
+            ...(targetAccount.lastFourDigit ? { lastFourDigit: targetAccount.lastFourDigit } : {}),
+            ...(targetAccount.vpaId ? { vpaId: targetAccount.vpaId } : {}),
+            ...(targetAccount.bankName ? { bankName: targetAccount.bankName } : {}),
+            updatedAt: new Date()
+          }
+        }
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Primary payout method updated successfully"
+      });
+
+    } catch (error: any) {
+      console.error("[API] Error updating primary payout method:", error.message || error);
+      return res.status(500).json({ success: false, error: "Failed to update primary payout method" });
+    }
+  });
+
+  // GET /api/transactions - Get user transaction history
+  router.get("/transactions", authMiddleware, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!user) {
+        return res.status(401).json({ success: false, error: "Unauthorized" });
+      }
+
+      const transactions = await getUserTransactionHistory(user.userId, user.phone);
+
+      return res.status(200).json({
+        success: true,
+        transactions
+      });
+    } catch (error: any) {
+      console.error("[API] Error fetching transaction history:", error.message);
+      return res.status(500).json({ success: false, error: "Failed to fetch transaction history" });
     }
   });
 

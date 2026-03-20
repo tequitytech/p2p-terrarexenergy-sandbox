@@ -60,21 +60,26 @@ export function deriveSettlementStatus(ledgerData: LedgerRecord): SettlementStat
 
 /**
  * Extract actual delivered quantity from ledger validation metrics
+ * Uses the Min-of-Two rule: min(ACTUAL_PUSHED, ACTUAL_PULLED)
  */
 function extractActualDelivered(ledgerData: LedgerRecord): number | null {
-  // Check buyer metrics first (ACTUAL_PUSHED)
   const buyerMetrics = ledgerData.buyerFulfillmentValidationMetrics || [];
-  const actualPushed = buyerMetrics.find(m => m.validationMetricType === 'ACTUAL_PUSHED');
-  if (actualPushed) {
-    return actualPushed.validationMetricValue;
+  const sellerMetrics = ledgerData.sellerFulfillmentValidationMetrics || [];
+
+  const actualPushedObj = sellerMetrics.find(m => m.validationMetricType === 'ACTUAL_PUSHED');
+  const actualPulledObj = buyerMetrics.find(m => m.validationMetricType === 'ACTUAL_PULLED');
+
+  const actualPushed = actualPushedObj ? actualPushedObj.validationMetricValue : null;
+  const actualPulled = actualPulledObj ? actualPulledObj.validationMetricValue : null;
+
+  // If we have both, apply Min-of-Two
+  if (actualPushed !== null && actualPulled !== null) {
+    return Math.min(actualPushed, actualPulled);
   }
 
-  // Fall back to seller metrics
-  const sellerMetrics = ledgerData.sellerFulfillmentValidationMetrics || [];
-  const actualDelivered = sellerMetrics.find(m => m.validationMetricType === 'ACTUAL_DELIVERED');
-  if (actualDelivered) {
-    return actualDelivered.validationMetricValue;
-  }
+  // If we only have one (e.g. still in Round 1 or 2), return it as a provisional value
+  if (actualPushed !== null) return actualPushed;
+  if (actualPulled !== null) return actualPulled;
 
   return null;
 }
@@ -186,6 +191,7 @@ export const settlementStore = {
    */
   async updateFromLedger(
     transactionId: string,
+    role: TradeRole,
     ledgerData: LedgerRecord
   ): Promise<SettlementDocument | null> {
     const db = getDB();
@@ -195,7 +201,7 @@ export const settlementStore = {
     const actualDelivered = extractActualDelivered(ledgerData);
 
     // Get existing settlement for deviation calculation
-    const existing = await this.getSettlement(transactionId);
+    const existing = await this.getSettlement(transactionId, role);
     const contractedQuantity = existing?.contractedQuantity || 0;
     const deviationKwh = actualDelivered !== null
       ? actualDelivered - contractedQuantity
@@ -219,7 +225,7 @@ export const settlementStore = {
     }
 
     const result = await db.collection<SettlementDocument>('settlements').findOneAndUpdate(
-      { transactionId },
+      { transactionId, role },
       { $set: updateData },
       { returnDocument: 'after' }
     );
@@ -234,10 +240,10 @@ export const settlementStore = {
   /**
    * Mark settlement as notified (on_settle callback sent)
    */
-  async markOnSettleNotified(transactionId: string): Promise<void> {
+  async markOnSettleNotified(transactionId: string, role: TradeRole): Promise<void> {
     const db = getDB();
     await db.collection('settlements').updateOne(
-      { transactionId },
+      { transactionId, role },
       { $set: { onSettleNotified: true, updatedAt: new Date() } }
     );
     console.log(`[SettlementStore] Marked on_settle notified: txn=${transactionId}`);

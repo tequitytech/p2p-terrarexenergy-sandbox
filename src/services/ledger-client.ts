@@ -133,14 +133,14 @@ async function withRetry<T>(
  */
 export async function queryTradeByTransaction(
   transactionId: string,
-  discomId: string
+  criteria: { discomIdBuyer?: string; discomIdSeller?: string },
 ): Promise<LedgerRecord | null> {
-  console.log(`[LedgerClient] Querying trade: txn=${transactionId}, discom=${discomId}`);
+  console.log(`[LedgerClient] Querying trade: txn=${transactionId}, criteria=`, JSON.stringify(criteria));
 
   try {
     const body = JSON.stringify({
       transactionId,
-      discomIdBuyer: discomId,
+      ...criteria,
       limit: 1,
       offset: 0
     });

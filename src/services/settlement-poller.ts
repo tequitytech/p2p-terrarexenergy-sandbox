@@ -5,13 +5,17 @@ import { catalogStore } from './catalog-store';
 import { ledgerClient } from './ledger-client';
 import { orderService } from './order-service';
 import { settlementStore } from './settlement-store';
+import { paymentService } from './payment-service';
+import { getDB } from '../db';
 
 import type { SettlementDocument } from './settlement-store';
+import { ObjectId } from 'mongodb';
 
 
 const ENABLE_POLLING = process.env.ENABLE_SETTLEMENT_POLLING !== 'false';
 const POLL_INTERVAL_MS = parseInt(process.env.SETTLEMENT_POLL_INTERVAL_MS || '300000', 10); // 5 minutes
 const DISCOM_ID = process.env.DISCOM_ID || 'BESCOM-KA';
+const ourPlatformId = process.env.BPP_ID || "p2p.terrarexenergy.com"; // Used to identify inter-platform trades
 
 export interface PollResult {
   polledAt: Date;
@@ -102,15 +106,19 @@ export async function pollOnce(): Promise<PollResult> {
 
     for (const settlement of pendingSettlements) {
       try {
+        const discomIdToQuery = settlement.counterpartyDiscomId || DISCOM_ID;
         const ledgerRecord = await ledgerClient.queryTradeByTransaction(
           settlement.transactionId,
-          DISCOM_ID
+          settlement.role === "SELLER"
+            ? { discomIdBuyer: discomIdToQuery }
+            : { discomIdSeller: discomIdToQuery }
         );
 
         if (ledgerRecord) {
           const previousStatus = settlement.settlementStatus;
           const updated = await settlementStore.updateFromLedger(
             settlement.transactionId,
+            settlement.role,
             ledgerRecord
           );
 
@@ -140,6 +148,117 @@ export async function pollOnce(): Promise<PollResult> {
                     "DELIVERED"
                   );
                 }
+
+                // --- Execute Financial Payouts & Refunds if Inter-platform ---
+                if (
+                  updated.counterpartyPlatformId &&
+                  ourPlatformId &&
+                  updated.counterpartyPlatformId === ourPlatformId
+                ) {
+                  console.log(`[SettlementPoller] Inter-platform trade detected for ${settlement.transactionId}. Calculating payouts...`);
+
+                  // Retrieve the order to find the price
+                  const order = await catalogStore.getOrderByTransactionId(settlement.transactionId);
+                  const priceValuePath = order?.order?.['beckn:orderItems']?.[0]?.['beckn:acceptedOffer']?.['beckn:price']?.['schema:price'];
+                  const pricePerKwh = parseFloat(priceValuePath || "0");
+
+                  if (pricePerKwh > 0 && updated.actualDelivered !== null) {
+                    const db = getDB();
+
+                    if (settlement.role === "SELLER") {
+                      // Seller Payload Logic: Payout = delivered Qty * price
+                      const payoutAmount = updated.actualDelivered * pricePerKwh;
+                      console.log(`[SettlementPoller] Seller Payout Amount Calculated: ₹${payoutAmount} for ${updated.actualDelivered} kWh`);
+
+                      const sellerOrder = await db.collection("orders").findOne({ transactionId: settlement.transactionId, type: "seller" });
+                      if (sellerOrder && sellerOrder.userId) {
+                        // Idempotency check: Ensure we haven't already processed this payout
+                        const existingPayout = await db.collection("payouts").findOne({
+                          transactionId: settlement.transactionId,
+                          role: "SELLER"
+                        });
+
+                        if (existingPayout) {
+                          console.log(`[SettlementPoller] Payout already processed for trade: ${settlement.transactionId}`);
+                          continue;
+                        }
+
+                        const sellerUser = await db.collection("users").findOne({ _id: new ObjectId(sellerOrder.userId) });
+
+                        if (sellerUser?.razorpayFundAccountId) {
+                          try {
+                            const payoutResp = await paymentService.processSellerPayout(
+                              sellerUser.razorpayFundAccountId,
+                              payoutAmount,
+                              settlement.transactionId
+                            );
+
+                            await db.collection("payouts").insertOne({
+                              transactionId: settlement.transactionId,
+                              role: "SELLER",
+                              userId: sellerOrder.userId,
+                              amount: payoutAmount,
+                              razorpayPayoutId: payoutResp.id,
+                              status: "INITIATED",
+                              settlementId: sellerOrder?.settlementId ?? null,
+                              sellerOrderId: sellerOrder?._id?.toString() ?? null,
+                              date: new Date()
+                            });
+                          } catch (err: any) {
+                            console.error(`[SettlementPoller] Payout to seller failed: ${err.message}`);
+                          }
+                        } else {
+                          console.error(`[SettlementPoller] Seller ${sellerOrder.userId} has no Razorpay Fund Account for payout`);
+                        }
+                      }
+                    } else if (settlement.role === "BUYER") {
+                      // Buyer Refund Logic: Refund = shortFall * price
+                      const contractedQty = updated.contractedQuantity || 0;
+                      const shortfall = contractedQty - updated.actualDelivered;
+
+                      if (shortfall > 0) {
+                        const refundAmount = shortfall * pricePerKwh;
+                        console.log(`[SettlementPoller] Buyer Refund Amount Calculated: ₹${refundAmount} for ${shortfall} kWh shortfall`);
+
+                        const buyerOrder = await db.collection("buyer_orders").findOne({ transactionId: settlement.transactionId, type: "buyer" });
+                        if (buyerOrder?.paymentId) {
+                          // Idempotency check: Ensure we haven't already processed this refund
+                          const existingRefund = await db.collection("payouts").findOne({
+                            transactionId: settlement.transactionId,
+                            role: "BUYER"
+                          });
+
+                          if (existingRefund) {
+                            console.log(`[SettlementPoller] Refund already processed for trade: ${settlement.transactionId}`);
+                            continue;
+                          }
+
+                          try {
+                            const refundResp = await paymentService.refundPayment(buyerOrder.paymentId, refundAmount);
+
+                            await db.collection("payouts").insertOne({
+                              transactionId: settlement.transactionId,
+                              role: "BUYER",
+                              userId: buyerOrder.userId,
+                              amount: refundAmount,
+                              razorpayRefundId: refundResp.id,
+                              status: "INITIATED",
+                              settlementId: settlement?._id?.toString() ?? null,
+                              buyerOrderId: buyerOrder?._id?.toString() ?? null,
+                              date: new Date()
+                            });
+                          } catch (err: any) {
+                            console.error(`[SettlementPoller] Refund to buyer failed: ${err.message}`);
+                          }
+                        } else {
+                          console.error(`[SettlementPoller] Buyer order ${settlement.transactionId} missing paymentId for refund`);
+                        }
+                      }
+                    }
+                  } else {
+                    console.warn(`[SettlementPoller] Skipping payout logic: missing pricePerKwh (${pricePerKwh}) or actualDelivered (${updated.actualDelivered})`);
+                  }
+                }
               }
             } catch (updateError: any) {
               console.error(`[SettlementPoller] Error updating order status for ${settlement.transactionId}: ${updateError.message}`);
@@ -152,7 +271,7 @@ export async function pollOnce(): Promise<PollResult> {
               // Trigger callback if not already notified
               if (!updated.onSettleNotified) {
                 await triggerOnSettle(updated);
-                await settlementStore.markOnSettleNotified(settlement.transactionId);
+                await settlementStore.markOnSettleNotified(settlement.transactionId, settlement.role);
               }
             }
           }
@@ -240,21 +359,33 @@ export function getPollingStatus(): {
 export async function refreshSettlement(transactionId: string): Promise<SettlementDocument | null> {
   console.log(`[SettlementPoller] Force refreshing settlement: ${transactionId}`);
 
-  const ledgerRecord = await ledgerClient.queryTradeByTransaction(transactionId, DISCOM_ID);
+  const existing = await settlementStore.getSettlementsByTransaction(transactionId);
+  const discomIdToQuery = existing?.[0]?.counterpartyDiscomId || DISCOM_ID;
+
+  const ledgerRecord = await ledgerClient.queryTradeByTransaction(
+    transactionId,
+    existing?.[0]?.role === "SELLER"
+      ? { discomIdBuyer: discomIdToQuery }
+      : { discomIdSeller: discomIdToQuery }
+  );
   if (!ledgerRecord) {
     console.log(`[SettlementPoller] No ledger record found for: ${transactionId}`);
     return null;
   }
 
-  const updated = await settlementStore.updateFromLedger(transactionId, ledgerRecord);
+  let lastUpdated: SettlementDocument | null = null;
+  for (const record of existing) {
+    const updated = await settlementStore.updateFromLedger(transactionId, record.role, ledgerRecord);
 
-  // Trigger callback if newly settled
-  if (updated?.settlementStatus === 'SETTLED' && !updated.onSettleNotified) {
-    await triggerOnSettle(updated);
-    await settlementStore.markOnSettleNotified(transactionId);
+    // Trigger callback if newly settled
+    if (updated?.settlementStatus === 'SETTLED' && !updated.onSettleNotified) {
+      await triggerOnSettle(updated);
+      await settlementStore.markOnSettleNotified(transactionId, record.role);
+    }
+    lastUpdated = updated;
   }
 
-  return updated;
+  return lastUpdated;
 }
 
 export const settlementPoller = {

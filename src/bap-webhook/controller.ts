@@ -83,7 +83,7 @@ export const onConfirm = (req: Request, res: Response) => {
 
         // Extract counterparty (seller) info
         const sellerPlatformId = context?.bpp_id || null;
-        const sellerDiscomId = order?.['beckn:orderAttributes']?.utilityIdSeller || null;
+        const sellerDiscomId = order?.['beckn:orderItems']?.[0]?.['beckn:orderItemAttributes']?.['providerAttributes']?.['utilityId'] || order?.['beckn:orderAttributes']?.utilityIdSeller || null;
 
         /**
          * Store the full Beckn order details in the buyer_orders collection for reference
