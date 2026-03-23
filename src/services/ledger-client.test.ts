@@ -34,7 +34,7 @@ describe('ledger-client', () => {
         data: { records: [mockRecord], total: 1 }
       });
 
-      const result = await queryTradeByTransaction('txn-001', 'TPDDL');
+      const result = await queryTradeByTransaction('txn-001', { discomIdBuyer: 'TPDDL' });
 
       expect(result).not.toBeNull();
       expect(result?.transactionId).toBe('txn-001');
@@ -45,7 +45,7 @@ describe('ledger-client', () => {
         data: { records: [], total: 0 }
       });
 
-      const result = await queryTradeByTransaction('non-existent', 'TPDDL');
+      const result = await queryTradeByTransaction('non-existent', { discomIdBuyer: 'TPDDL' });
 
       expect(result).toBeNull();
     });
@@ -53,7 +53,7 @@ describe('ledger-client', () => {
     it('should return null on error', async () => {
       mockedAxios.post.mockRejectedValue(new Error('Connection failed'));
 
-      const result = await queryTradeByTransaction('txn-001', 'TPDDL');
+      const result = await queryTradeByTransaction('txn-001', { discomIdBuyer: 'TPDDL' });
 
       expect(result).toBeNull();
     });
@@ -63,7 +63,7 @@ describe('ledger-client', () => {
         data: { records: [], total: 0 }
       });
 
-      await queryTradeByTransaction('txn-query-001', 'BESCOM');
+      await queryTradeByTransaction('txn-query-001', { discomIdBuyer: 'BESCOM' });
 
       expect(mockedAxios.post).toHaveBeenCalledWith(
         expect.stringContaining('/ledger/get'),
@@ -96,7 +96,7 @@ describe('ledger-client', () => {
         });
 
       // Act: Start query and advance timers to flush the async retry sleep
-      const promise = queryWithRetry('txn-001', 'TPDDL');
+      const promise = queryWithRetry('txn-001', { discomIdBuyer: 'TPDDL' });
       await jest.advanceTimersByTimeAsync(1000);
       const result = await promise;
 
@@ -127,7 +127,7 @@ describe('ledger-client', () => {
         });
 
       // Act: Start query and advance timers to flush the async retry sleep
-      const promise = queryWithRetry('txn-001', 'TPDDL');
+      const promise = queryWithRetry('txn-001', { discomIdBuyer: 'TPDDL' });
       await jest.advanceTimersByTimeAsync(1000);
       const result = await promise;
 
@@ -146,7 +146,7 @@ describe('ledger-client', () => {
 
       mockedAxios.post.mockRejectedValue(clientError);
 
-      const result = await queryTradeByTransaction('txn-001', 'TPDDL');
+      const result = await queryTradeByTransaction('txn-001', { discomIdBuyer: 'TPDDL' });
 
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
       expect(result).toBeNull();
@@ -158,7 +158,7 @@ describe('ledger-client', () => {
 
       mockedAxios.post.mockRejectedValue(serverError);
 
-      const promise = queryTradeByTransaction('txn-001', 'TPDDL');
+      const promise = queryTradeByTransaction('txn-001', { discomIdBuyer: 'TPDDL' });
 
       // Advance timers for all retry delays
       for (let i = 0; i < 5; i++) {

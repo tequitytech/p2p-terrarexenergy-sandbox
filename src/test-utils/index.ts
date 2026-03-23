@@ -321,10 +321,10 @@ export function createLedgerRecord(
     statusBuyerDiscom: options.statusBuyerDiscom ?? 'PENDING',
     statusSellerDiscom: options.statusSellerDiscom ?? 'PENDING',
     buyerFulfillmentValidationMetrics: [
-      { validationMetricType: 'ACTUAL_PUSHED', validationMetricValue: actualDelivered }
+      { validationMetricType: 'ACTUAL_PULLED', validationMetricValue: actualDelivered }
     ],
     sellerFulfillmentValidationMetrics: [
-      { validationMetricType: 'ACTUAL_DELIVERED', validationMetricValue: actualDelivered }
+      { validationMetricType: 'ACTUAL_PUSHED', validationMetricValue: actualDelivered }
     ]
   };
 }
