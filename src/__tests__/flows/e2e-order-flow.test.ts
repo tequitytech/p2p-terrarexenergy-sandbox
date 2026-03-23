@@ -96,6 +96,14 @@ describe('E2E Order Flow', () => {
             utilityId: 'TPDDL',
             consumerNumber: 'CONS-001',
             did: 'did:example:test-provider',
+            capacityKW: '20',
+          },
+          consumptionProfile: {
+            meterNumber: meterId,
+            utilityId: 'TPDDL',
+            consumerNumber: 'CONS-001',
+            did: 'did:example:test-provider',
+            sanctionedLoadKW: '20',
           },
         },
         meters: [meterId],
@@ -117,7 +125,7 @@ describe('E2E Order Flow', () => {
         .send({
           quantity: 10,
           price: 7.5,
-          deliveryDate: '2026-01-28',
+          deliveryDate: '2026-12-28',
           startHour: 10,
           duration: 1,
           sourceType: 'SOLAR',
@@ -283,7 +291,7 @@ describe('E2E Order Flow', () => {
       expect(settlement?.settlementStatus).toBe('PENDING');
 
       // Simulate ledger update - buyer completed
-      await settlementStore.updateFromLedger(transactionId, {
+      await settlementStore.updateFromLedger(transactionId, 'SELLER', {
         transactionId,
         orderItemId: 'order-item',
         platformIdBuyer: 'buyer-platform',
@@ -293,12 +301,12 @@ describe('E2E Order Flow', () => {
         buyerId: 'buyer-001',
         sellerId: 'seller-001',
         tradeTime: new Date().toISOString(),
-        deliveryStartTime: '2026-01-28T08:00:00Z',
-        deliveryEndTime: '2026-01-28T17:00:00Z',
+        deliveryStartTime: '2026-12-28T08:00:00Z',
+        deliveryEndTime: '2026-12-28T17:00:00Z',
         tradeDetails: [{ tradeQty: 10, tradeType: 'PURCHASE', tradeUnit: 'kWh' }],
         statusBuyerDiscom: 'COMPLETED',
         statusSellerDiscom: 'PENDING',
-        buyerFulfillmentValidationMetrics: [
+        sellerFulfillmentValidationMetrics: [
           { validationMetricType: 'ACTUAL_PUSHED', validationMetricValue: 10 }
         ]
       });
@@ -307,7 +315,7 @@ describe('E2E Order Flow', () => {
       expect(settlement?.settlementStatus).toBe('BUYER_COMPLETED');
 
       // Simulate ledger update - both completed
-      await settlementStore.updateFromLedger(transactionId, {
+      await settlementStore.updateFromLedger(transactionId, 'SELLER', {
         transactionId,
         orderItemId: 'order-item',
         platformIdBuyer: 'buyer-platform',
@@ -317,8 +325,8 @@ describe('E2E Order Flow', () => {
         buyerId: 'buyer-001',
         sellerId: 'seller-001',
         tradeTime: new Date().toISOString(),
-        deliveryStartTime: '2026-01-28T08:00:00Z',
-        deliveryEndTime: '2026-01-28T17:00:00Z',
+        deliveryStartTime: '2026-12-28T08:00:00Z',
+        deliveryEndTime: '2026-12-28T17:00:00Z',
         tradeDetails: [{ tradeQty: 10, tradeType: 'PURCHASE', tradeUnit: 'kWh' }],
         statusBuyerDiscom: 'COMPLETED',
         statusSellerDiscom: 'COMPLETED',
@@ -336,7 +344,7 @@ describe('E2E Order Flow', () => {
       await settlementStore.createSettlement(transactionId, 'order-item', 10);
 
       // Actual delivered is 9.5 (0.5 under-delivery)
-      await settlementStore.updateFromLedger(transactionId, {
+      await settlementStore.updateFromLedger(transactionId, 'SELLER', {
         transactionId,
         orderItemId: 'order-item',
         platformIdBuyer: 'buyer-platform',
@@ -346,12 +354,12 @@ describe('E2E Order Flow', () => {
         buyerId: 'buyer-001',
         sellerId: 'seller-001',
         tradeTime: new Date().toISOString(),
-        deliveryStartTime: '2026-01-28T08:00:00Z',
-        deliveryEndTime: '2026-01-28T17:00:00Z',
+        deliveryStartTime: '2026-12-28T08:00:00Z',
+        deliveryEndTime: '2026-12-28T17:00:00Z',
         tradeDetails: [{ tradeQty: 10, tradeType: 'PURCHASE', tradeUnit: 'kWh' }],
         statusBuyerDiscom: 'PENDING',
         statusSellerDiscom: 'PENDING',
-        buyerFulfillmentValidationMetrics: [
+        sellerFulfillmentValidationMetrics: [
           { validationMetricType: 'ACTUAL_PUSHED', validationMetricValue: 9.5 }
         ]
       });

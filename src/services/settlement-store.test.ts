@@ -233,7 +233,7 @@ describe('settlement-store', () => {
         actualDelivered: 10
       });
 
-      await settlementStore.updateFromLedger('txn-ledger-001', ledger);
+      await settlementStore.updateFromLedger('txn-ledger-001', 'SELLER', ledger);
 
       const updated = await settlementStore.getSettlement('txn-ledger-001');
 
@@ -248,7 +248,7 @@ describe('settlement-store', () => {
         actualDelivered: 9.5
       });
 
-      await settlementStore.updateFromLedger('txn-ledger-002', ledger);
+      await settlementStore.updateFromLedger('txn-ledger-002', 'SELLER', ledger);
 
       const updated = await settlementStore.getSettlement('txn-ledger-002');
 
@@ -263,7 +263,7 @@ describe('settlement-store', () => {
         contractedQuantity: 10
       });
 
-      await settlementStore.updateFromLedger('txn-ledger-003', ledger);
+      await settlementStore.updateFromLedger('txn-ledger-003', 'SELLER', ledger);
 
       const updated = await settlementStore.getSettlement('txn-ledger-003');
 
@@ -279,7 +279,7 @@ describe('settlement-store', () => {
         statusSellerDiscom: 'COMPLETED'
       });
 
-      await settlementStore.updateFromLedger('txn-ledger-004', ledger);
+      await settlementStore.updateFromLedger('txn-ledger-004', 'SELLER', ledger);
 
       const updated = await settlementStore.getSettlement('txn-ledger-004');
 
@@ -295,7 +295,7 @@ describe('settlement-store', () => {
         statusSellerDiscom: 'PENDING'
       });
 
-      await settlementStore.updateFromLedger('txn-ledger-005', ledger);
+      await settlementStore.updateFromLedger('txn-ledger-005', 'SELLER', ledger);
 
       const updated = await settlementStore.getSettlement('txn-ledger-005');
 
@@ -308,7 +308,7 @@ describe('settlement-store', () => {
     it('should mark settlement as notified', async () => {
       await seedSettlement('txn-notify-001', 'SELLER', 'SETTLED');
 
-      await settlementStore.markOnSettleNotified('txn-notify-001');
+      await settlementStore.markOnSettleNotified('txn-notify-001', 'SELLER');
 
       const updated = await getTestSettlement('txn-notify-001');
 
