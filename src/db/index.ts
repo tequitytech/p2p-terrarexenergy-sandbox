@@ -41,6 +41,9 @@ export async function connectDB(): Promise<Db> {
     db.collection("settlements").createIndex({ createdAt: 1 }),
     db.collection("settlements").createIndex({ settlementStatus: 1, onSettleNotified: 1 }),
 
+    // Payouts collection for tracking payouts
+    db.collection("payouts").createIndex({ transactionId: 1 }),
+
     // Orders collection index for transaction lookup
     db.collection("orders").createIndex({ transactionId: 1 }, { unique: true }),
     db.collection("orders").createIndex({ userId: 1 }),

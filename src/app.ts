@@ -20,6 +20,7 @@ import { tradeRoutes } from "./trade/routes";
 import { userRoutes } from "./user/routes";
 import { voiceRoutes } from "./voice/routes";
 import { webhookRoutes } from "./webhook/routes";
+import { reportRoutes } from "./reports/routes";
 
 import type { Request, Response } from "express";
 
@@ -61,6 +62,7 @@ export async function createApp() {
   apiRouter.use("/voice", authMiddleware, voiceRoutes());  // Mounts /api/voice/intent
   apiRouter.use("/", ordersRoutes()); // Mounts /api/orders
   apiRouter.use("/", energyRequestRoutes()); // Mounts energy request routes
+  apiRouter.use("/reports", reportRoutes()); // Mounts /api/reports/eod-trades
 
   // Mount the main API router with /api prefix
   apiRouter.use("/health", (req: Request, res: Response) => {

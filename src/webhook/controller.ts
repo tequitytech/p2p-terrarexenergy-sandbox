@@ -927,10 +927,15 @@ export const onConfirm = (req: Request, res: Response) => {
         orderItems[0]?.["beckn:id"] ||
         `item-${context.transaction_id}`;
 
+      const buyerPlatformId = context.bap_id;
+      const buyerDiscomId = order?.['beckn:buyer']?.['beckn:buyerAttributes']?.['utilityId'] || null;
       await settlementStore.createSettlement(
         context.transaction_id,
         orderItemId,
         totalQuantity,
+        'SELLER',
+        buyerPlatformId,
+        buyerDiscomId
       );
       console.log(
         `[Confirm] Settlement record created: txn=${context.transaction_id}, qty=${totalQuantity}`,
