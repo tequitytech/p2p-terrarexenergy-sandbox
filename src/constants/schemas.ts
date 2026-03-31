@@ -5,7 +5,9 @@ export const BECKN_CONTEXT_ROOT = "https://raw.githubusercontent.com/beckn/proto
 // export const BECKN_CONTEXT_ROOT = "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/main/schema/core/v2/context.jsonld";
 
 // DEG P2P Trading uses consolidated EnergyTrade schema from protocol-specifications-v2
-export const ENERGY_TRADE_SCHEMA_CTX = "https://raw.githubusercontent.com/beckn/DEG/tags/deg-1.0.0/specification/schema/EnergyTrade/v0.3/context.jsonld";
+// export const ENERGY_TRADE_SCHEMA_CTX = "https://raw.githubusercontent.com/beckn/DEG/tags/deg-1.0.0/specification/schema/EnergyTrade/v0.3/context.jsonld";
+export const ENERGY_TRADE_SCHEMA_CTX = "https://raw.githubusercontent.com/beckn/DEG/tags/deg-1.0.1/specification/schema/EnergyTrade/v0.3/context.jsonld";
+
 
 // export const ENERGY_TRADE_SCHEMA_CTX = "https://raw.githubusercontent.com/beckn/DEG/refs/heads/p2p-trading/specification/schema/EnergyTrade/v0.3/context.jsonld";
 // All energy schemas point to consolidated EnergyTrade/v0.3
