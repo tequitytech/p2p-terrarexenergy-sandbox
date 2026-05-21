@@ -1,0 +1,12 @@
+aws_region      = "us-east-2"
+domain_name     = "app.yourdomain.com"
+hosted_zone_id  = "Z1234567890ABC"
+ec2_instance_id = "i-0abc1234567890"
+vpc_id          = "vpc-0abc1234"
+subnet_ids      = ["subnet-0abc1234", "subnet-0def5678"]
+app_port        = 3001
+
+# CloudWatch Docker logging
+ec2_iam_role_name  = "your-ec2-role-name"
+app_name           = "p2p-trading"
+log_retention_days = 30
